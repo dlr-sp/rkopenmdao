@@ -10,7 +10,7 @@ from examples.heatequation.heat_equation_stage_inner_component import (
     HeatEquationStageComponent,
 )
 
-from src.runge_kutta_openmdao.rk_component_stage import RungeKuttaIntegrator
+from src.runge_kutta_openmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
 
 class MiddleNeumann(om.ExplicitComponent):
@@ -215,7 +215,7 @@ if __name__ == "__main__":
         RungeKuttaIntegrator(
             inner_problem=inner_prob,
             butcher_tableau=butcher_tableau,
-            num_steps=1,
+            num_steps=1000,
             initial_time=0.0,
             delta_t=1e-4,
             write_file="inner_problem_stage.txt",
@@ -230,4 +230,4 @@ if __name__ == "__main__":
     outer_prob.run_model()
 
     print("done running model, starting checking partials")
-    outer_prob.check_partials(step=1e-4)
+    # outer_prob.check_partials(step=1e-4)

@@ -123,9 +123,14 @@ class RungeKuttaStage:
                 initial_guess,
                 method="krylov",
                 options={
-                    "ftol:": 1e-6,
-                    "fatol": 1e-12,
-                    "jac_options": {"method": "gmres", "inner_maxiter": 1000},
+                    "ftol:": 1e-10,
+                    "fatol": 1e-10,
+                    "jac_options": {
+                        "method": "gmres",
+                        "inner_maxiter": 1000,
+                        "inner_atol": "legacy",
+                        "inner_tol": 1e-12,
+                    },
                 },
             )
             return result.x

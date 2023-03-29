@@ -83,7 +83,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         if self.options["write_file"] is not None:
             with open(self.options["write_file"], mode="w", encoding="utf-8") as f:
-                first_line = str("time")
+                first_line = "time"
                 second_line = str(time)
                 for quantity, var_tuple in self.options[
                     "quantity_to_inner_vars"

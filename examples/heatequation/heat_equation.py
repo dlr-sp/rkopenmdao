@@ -198,7 +198,7 @@ class HeatEquation:
             matrix if mode == "fwd" else matrix.transpose(),
             rhs,
             x0=guess,
-            **self.solver_options
+            **self.solver_options,
         )
         return result
 
@@ -210,31 +210,54 @@ class HeatEquation:
         butcher_tableau: runge_kutta.ButcherTableau,
     ):
         previous_stages = {}
-        new_value = old_value.copy()
+        accumulated_stages = np.zeros_like(old_value)
         for i in range(butcher_tableau.number_of_stages()):
+            for j in range(i):
+                accumulated_stages += (
+                    butcher_tableau.butcher_matrix[i, j] * previous_stages[j]
+                )
+
             new_stage = self.solve_heat_equation_time_stage_residual(
-                time,
+                time + butcher_tableau.butcher_time_stages[i] * delta_t,
                 delta_t,
-                butcher_tableau,
-                i,
+                butcher_tableau.butcher_matrix[i, i],
                 old_value.copy(),
+                accumulated_stages,
                 current_guess=None,
-                **previous_stages
             )
-            previous_stages[str(i)] = new_stage
-            new_value += delta_t * butcher_tableau.butcher_weight_vector[i] * new_stage
-        return new_value
+            previous_stages[i] = new_stage
+            accumulated_stages.fill(0.0)
+
+        accumulated_stages += old_value
+        for i in range(butcher_tableau.number_of_stages()):
+            accumulated_stages += (
+                delta_t * butcher_tableau.butcher_weight_vector[i] * previous_stages[i]
+            )
+
+        return accumulated_stages
 
     def solve_heat_equation(
         self,
         butcher_tableau: runge_kutta.ButcherTableau,
         delta_t: float,
         number_of_steps: int,
+        output_file=None,
     ):
         current_vector = self.initial_vector.copy()
         current_time = self.time
-        solution = {current_time: current_vector.copy()}
-        print(current_time, current_vector)
+        with open(output_file, mode="w", encoding="utf-8") as f:
+            first_line = "time,heat\n"
+            second_line = (
+                f"{current_time},"
+                + np.array2string(
+                    current_vector,
+                    max_line_width=20 * current_vector.size,
+                    separator=" ",
+                )
+                + "\n"
+            )
+            f.write(first_line)
+            f.write(second_line)
 
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
@@ -263,7 +286,17 @@ class HeatEquation:
                     current_time, delta_t, current_vector, butcher_tableau
                 )
                 current_time += delta_t
-                solution[current_time] = current_vector
+                with open(output_file, mode="a", encoding="utf-8") as f:
+                    line = (
+                        f"{current_time},"
+                        + np.array2string(
+                            current_vector,
+                            max_line_width=20 * current_vector.size,
+                            separator=" ",
+                        )
+                        + "\n"
+                    )
+                    f.write(line)
                 if i % 10 == 0:
                     im = ax.plot_surface(
                         x,
@@ -277,14 +310,10 @@ class HeatEquation:
                         animated=True,
                     )
                     ims.append([im])
-                    print(
-                        current_time,
-                        current_vector,
-                    )
+
             except ValueError:
                 break
         ani = animation.ArtistAnimation(
             fig, ims, interval=200, blit=True, repeat_delay=1000
         )
         ani.save("HeatEqu.mp4")
-        return solution
