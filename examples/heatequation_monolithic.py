@@ -40,4 +40,4 @@ heatequation = heat_equation.HeatEquation(
     {"tol": 1e-12, "atol": "legacy"},
 )
 
-heatequation.solve_heat_equation(butcher_tableau, 1e-4, 1000, "monolithic.txt")
+heatequation.solve_heat_equation(butcher_tableau, 1e-4, 1000, "monolithic.h5")

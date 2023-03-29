@@ -1,6 +1,7 @@
 # from typing import Dict, Tuple
 import numpy as np
 import openmdao.api as om
+import h5py
 
 
 from src.runge_kutta_openmdao.runge_kutta.runge_kutta import ButcherTableau
@@ -30,6 +31,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             default=1,
             desc="number of time steps to be computed",
         )
+
+        self.options.declare(
+            "checkpoint_distance",
+            types=int,
+            default=0,
+            lower=0,
+            desc="how many time steps happen between checkpoints. 0 (the default) means no checkpointing",
+        )
+
         self.options.declare(
             "initial_time",
             types=float,
@@ -39,9 +49,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare("delta_t", types=float, desc="Size of the time step.")
         self.options.declare(
             "write_file",
-            types=(str, None),
-            default=None,
-            desc="If not none, a file where the results of each time steps are written.",
+            types=str,
+            default="data.h5",
+            desc="The file where the results of each time steps are written.",
         )
 
         self.options.declare(
@@ -81,26 +91,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             old_variable_name = var_tuple[0]
             inner_problem.set_val(old_variable_name, inputs[quantity + "_initial"])
 
-        if self.options["write_file"] is not None:
-            with open(self.options["write_file"], mode="w", encoding="utf-8") as f:
-                first_line = "time"
-                second_line = str(time)
-                for quantity, var_tuple in self.options[
-                    "quantity_to_inner_vars"
-                ].items():
-                    first_line += "," + var_tuple[0]
-                    second_line += "," + np.array2string(
-                        a=inputs[quantity + "_initial"],
-                        precision=16,
-                        max_line_width=40 * inputs[quantity + "_initial"].size,
-                        separator=" ",
-                    )
-                first_line += "\n"
-                second_line += "\n"
-                f.write(first_line)
-                f.write(second_line)
+        with h5py.File(self.options["write_file"], mode="w") as f:
+            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+                f.create_dataset(quantity + "/0", data=inputs[quantity + "_initial"])
 
-        for step in range(num_steps):
+        for step in range(1, num_steps + 1):
             for subsys in inner_problem.model.system_iter(
                 include_self=True, recurse=True
             ):
@@ -174,20 +169,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 inner_problem[var_tuple[0]] += accumulated_stages[quantity + "_initial"]
             accumulated_stages.asarray().fill(0.0)
 
-            if self.options["write_file"] is not None:
-                with open(self.options["write_file"], mode="a", encoding="utf-8") as f:
-                    line = str(time)
+            if step % self.options["checkpoint_distance"] == 0 or step == num_steps:
+                with h5py.File(self.options["write_file"], mode="r+") as f:
                     for quantity, var_tuple in self.options[
                         "quantity_to_inner_vars"
                     ].items():
-                        line += "," + np.array2string(
-                            a=inner_problem[var_tuple[0]],
-                            precision=16,
-                            max_line_width=40 * inputs[quantity + "_initial"].size,
-                            separator=" ",
+                        f.create_dataset(
+                            quantity + "/" + str(step), data=inner_problem[var_tuple[0]]
                         )
-                    line += "\n"
-                    f.write(line)
 
         # get the result at the end
         for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():

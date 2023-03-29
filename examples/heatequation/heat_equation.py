@@ -3,8 +3,8 @@ from typing import Callable
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, gmres
 import matplotlib.pyplot as plt
-from matplotlib import cm
-import matplotlib.animation as animation
+from matplotlib import animation, cm
+import h5py
 
 from examples.heatequation.src import fdm_matrix, domain, boundary, inhomogenity
 from src.runge_kutta_openmdao.runge_kutta import runge_kutta
@@ -242,23 +242,12 @@ class HeatEquation:
         delta_t: float,
         number_of_steps: int,
         output_file=None,
+        checkpoint_distance=10,
     ):
         current_vector = self.initial_vector.copy()
         current_time = self.time
-        with open(output_file, mode="w", encoding="utf-8") as f:
-            first_line = "time,heat\n"
-            second_line = (
-                f"{current_time},"
-                + np.array2string(
-                    current_vector,
-                    precision=16,
-                    max_line_width=40 * current_vector.size,
-                    separator=" ",
-                )
-                + "\n"
-            )
-            f.write(first_line)
-            f.write(second_line)
+        with h5py.File(output_file, mode="w") as f:
+            f.create_dataset("heat/0", data=current_vector)
 
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
@@ -281,25 +270,16 @@ class HeatEquation:
         )
         ims.append([im])
 
-        for i in range(number_of_steps):
+        for i in range(1, number_of_steps + 1):
             try:
                 current_vector = self.heat_equation_time_step(
                     current_time, delta_t, current_vector, butcher_tableau
                 )
                 current_time += delta_t
-                with open(output_file, mode="a", encoding="utf-8") as f:
-                    line = (
-                        f"{current_time},"
-                        + np.array2string(
-                            current_vector,
-                            precision=16,
-                            max_line_width=40 * current_vector.size,
-                            separator=" ",
-                        )
-                        + "\n"
-                    )
-                    f.write(line)
-                if i % 10 == 0:
+                if i % checkpoint_distance == 0:
+                    with h5py.File(output_file, mode="r+") as f:
+                        f.create_dataset("heat/" + str(i), data=current_vector)
+
                     im = ax.plot_surface(
                         x,
                         y,
