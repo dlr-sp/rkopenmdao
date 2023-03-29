@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 errors_half_1 = np.zeros(1001)
 errors_half_2 = np.zeros(1001)
+errors_rel_half_1 = np.zeros(1001)
+errors_rel_half_2 = np.zeros(1001)
 
 with open("monolithic.txt", mode="r", encoding="utf-8") as f_1, open(
     "inner_problem_stage.txt", mode="r", encoding="utf-8"
@@ -25,9 +27,13 @@ with open("monolithic.txt", mode="r", encoding="utf-8") as f_1, open(
         errors_half_2[i] = np.linalg.norm(
             heat_monolith[:, 5:].reshape(66) - heat_nested_2
         )
-        if errors_half_1[i] != 0 or errors_half_2[i] != 0:
-            print(errors_half_1[i], errors_half_2[i])
+        errors_rel_half_1[i] = errors_half_1[i] / np.linalg.norm(heat_nested_1)
+        errors_rel_half_2[i] = errors_half_2[i] / np.linalg.norm(heat_nested_2)
     times = np.linspace(0.0, 0.1, 1001)
-    plt.plot(times, errors_half_1)
-    plt.plot(times, errors_half_2)
-    plt.savefig("error.jpg")
+
+    fig, axs = plt.subplots(2, 2)
+    axs[0, 0].plot(times, errors_half_1)
+    axs[0, 1].plot(times, errors_half_2)
+    axs[1, 0].plot(times, errors_rel_half_1)
+    axs[1, 1].plot(times, errors_rel_half_2)
+    plt.savefig("error.png")

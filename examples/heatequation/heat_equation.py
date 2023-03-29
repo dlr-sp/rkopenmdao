@@ -251,7 +251,8 @@ class HeatEquation:
                 f"{current_time},"
                 + np.array2string(
                     current_vector,
-                    max_line_width=20 * current_vector.size,
+                    precision=16,
+                    max_line_width=40 * current_vector.size,
                     separator=" ",
                 )
                 + "\n"
@@ -291,7 +292,8 @@ class HeatEquation:
                         f"{current_time},"
                         + np.array2string(
                             current_vector,
-                            max_line_width=20 * current_vector.size,
+                            precision=16,
+                            max_line_width=40 * current_vector.size,
                             separator=" ",
                         )
                         + "\n"

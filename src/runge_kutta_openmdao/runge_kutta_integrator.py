@@ -91,7 +91,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     first_line += "," + var_tuple[0]
                     second_line += "," + np.array2string(
                         a=inputs[quantity + "_initial"],
-                        max_line_width=20 * inputs[quantity + "_initial"].size,
+                        precision=16,
+                        max_line_width=40 * inputs[quantity + "_initial"].size,
                         separator=" ",
                     )
                 first_line += "\n"
@@ -142,6 +143,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     )
 
                 inner_problem.run_model()
+                # inner_problem.check_partials()
+                # exit()
 
                 # cache computed stage
                 for quantity, var_tuple in self.options[
@@ -179,7 +182,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     ].items():
                         line += "," + np.array2string(
                             a=inner_problem[var_tuple[0]],
-                            max_line_width=20 * inputs[quantity + "_initial"].size,
+                            precision=16,
+                            max_line_width=40 * inputs[quantity + "_initial"].size,
                             separator=" ",
                         )
                     line += "\n"
@@ -207,7 +211,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             stage_cache[stage] = om.DefaultVector("nonlinear", "input", self)
 
         accumulated_stages = om.DefaultVector("nonlinear", "input", self)
-        accumulated_d_stages = om.DefaultVector("linear", "input", self)
 
         contributions = om.DefaultVector("linear", "input", self)
         contributions.add_scal_vec(1.0, d_inputs)
@@ -324,8 +327,139 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             d_outputs[quantity + "_final"] += contributions[quantity + "_initial"]
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
-        # raise NotImplementedError("rev mode is currently not implemented!")
-        pass
+        outputs = om.DefaultVector("nonlinear", "output", self)
+        self.compute(inputs, outputs)
+
+        inner_problem: om.Problem = self.options["inner_problem"]
+        time = self.options["initial_time"]
+        delta_t = self.options["delta_t"]
+        num_steps = self.options["num_steps"]
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+
+        time = time + (num_steps - 1) * delta_t
+
+        stage_cache = {}
+        for stage in range(butcher_tableau.number_of_stages()):
+            stage_cache[stage] = om.DefaultVector("nonlinear", "input", self)
+
+        accumulated_stages = om.DefaultVector("nonlinear", "input", self)
+
+        contributions = om.DefaultVector("linear", "output", self)
+        contributions.add_scal_vec(1.0, d_outputs)
+
+        of_vars = []
+        wrt_vars = []
+
+        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+            of_vars.append(var_tuple[2])
+            wrt_vars.append(var_tuple[0])
+
+        for subsys in inner_problem.model.system_iter(include_self=True, recurse=True):
+            if "delta_t" in subsys.options:
+                subsys.options["delta_t"] = self.options["delta_t"]
+
+        # set initial values
+        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+            old_variable_name = var_tuple[0]
+            inner_problem.set_val(old_variable_name, outputs[quantity + "_final"])
+
+        for step in range(num_steps - 1, -1, -1):
+            for subsys in inner_problem.model.system_iter(
+                include_self=True, recurse=True
+            ):
+                if "step" in subsys.options:
+                    subsys.options["step"] = step
+
+            seed = {}
+            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+                # fill witth "d_residual" values (according to documentation)
+                seed[var_tuple[2]] = contributions[quantity + "_final"].copy()
+
+            for stage in range(butcher_tableau.number_of_stages()):
+                for subsys in inner_problem.model.system_iter(
+                    include_self=True, recurse=True
+                ):
+                    if "stage_time" in subsys.options:
+                        subsys.options["stage_time"] = (
+                            time + delta_t * butcher_tableau.butcher_time_stages[stage]
+                        )
+                    if "butcher_diagonal_element" in subsys.options:
+                        subsys.options["butcher_diagonal_element"] = (
+                            butcher_tableau.butcher_matrix[stage, stage]
+                            - butcher_tableau.butcher_weight_vector[stage]
+                        )
+                    if "stage" in subsys.options:
+                        subsys.options["stage"] = stage
+
+                # accumulate previous stages for current stage
+                for prev_stage in range(stage):
+                    for quantity, var_tuple in self.options[
+                        "quantity_to_inner_vars"
+                    ].items():
+                        accumulated_stages[quantity + "_initial"] += (
+                            butcher_tableau.butcher_matrix[stage, prev_stage]
+                            * butcher_tableau.butcher_weight_vector[stage]
+                        ) * stage_cache[prev_stage][quantity + "_initial"]
+
+                # set accumulated previous stage in inner problem
+                for quantity, var_tuple in self.options[
+                    "quantity_to_inner_vars"
+                ].items():
+                    accumulated_variable_name = var_tuple[1]
+                    inner_problem.set_val(
+                        accumulated_variable_name,
+                        accumulated_stages[quantity + "_initial"],
+                    )
+
+                inner_problem.run_model()
+
+                jvp = inner_problem.compute_jacvec_product(
+                    of=of_vars, wrt=wrt_vars, mode="rev", seed=seed
+                )
+
+                for quantity, var_tuple in self.options[
+                    "quantity_to_inner_vars"
+                ].items():
+                    contributions[quantity + "_final"] += (
+                        delta_t
+                        * butcher_tableau.butcher_weight_vector[stage]
+                        * jvp[var_tuple[0]]
+                    )
+
+                # cache computed stage
+                for quantity, var_tuple in self.options[
+                    "quantity_to_inner_vars"
+                ].items():
+                    new_stage_name = var_tuple[2]
+                    stage_cache[stage].set_var(
+                        quantity + "_initial",
+                        inner_problem.get_val(new_stage_name),
+                    )
+                accumulated_stages.asarray().fill(0.0)
+
+            time = (step - 1) * delta_t
+
+            # print(time)
+
+            # compute contribution to new step
+            for stage in range(butcher_tableau.number_of_stages()):
+                for quantity, var_tuple in self.options[
+                    "quantity_to_inner_vars"
+                ].items():
+                    accumulated_stages[quantity + "_initial"] += (
+                        delta_t
+                        * butcher_tableau.butcher_weight_vector[stage]
+                        * stage_cache[stage][quantity + "_initial"]
+                    )
+
+            # add that contribution to the old step
+            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+                inner_problem[var_tuple[0]] -= accumulated_stages[quantity + "_initial"]
+            accumulated_stages.asarray().fill(0.0)
+
+        # get the result at the end
+        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+            d_inputs[quantity + "_initial"] += contributions[quantity + "_final"]
 
     def _setup_inputs_and_outputs_and_fill_quantity_to_inner_vars(self):
         inner_problem = self.options["inner_problem"]

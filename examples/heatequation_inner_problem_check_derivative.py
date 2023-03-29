@@ -198,13 +198,12 @@ if __name__ == "__main__":
         "flux_comp.reverse_flux", "heat_stage_2.boundary_segment_left"
     )
 
-    # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=True,
-        # atol=atol,
-        # rtol=rtol
+        maxiter=20,
+        iprint=0,
+        solve_subsystems=True,  # atol=atol, rtol=rtol
     )
-    newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
+    # newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
     inner_prob.model.linear_solver = om.ScipyKrylov(
         # atol=scipytol
     )
@@ -215,10 +214,9 @@ if __name__ == "__main__":
         RungeKuttaIntegrator(
             inner_problem=inner_prob,
             butcher_tableau=butcher_tableau,
-            num_steps=1000,
+            num_steps=2,
             initial_time=0.0,
             delta_t=1e-4,
-            write_file="inner_problem_stage.txt",
             quantity_tags=["heat_1", "heat_2"],
         ),
         promotes_inputs=["heat_1_initial", "heat_2_initial"],
@@ -228,3 +226,6 @@ if __name__ == "__main__":
     outer_prob.set_val("heat_1_initial", heat_equation_1.initial_vector)
     outer_prob.set_val("heat_2_initial", heat_equation_2.initial_vector)
     outer_prob.run_model()
+
+    print("done running model, starting checking partials")
+    outer_prob.check_partials(form="backward")
