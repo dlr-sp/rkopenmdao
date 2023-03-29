@@ -32,8 +32,39 @@ with open("monolithic.txt", mode="r", encoding="utf-8") as f_1, open(
     times = np.linspace(0.0, 0.1, 1001)
 
     fig, axs = plt.subplots(2, 2)
+    fig.subplots_adjust()
+    fig.set_size_inches(16, 12)
+    fig.suptitle(
+        r"Newton solver, solve_subsystems=True, $\Delta t = 10^{-4}$",
+        fontsize="xx-large",
+    )
+    for i in range(2):
+        for j in range(2):
+            axs[i, j].set_xlabel("time", fontsize="large")
+            axs[i, j].set_ylabel("error", fontsize="large")
+            axs[i, j].set_xlim(xmin=0.0, xmax=0.1)
+            if i == 0:
+                axs[i, j].set_ylim(ymin=0.0, ymax=2e-15)
+            else:
+                axs[i, j].set_ylim(ymin=0.0, ymax=1e-13)
     axs[0, 0].plot(times, errors_half_1)
+    axs[0, 0].set_title(
+        r"Abs. error left, $||\~{u}^{left side} - \~{u}_1||$",
+        fontsize="x-large",
+    )
     axs[0, 1].plot(times, errors_half_2)
+    axs[0, 1].set_title(
+        r"Abs. error right, $||\~{u}^{right side} - \~{u}_2||$",
+        fontsize="x-large",
+    )
     axs[1, 0].plot(times, errors_rel_half_1)
+    axs[1, 0].set_title(
+        r"Rel. error left,  $||\~{u}^{left side} - \~{u}_1|| / ||\~{u}^{left side}||$",
+        fontsize="x-large",
+    )
     axs[1, 1].plot(times, errors_rel_half_2)
-    plt.savefig("error.png")
+    axs[1, 1].set_title(
+        r"Rel. error right, $||\~{u}^{right side} - \~{u}_2||/||\~{u}^{right side}||$",
+        fontsize="x-large",
+    )
+    fig.savefig("error.png")

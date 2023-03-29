@@ -194,6 +194,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             outputs[quantity + "_final"] = inner_problem.get_val(var_tuple[0])
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+        # currently, no intermediate tim steps are cached, so everything is recomputed.
+        # probably, at least some checkpoints would be nice
+        # depending of the size of the vectors all or also just very few intermediate time steps could be cached.
+        #
+        # Furthermore, these derivatives are currently not very well tested.
+        # While I used check_derivatives here, I'm unsure about the correctness.
+        # The results are rather close to each other, but not as close as they should be ideally.
         if mode == "fwd":
             self._compute_jacvec_product_fwd(inputs, d_inputs, d_outputs)
         elif mode == "rev":

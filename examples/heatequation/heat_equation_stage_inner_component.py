@@ -55,7 +55,6 @@ class HeatEquationStageComponent(om.ImplicitComponent):
         left = None
         right = None
         for segment in self.options["shared_boundary"]:
-            # gets neumann boundary condition by one sided difference
             if segment == "upper":
                 upper = inputs[f"boundary_segment_{segment}"]
 
