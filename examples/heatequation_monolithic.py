@@ -36,8 +36,8 @@ heatequation = heat_equation.HeatEquation(
     lambda t, x, y: 0.0,
     example_boundary,
     1.0,
-    lambda x, y: g(x) * g(y),
+    lambda x, y: g(x) * g(y) + 1,
     {"tol": 1e-12, "atol": "legacy"},
 )
 
-heatequation.solve_heat_equation(butcher_tableau, 1e-4, 1000, "monolithic.h5")
+heatequation.solve_heat_equation(butcher_tableau, 1e-4, 1000, "monolithic.h5", 10)

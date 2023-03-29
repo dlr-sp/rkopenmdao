@@ -131,7 +131,7 @@ if __name__ == "__main__":
         lambda t, x, y: 0.0,
         boundary_condition_1,
         1.0,
-        lambda x, y: g(x) * g(y),
+        lambda x, y: g(x) * g(y) + 1,
         {"tol": 1e-12, "atol": "legacy"},
     )
 
@@ -140,7 +140,7 @@ if __name__ == "__main__":
         lambda t, x, y: 0.0,
         boundary_condition_2,
         1.0,
-        lambda x, y: g(x) * g(y),
+        lambda x, y: g(x) * g(y) + 1,
         {"tol": 1e-12, "atol": "legacy"},
     )
 
@@ -204,10 +204,11 @@ if __name__ == "__main__":
         # atol=atol,
         # rtol=rtol
     )
-    newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
-    inner_prob.model.linear_solver = om.ScipyKrylov(
-        # atol=scipytol
-    )
+
+    # inner_prob.model.linear_solver = om.ScipyKrylov(
+    #     # atol=scipytol
+    # )
+    inner_prob.model.linear_solver = om.LinearBlockGS()
 
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(
