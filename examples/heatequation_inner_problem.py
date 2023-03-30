@@ -58,7 +58,7 @@ class MiddleNeumann(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    points_per_direction = 11
+    points_per_direction = 21
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
     domain_half_1 = Domain([0.0, 0.5], [0.0, 1.0], points_x, points_per_direction)
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     inner_prob = om.Problem()
 
     inner_prob.model.add_subsystem(
-        "heat_stage_1",
+        "heat_component_1",
         HeatEquationStageComponent(
             heat_equation=heat_equation_1, shared_boundary=["right"], domain_num=1
         ),
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         ],
     )
     inner_prob.model.add_subsystem(
-        "heat_stage_2",
+        "heat_component_2",
         HeatEquationStageComponent(
             heat_equation=heat_equation_2, shared_boundary=["left"], domain_num=2
         ),
@@ -193,9 +193,11 @@ if __name__ == "__main__":
         src_indices=left_boundary_indices_1,
     )
 
-    inner_prob.model.connect("flux_comp.flux", "heat_stage_1.boundary_segment_right")
     inner_prob.model.connect(
-        "flux_comp.reverse_flux", "heat_stage_2.boundary_segment_left"
+        "flux_comp.flux", "heat_component_1.boundary_segment_right"
+    )
+    inner_prob.model.connect(
+        "flux_comp.reverse_flux", "heat_component_2.boundary_segment_left"
     )
 
     # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()

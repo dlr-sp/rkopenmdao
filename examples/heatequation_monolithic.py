@@ -6,7 +6,10 @@ from examples.heatequation.src.boundary import BoundaryCondition
 
 from src.runge_kutta_openmdao.runge_kutta.runge_kutta import ButcherTableau
 
-example_domain = Domain([0.0, 1.0], [0.0, 1.0], 11, 11)
+points_per_direction = 21
+example_domain = Domain(
+    [0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction
+)
 example_boundary = BoundaryCondition(
     upper=lambda t, x, y: 0.0,
     lower=lambda t, x, y: 0.0,

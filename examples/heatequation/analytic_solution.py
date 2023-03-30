@@ -10,8 +10,9 @@ def analytic_solution_to_example_heat_equation(t, x, y):
     )
 
 
-x = np.linspace(0.0, 1.0, 11)
-y = np.linspace(0.0, 1.0, 11)
+points_per_direction = 21
+x = np.linspace(0.0, 1.0, points_per_direction)
+y = np.linspace(0.0, 1.0, points_per_direction)
 
 x, y = np.meshgrid(x, y)
 
@@ -20,6 +21,6 @@ with h5py.File("analytic.h5", mode="w") as f:
     for i in range(0, 101):
         time = i * 1e-3
         step_result = analytic_solution_to_example_heat_equation(time, x, y).reshape(
-            121
+            points_per_direction * points_per_direction
         )
         f.create_dataset("heat/" + str(checkpoint_distance * i), data=step_result)

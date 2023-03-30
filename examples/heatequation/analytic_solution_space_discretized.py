@@ -16,23 +16,37 @@ def analytic_solution_to_example_heat_equation(t, x, y):
     )
 
 
-x = np.linspace(0.0, 1.0, 11)
-y = np.linspace(0.0, 1.0, 11)
+points_per_direction = 21
+x = np.linspace(0.0, 1.0, points_per_direction)
+y = np.linspace(0.0, 1.0, points_per_direction)
 
 x, y = np.meshgrid(x, y)
 
 
-example_domain = Domain([0.0, 1.0], [0.0, 1.0], 11, 11)
+example_domain = Domain(
+    [0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction
+)
 fdm_mat = FdmMatrix(example_domain, 1.0)
 fdm_mat_lin_op = LinearOperator(
-    shape=(121, 121),
+    shape=(
+        points_per_direction * points_per_direction,
+        points_per_direction * points_per_direction,
+    ),
     matvec=fdm_mat.mat_vec_prod,
     rmatvec=fdm_mat.mat_vec_prod_transpose,
 )
-initial = analytic_solution_to_example_heat_equation(0.0, x, y).reshape(121)
+initial = analytic_solution_to_example_heat_equation(0.0, x, y).reshape(
+    points_per_direction * points_per_direction
+)
 
 step_results = expm_multiply(
-    fdm_mat_lin_op, initial, start=0.0, stop=0.1, num=101, endpoint=True
+    fdm_mat_lin_op,
+    initial,
+    start=0.0,
+    stop=0.1,
+    num=101,
+    endpoint=True,
+    traceA=-4 * points_per_direction**2 * (points_per_direction - 1) ** 2,
 )
 
 checkpoint_distance = 10
