@@ -1,7 +1,7 @@
 # from typing import List
 import openmdao.api as om
 
-from examples.heatequation.heat_equation import HeatEquation
+from .heatequation import HeatEquation
 
 
 class HeatEquationStageComponent(om.ImplicitComponent):

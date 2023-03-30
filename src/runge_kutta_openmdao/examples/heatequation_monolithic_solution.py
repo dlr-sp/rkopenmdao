@@ -1,10 +1,10 @@
 import numpy as np
 
-from examples.heatequation import heat_equation
-from examples.heatequation.src.domain import Domain
-from examples.heatequation.src.boundary import BoundaryCondition
+from runge_kutta_openmdao.heatequation import heatequation
+from runge_kutta_openmdao.heatequation.domain import Domain
+from runge_kutta_openmdao.heatequation.boundary import BoundaryCondition
 
-from src.runge_kutta_openmdao.runge_kutta.runge_kutta import ButcherTableau
+from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
 
 points_per_direction = 21
 example_domain = Domain(
@@ -34,7 +34,7 @@ butcher_tableau = ButcherTableau(
     np.array([gamma, 1.0]),
 )
 
-heatequation = heat_equation.HeatEquation(
+heatequation = heatequation.HeatEquation(
     example_domain,
     lambda t, x, y: 0.0,
     example_boundary,

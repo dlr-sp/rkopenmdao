@@ -1,16 +1,18 @@
 import numpy as np
 import openmdao.api as om
 
-from src.runge_kutta_openmdao.runge_kutta.runge_kutta import ButcherTableau
+from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
 
-from examples.heatequation.src.boundary import BoundaryCondition
-from examples.heatequation.src.domain import Domain
-from examples.heatequation.heat_equation import HeatEquation
-from examples.heatequation.heat_equation_stage_inner_component import (
+from runge_kutta_openmdao.heatequation.boundary import BoundaryCondition
+from runge_kutta_openmdao.heatequation.domain import Domain
+from runge_kutta_openmdao.heatequation.heatequation import HeatEquation
+from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
 
-from src.runge_kutta_openmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
+    RungeKuttaIntegrator,
+)
 
 
 class MiddleNeumann(om.ExplicitComponent):
@@ -58,7 +60,7 @@ class MiddleNeumann(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    points_per_direction = 11
+    points_per_direction = 21
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
     domain_half_1 = Domain([0.0, 0.5], [0.0, 1.0], points_x, points_per_direction)
@@ -131,7 +133,7 @@ if __name__ == "__main__":
         lambda t, x, y: 0.0,
         boundary_condition_1,
         1.0,
-        lambda x, y: g(x) * g(y),
+        lambda x, y: g(x) * g(y) + 1,
         {"tol": 1e-12, "atol": "legacy"},
     )
 
@@ -140,14 +142,14 @@ if __name__ == "__main__":
         lambda t, x, y: 0.0,
         boundary_condition_2,
         1.0,
-        lambda x, y: g(x) * g(y),
+        lambda x, y: g(x) * g(y) + 1,
         {"tol": 1e-12, "atol": "legacy"},
     )
 
     inner_prob = om.Problem()
 
     inner_prob.model.add_subsystem(
-        "heat_stage_1",
+        "heat_component_1",
         HeatEquationStageComponent(
             heat_equation=heat_equation_1, shared_boundary=["right"], domain_num=1
         ),
@@ -161,7 +163,7 @@ if __name__ == "__main__":
         ],
     )
     inner_prob.model.add_subsystem(
-        "heat_stage_2",
+        "heat_component_2",
         HeatEquationStageComponent(
             heat_equation=heat_equation_2, shared_boundary=["left"], domain_num=2
         ),
@@ -193,20 +195,24 @@ if __name__ == "__main__":
         src_indices=left_boundary_indices_1,
     )
 
-    inner_prob.model.connect("flux_comp.flux", "heat_stage_1.boundary_segment_right")
     inner_prob.model.connect(
-        "flux_comp.reverse_flux", "heat_stage_2.boundary_segment_left"
+        "flux_comp.flux", "heat_component_1.boundary_segment_right"
+    )
+    inner_prob.model.connect(
+        "flux_comp.reverse_flux", "heat_component_2.boundary_segment_left"
     )
 
+    # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-        maxiter=20,
-        iprint=0,
-        solve_subsystems=True,  # atol=atol, rtol=rtol
+        solve_subsystems=True,
+        # atol=atol,
+        # rtol=rtol
     )
-    # newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
-    inner_prob.model.linear_solver = om.ScipyKrylov(
-        # atol=scipytol
-    )
+
+    # inner_prob.model.linear_solver = om.ScipyKrylov(
+    #     # atol=scipytol
+    # )
+    inner_prob.model.linear_solver = om.LinearBlockGS()
 
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(
@@ -214,9 +220,11 @@ if __name__ == "__main__":
         RungeKuttaIntegrator(
             inner_problem=inner_prob,
             butcher_tableau=butcher_tableau,
-            num_steps=2,
+            num_steps=1000,
+            checkpoint_distance=10,
             initial_time=0.0,
             delta_t=1e-4,
+            write_file="inner_problem_stage.h5",
             quantity_tags=["heat_1", "heat_2"],
         ),
         promotes_inputs=["heat_1_initial", "heat_2_initial"],
@@ -226,6 +234,3 @@ if __name__ == "__main__":
     outer_prob.set_val("heat_1_initial", heat_equation_1.initial_vector)
     outer_prob.set_val("heat_2_initial", heat_equation_2.initial_vector)
     outer_prob.run_model()
-
-    print("done running model, starting checking partials")
-    outer_prob.check_partials(form="backward")

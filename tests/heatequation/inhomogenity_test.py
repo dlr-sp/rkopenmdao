@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from heatequation.src import domain, boundary, inhomogenity
+from runge_kutta_openmdao.heatequation import domain, boundary, inhomogenity
 
 
 test_domain = domain.Domain([0.0, 1.0], [0.0, 1.0], 11, 11)

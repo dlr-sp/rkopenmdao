@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 
-from heatequation.src import boundary
+from runge_kutta_openmdao.heatequation import boundary
 
 
 @pytest.mark.heatequ

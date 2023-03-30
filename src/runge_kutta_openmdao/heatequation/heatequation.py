@@ -2,12 +2,11 @@ from typing import Union
 from typing import Callable
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, gmres
-import matplotlib.pyplot as plt
-from matplotlib import animation, cm
 import h5py
 
-from examples.heatequation.src import fdm_matrix, domain, boundary, inhomogenity
-from src.runge_kutta_openmdao.runge_kutta import runge_kutta
+from runge_kutta_openmdao.runge_kutta import runge_kutta
+
+from . import fdm_matrix, domain, boundary, inhomogenity
 
 
 class HeatEquation:
@@ -241,34 +240,13 @@ class HeatEquation:
         butcher_tableau: runge_kutta.ButcherTableau,
         delta_t: float,
         number_of_steps: int,
-        output_file=None,
+        output_file="data.h5",
         checkpoint_distance=10,
     ):
         current_vector = self.initial_vector.copy()
         current_time = self.time
         with h5py.File(output_file, mode="w") as f:
             f.create_dataset("heat/0", data=current_vector)
-
-        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-
-        x = np.linspace(0, 1, self.domain.n_x)
-        y = np.linspace(0, 1, self.domain.n_y)
-        x, y = np.meshgrid(x, y)
-
-        ims = []
-
-        ax.set_zlim(-2.0, 2.0)
-        im = ax.plot_surface(
-            x,
-            y,
-            current_vector.reshape(self.domain.n_x, self.domain.n_y),
-            cmap=cm.coolwarm,
-            vmin=-3.0,
-            vmax=+3.0,
-            linewidth=0,
-            antialiased=False,
-        )
-        ims.append([im])
 
         for i in range(1, number_of_steps + 1):
             try:
@@ -280,22 +258,5 @@ class HeatEquation:
                     with h5py.File(output_file, mode="r+") as f:
                         f.create_dataset("heat/" + str(i), data=current_vector)
 
-                    im = ax.plot_surface(
-                        x,
-                        y,
-                        current_vector.reshape(self.domain.n_x, self.domain.n_y),
-                        cmap=cm.coolwarm,
-                        vmin=-3.0,
-                        vmax=+3.0,
-                        linewidth=0,
-                        antialiased=False,
-                        animated=True,
-                    )
-                    ims.append([im])
-
             except ValueError:
                 break
-        ani = animation.ArtistAnimation(
-            fig, ims, interval=200, blit=True, repeat_delay=1000
-        )
-        ani.save("HeatEqu.mp4")

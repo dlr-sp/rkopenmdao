@@ -3,7 +3,8 @@ import numpy as np
 import pytest
 
 
-from runge_kutta import runge_kutta
+from runge_kutta_openmdao.runge_kutta import runge_kutta
+from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
 
 
 @pytest.mark.rk

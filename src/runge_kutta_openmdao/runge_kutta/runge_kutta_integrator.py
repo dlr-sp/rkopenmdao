@@ -1,10 +1,8 @@
-# from typing import Dict, Tuple
-import numpy as np
 import openmdao.api as om
 import h5py
 
 
-from src.runge_kutta_openmdao.runge_kutta.runge_kutta import ButcherTableau
+from .butcher_tableau import ButcherTableau
 
 
 class RungeKuttaIntegrator(om.ExplicitComponent):
@@ -63,7 +61,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare("quantity_to_inner_vars", default={})
 
     def setup(self):
-        inner_problem: om.Problem = self.options["inner_problem"].setup()
+        self.options["inner_problem"].setup()
 
         self._setup_inputs_and_outputs_and_fill_quantity_to_inner_vars()
 

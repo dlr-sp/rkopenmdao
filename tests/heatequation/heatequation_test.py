@@ -1,9 +1,10 @@
 import pytest
 import numpy as np
 
-from heatequation import heat_equation
+from runge_kutta_openmdao.heatequation import heatequation
 
 # TODO: Design test cases
+# TODO: And check whether these tests even make sense with the current variant of heat equation
 
 
 def test_set_time(time, example_heat_equation, expected_pde_inhom):

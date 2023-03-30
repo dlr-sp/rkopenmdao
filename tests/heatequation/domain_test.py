@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from heatequation.src import domain
+from runge_kutta_openmdao.heatequation import domain
 
 
 @pytest.mark.heatequ

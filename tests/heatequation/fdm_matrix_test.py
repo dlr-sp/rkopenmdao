@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from heatequation.src import fdm_matrix, domain
+from runge_kutta_openmdao.heatequation import fdm_matrix, domain
 
 
 domain_1 = domain.Domain([0, 1], [0, 1], 10, 10)
