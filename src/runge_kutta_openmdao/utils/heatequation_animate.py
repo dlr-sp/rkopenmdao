@@ -8,9 +8,9 @@ if __name__ == "__main__":
     points_x = points_per_direction // 2 + 1
 
     fig = plt.figure()
-    ax1 = fig.add_subplot(1, 3, 1, projection="3d")
-    ax2 = fig.add_subplot(1, 3, 2, projection="3d")
-    ax3 = fig.add_subplot(1, 3, 3, projection="3d")
+    axs = []
+    for i in range(1, 4):
+        axs.append(fig.add_subplot(2, 3, i + 3 * (i % 2 == 0), projection="3d"))
 
     x = np.linspace(0, 1.0, points_per_direction)
     y = np.linspace(0, 1.0, points_per_direction)
@@ -24,8 +24,17 @@ if __name__ == "__main__":
     y_2 = np.linspace(0, 1, points_per_direction)
     x_2, y_2 = np.meshgrid(x_2, y_2)
 
-    ax1.set_zlim(0.0, 2.0)
-    ax2.set_zlim(0.0, 2.0)
+    for ax in axs:
+        ax.set_xlim(0.0, 1.0)
+        ax.set_xlabel("x")
+        ax.set_ylim(0.0, 1.0)
+        ax.set_ylabel("y")
+        ax.set_zlim(0.0, 2.0)
+        ax.set_zlabel("heat")
+
+    axs[0].set_title("analytic solution")
+    axs[1].set_title("monolithic numerical solution")
+    axs[2].set_title("OpenMDAO numerical solution")
     ims = []
 
     checkpoint_distance = 10
@@ -39,7 +48,7 @@ if __name__ == "__main__":
             heat_nested_1 = np.array(f_1["heat_1/" + str(i * checkpoint_distance)])
             heat_nested_2 = np.array(f_1["heat_2/" + str(i * checkpoint_distance)])
 
-            im1 = ax1.plot_surface(
+            im1 = axs[0].plot_surface(
                 x,
                 y,
                 heat_analytic.reshape(points_per_direction, points_per_direction),
@@ -49,7 +58,7 @@ if __name__ == "__main__":
                 linewidth=0,
                 antialiased=False,
             )
-            im2 = ax2.plot_surface(
+            im2 = axs[1].plot_surface(
                 x,
                 y,
                 heat_monolithic.reshape(points_per_direction, points_per_direction),
@@ -60,7 +69,7 @@ if __name__ == "__main__":
                 antialiased=False,
             )
 
-            im3 = ax3.plot_surface(
+            im3 = axs[2].plot_surface(
                 x_1,
                 y_1,
                 heat_nested_1.reshape(points_per_direction, points_x),
@@ -70,7 +79,7 @@ if __name__ == "__main__":
                 linewidth=0,
                 antialiased=False,
             )
-            im4 = ax3.plot_surface(
+            im4 = axs[2].plot_surface(
                 x_2,
                 y_2,
                 heat_nested_2.reshape(points_per_direction, points_x),
@@ -82,13 +91,14 @@ if __name__ == "__main__":
             )
             ims.append([im1, im2, im3, im4])
 
-    fig.subplots_adjust(bottom=0.8)
-    cax = fig.add_axes([0.1, 0.1, 0.8, 0.1])
+    fig.subplots_adjust(bottom=0.15)
+    cax = fig.add_axes([0.2, 0.05, 0.6, 0.05])
 
     fig.colorbar(
         cm.ScalarMappable(norm=colors.Normalize(vmin=0.0, vmax=2.0), cmap=cm.coolwarm),
         cax=cax,
+        location="bottom",
     )
 
     ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat=False)
-    ani.save("HeatEquOpenMDAO_stage_inner_problem.mp4")
+    ani.save("HeatEquOpenMDAOAnimation.mp4")
