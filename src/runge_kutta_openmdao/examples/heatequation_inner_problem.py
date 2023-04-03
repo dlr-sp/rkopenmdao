@@ -13,6 +13,7 @@ from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
+from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 
 class MiddleNeumann(om.ExplicitComponent):
@@ -146,12 +147,17 @@ if __name__ == "__main__":
         {"tol": 1e-12, "atol": "legacy"},
     )
 
+    integration_control = IntegrationControl(0.0, 1000, 10, 1e-4)
+
     inner_prob = om.Problem()
 
     inner_prob.model.add_subsystem(
         "heat_component_1",
         HeatEquationStageComponent(
-            heat_equation=heat_equation_1, shared_boundary=["right"], domain_num=1
+            heat_equation=heat_equation_1,
+            shared_boundary=["right"],
+            domain_num=1,
+            integration_control=integration_control,
         ),
         promotes_inputs=[
             ("heat", "heat_1"),
@@ -165,7 +171,10 @@ if __name__ == "__main__":
     inner_prob.model.add_subsystem(
         "heat_component_2",
         HeatEquationStageComponent(
-            heat_equation=heat_equation_2, shared_boundary=["left"], domain_num=2
+            heat_equation=heat_equation_2,
+            shared_boundary=["left"],
+            domain_num=2,
+            integration_control=integration_control,
         ),
         promotes_inputs=[
             ("heat", "heat_2"),
@@ -220,10 +229,7 @@ if __name__ == "__main__":
         RungeKuttaIntegrator(
             inner_problem=inner_prob,
             butcher_tableau=butcher_tableau,
-            num_steps=1000,
-            checkpoint_distance=10,
-            initial_time=0.0,
-            delta_t=1e-4,
+            integration_control=integration_control,
             write_file="inner_problem_stage.h5",
             quantity_tags=["heat_1", "heat_2"],
         ),

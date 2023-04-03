@@ -14,6 +14,8 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
 
+from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
+
 
 class MiddleNeumann(om.ExplicitComponent):
     def initialize(self):
@@ -146,12 +148,17 @@ if __name__ == "__main__":
         {"tol": 1e-12, "atol": "legacy"},
     )
 
+    integration_control = IntegrationControl(0.0, 1, 10, 1e-4)
+
     inner_prob = om.Problem()
 
     inner_prob.model.add_subsystem(
-        "heat_stage_1",
+        "heat_comp_1",
         HeatEquationStageComponent(
-            heat_equation=heat_equation_1, shared_boundary=["right"], domain_num=1
+            heat_equation=heat_equation_1,
+            shared_boundary=["right"],
+            domain_num=1,
+            integration_control=integration_control,
         ),
         promotes_inputs=[
             ("heat", "heat_1"),
@@ -163,9 +170,12 @@ if __name__ == "__main__":
         ],
     )
     inner_prob.model.add_subsystem(
-        "heat_stage_2",
+        "heat_comp_2",
         HeatEquationStageComponent(
-            heat_equation=heat_equation_2, shared_boundary=["left"], domain_num=2
+            heat_equation=heat_equation_2,
+            shared_boundary=["left"],
+            domain_num=2,
+            integration_control=integration_control,
         ),
         promotes_inputs=[
             ("heat", "heat_2"),
@@ -195,9 +205,9 @@ if __name__ == "__main__":
         src_indices=left_boundary_indices_1,
     )
 
-    inner_prob.model.connect("flux_comp.flux", "heat_stage_1.boundary_segment_right")
+    inner_prob.model.connect("flux_comp.flux", "heat_comp_1.boundary_segment_right")
     inner_prob.model.connect(
-        "flux_comp.reverse_flux", "heat_stage_2.boundary_segment_left"
+        "flux_comp.reverse_flux", "heat_comp_2.boundary_segment_left"
     )
 
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
@@ -206,9 +216,7 @@ if __name__ == "__main__":
         solve_subsystems=True,  # atol=atol, rtol=rtol
     )
     # newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
-    inner_prob.model.linear_solver = om.ScipyKrylov(
-        # atol=scipytol
-    )
+    inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
 
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(
@@ -216,11 +224,8 @@ if __name__ == "__main__":
         RungeKuttaIntegrator(
             inner_problem=inner_prob,
             butcher_tableau=butcher_tableau,
-            num_steps=2,
-            initial_time=0.0,
-            delta_t=1e-4,
+            integration_control=integration_control,
             quantity_tags=["heat_1", "heat_2"],
-            checkpoint_distance=10,
         ),
         promotes_inputs=["heat_1_initial", "heat_2_initial"],
     )
@@ -231,4 +236,4 @@ if __name__ == "__main__":
     outer_prob.run_model()
 
     print("done running model, starting checking partials")
-    outer_prob.check_partials(form="backward")
+    outer_prob.check_partials()

@@ -2,6 +2,7 @@
 import openmdao.api as om
 
 from .heatequation import HeatEquation
+from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 
 class HeatEquationStageComponent(om.ImplicitComponent):
@@ -9,11 +10,7 @@ class HeatEquationStageComponent(om.ImplicitComponent):
         self.options.declare("heat_equation", types=HeatEquation)
         self.options.declare("shared_boundary", types=list, default=[])  # : List[str]
 
-        self.options.declare("delta_t", default=0.01)
-        self.options.declare("time", default=0.0)
-        self.options.declare("butcher_diagonal_element", default=0.0)
-        self.options.declare("step", default=0)
-        self.options.declare("stage", default=0)
+        self.options.declare("integration_control", types=IntegrationControl)
 
         self.options.declare("domain_num", types=int)
 
@@ -73,9 +70,9 @@ class HeatEquationStageComponent(om.ImplicitComponent):
         residuals[
             "result_stage_slope"
         ] = heat_equation.heat_equation_time_stage_residual(
-            self.options["time"],
-            self.options["delta_t"],
-            self.options["butcher_diagonal_element"],
+            self.options["integration_control"].stage_time,
+            self.options["integration_control"].delta_t,
+            self.options["integration_control"].butcher_diagonal_element,
             inputs["heat"],
             inputs["accumulated_stages"],
             outputs["result_stage_slope"],
@@ -83,10 +80,10 @@ class HeatEquationStageComponent(om.ImplicitComponent):
         residuals["result_stage_heat"] = (
             outputs["result_stage_heat"]
             - inputs["heat"]
-            - self.options["delta_t"]
+            - self.options["integration_control"].delta_t
             * (
                 inputs["accumulated_stages"]
-                + self.options["butcher_diagonal_element"]
+                + self.options["integration_control"].butcher_diagonal_element
                 * outputs["result_stage_slope"]
             )
         )
@@ -116,15 +113,18 @@ class HeatEquationStageComponent(om.ImplicitComponent):
         outputs[
             "result_stage_slope"
         ] = heat_equation.solve_heat_equation_time_stage_residual(
-            self.options["time"],
-            self.options["delta_t"],
-            self.options["butcher_diagonal_element"],
+            self.options["integration_control"].stage_time,
+            self.options["integration_control"].delta_t,
+            self.options["integration_control"].butcher_diagonal_element,
             inputs["heat"],
             inputs["accumulated_stages"],
         )
-        outputs["result_stage_heat"] = inputs["heat"] + self.options["delta_t"] * (
+        outputs["result_stage_heat"] = inputs["heat"] + self.options[
+            "integration_control"
+        ].delta_t * (
             inputs["accumulated_stages"]
-            + self.options["butcher_diagonal_element"] * outputs["result_stage_slope"]
+            + self.options["integration_control"].butcher_diagonal_element
+            * outputs["result_stage_slope"]
         )
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
@@ -134,13 +134,14 @@ class HeatEquationStageComponent(om.ImplicitComponent):
                 "result_stage_slope"
             ] += heat_equation.d_stage_d_old_value().matvec(d_inputs["heat"])
             d_residuals["result_stage_slope"] += heat_equation.d_stage_d_stage(
-                self.options["delta_t"], self.options["butcher_diagonal_element"]
+                self.options["integration_control"].delta_t,
+                self.options["integration_control"].butcher_diagonal_element,
             ).matvec(d_outputs["result_stage_slope"])
 
             d_residuals[
                 "result_stage_slope"
             ] += heat_equation.d_stage_d_accumulated_stages(
-                self.options["delta_t"]
+                self.options["integration_control"].delta_t
             ).matvec(
                 d_inputs["accumulated_stages"]
             )
@@ -158,11 +159,12 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             d_residuals["result_stage_heat"] += d_outputs["result_stage_heat"]
             d_residuals["result_stage_heat"] -= d_inputs["heat"]
             d_residuals["result_stage_heat"] -= (
-                self.options["delta_t"] * d_inputs["accumulated_stages"]
+                self.options["integration_control"].delta_t
+                * d_inputs["accumulated_stages"]
             )
             d_residuals["result_stage_heat"] -= (
-                self.options["delta_t"]
-                * self.options["butcher_diagonal_element"]
+                self.options["integration_control"].delta_t
+                * self.options["integration_control"].butcher_diagonal_element
                 * d_outputs["result_stage_slope"]
             )
 
@@ -171,13 +173,14 @@ class HeatEquationStageComponent(om.ImplicitComponent):
                 d_residuals["result_stage_slope"]
             )
             d_outputs["result_stage_slope"] += heat_equation.d_stage_d_stage(
-                self.options["delta_t"], self.options["butcher_diagonal_element"]
+                self.options["integration_control"].delta_t,
+                self.options["integration_control"].butcher_diagonal_element,
             ).rmatvec(d_residuals["result_stage_slope"])
 
             d_inputs[
                 "accumulated_stages"
             ] += heat_equation.d_stage_d_accumulated_stages(
-                self.options["delta_t"]
+                self.options["integration_control"].delta_t
             ).rmatvec(
                 d_residuals["result_stage_slope"]
             )
@@ -197,11 +200,12 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             d_outputs["result_stage_heat"] += d_residuals["result_stage_heat"]
             d_inputs["heat"] -= d_residuals["result_stage_heat"]
             d_inputs["accumulated_stages"] -= (
-                self.options["delta_t"] * d_residuals["result_stage_heat"]
+                self.options["integration_control"].delta_t
+                * d_residuals["result_stage_heat"]
             )
             d_outputs["result_stage_slope"] -= (
-                self.options["delta_t"]
-                * self.options["butcher_diagonal_element"]
+                self.options["integration_control"].delta_t
+                * self.options["integration_control"].butcher_diagonal_element
                 * d_residuals["result_stage_heat"]
             )
 
@@ -209,15 +213,15 @@ class HeatEquationStageComponent(om.ImplicitComponent):
         heat_equation: HeatEquation = self.options["heat_equation"]
         if mode == "fwd":
             d_outputs["result_stage_slope"] = heat_equation.solve_d_stage_d_stage(
-                self.options["delta_t"],
-                self.options["butcher_diagonal_element"],
+                self.options["integration_control"].delta_t,
+                self.options["integration_control"].butcher_diagonal_element,
                 mode,
                 d_residuals["result_stage_slope"],
             )
             d_outputs["result_stage_heat"] = (
                 d_residuals["result_stage_heat"]
-                + self.options["delta_t"]
-                * self.options["butcher_diagonal_element"]
+                + self.options["integration_control"].delta_t
+                * self.options["integration_control"].butcher_diagonal_element
                 * d_outputs["result_stage_slope"]
             )
 
@@ -226,11 +230,11 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             d_residuals["result_stage_slope"] = self.options[
                 "heat_equation"
             ].solve_d_stage_d_stage(
-                self.options["delta_t"],
-                self.options["butcher_diagonal_element"],
+                self.options["integration_control"].delta_t,
+                self.options["integration_control"].butcher_diagonal_element,
                 mode,
                 d_outputs["result_stage_slope"]
-                + self.options["delta_t"]
-                * self.options["butcher_diagonal_element"]
+                + self.options["integration_control"].delta_t
+                * self.options["integration_control"].butcher_diagonal_element
                 * d_residuals["result_stage_heat"],
             )
