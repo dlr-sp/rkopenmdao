@@ -85,7 +85,7 @@ butcher_tableau = ButcherTableau(
     np.array([0.5]),
 )
 
-integration_control = IntegrationControl(0.0, 100, 10, 1e-1)
+integration_control = IntegrationControl(0.0, 1, 10, 2e-2)
 
 inner_prob = om.Problem()
 

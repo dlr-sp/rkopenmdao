@@ -143,7 +143,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for step in range(1, num_steps + 1):
             seed = {}
             for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-                # fill witth "d_residual" values (according to documentation)
+                # fill with "d_residual" values (according to documentation)
                 seed[var_tuple[0]] = contributions[quantity + "_initial"].copy()
                 seed[var_tuple[1]] = np.zeros_like(contributions[quantity + "_initial"])
 
@@ -160,6 +160,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._accumulate_d_stages_into_seed_fwd(stage, d_stage_cache, seed)
 
                 inner_problem.run_model()
+                inner_problem.model._linearize(None)
 
                 jvp = inner_problem.compute_jacvec_product(
                     of=of_vars, wrt=wrt_vars, mode="fwd", seed=seed
@@ -184,89 +185,105 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
             d_outputs[quantity + "_final"] += contributions[quantity + "_initial"]
 
+    # TODO: debug
+
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
-        pass
+        # some variable initializations
 
-        # This is wrong, don't use
+        inner_problem: om.Problem = self.options["inner_problem"]
+        initial_time = self.options["integration_control"].initial_time
+        delta_t = self.options["integration_control"].delta_t
+        num_steps = self.options["integration_control"].num_steps
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
 
-        # inner_problem: om.Problem = self.options["inner_problem"]
-        # initial_time = self.options["integration_control"].initial_time
-        # delta_t = self.options["integration_control"].delta_t
-        # num_steps = self.options["integration_control"].num_steps
-        # butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        # For the reverse derivative, we need to go backward in time
+        # Because of this, we need to start with result of the time-stepping
 
-        # # For the reverse derivative, we need to go backward in time
-        # # Because of this, we need to start with result of the time-stepping
+        time_stepping_result = om.DefaultVector("nonlinear", "output", self)
+        with h5py.File(self.options["write_file"], mode="r") as f:
+            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+                time_stepping_result[quantity + "_final"] = f.get(
+                    quantity + "/" + str(num_steps)
+                )
 
-        # time_stepping_result = om.DefaultVector("nonlinear", "output", self)
-        # with h5py.File(self.options["write_file"], mode="r") as f:
-        #     for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-        #         time_stepping_result[quantity + "_final"] = f.get(
-        #             quantity + "/" + str(num_steps)
-        #         )
+        stage_cache = {}
+        d_stage_cache = {}
+        fwd_input_cache = {}
+        for stage in range(butcher_tableau.number_of_stages()):
+            stage_cache[stage] = om.DefaultVector("nonlinear", "input", self)
+            d_stage_cache[stage] = om.DefaultVector("linear", "output", self)
+            fwd_input_cache[stage] = om.DefaultVector(
+                "nonlinear", "input", inner_problem.model
+            )
 
-        # stage_cache = {}
-        # for stage in range(butcher_tableau.number_of_stages()):
-        #     stage_cache[stage] = om.DefaultVector("nonlinear", "input", self)
+        contributions = om.DefaultVector("linear", "output", self)
+        contributions.add_scal_vec(1.0, d_outputs)
 
-        # contributions = om.DefaultVector("linear", "output", self)
-        # contributions.add_scal_vec(1.0, d_outputs)
+        of_vars = []
+        wrt_vars = []
 
-        # of_vars = []
-        # wrt_vars = []
+        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+            of_vars.append(var_tuple[2])
+            wrt_vars.append(var_tuple[0])
+            wrt_vars.append(var_tuple[1])
 
-        # for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-        #     of_vars.append(var_tuple[2])
-        #     wrt_vars.append(var_tuple[0])
+        # set initial values
+        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+            old_variable_name = var_tuple[0]
+            inner_problem.set_val(
+                old_variable_name, time_stepping_result[quantity + "_final"]
+            )
 
-        # # set initial values
-        # for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-        #     old_variable_name = var_tuple[0]
-        #     inner_problem.set_val(
-        #         old_variable_name, time_stepping_result[quantity + "_final"]
-        #     )
+        # time-stepping:
+        for step in range(num_steps, 0, -1):
+            # first: step backwards in time,
+            time_old = initial_time + delta_t * step
+            time_new = initial_time + delta_t * (step - 1)
+            self._update_step_info(step, time_old, time_new)
+            self.options["integration_control"].delta_t *= -1
+            for stage in range(butcher_tableau.number_of_stages()):
+                self._update_stage_info(
+                    stage,
+                    time_old + delta_t * butcher_tableau.butcher_time_stages[stage],
+                    butcher_tableau.butcher_matrix[stage, stage],
+                )
 
-        # for step in range(num_steps, 0, -1):
-        #     seed = {}
-        #     for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-        #         # fill with "d_residual" values (according to documentation)
-        #         seed[var_tuple[2]] = contributions[quantity + "_final"].copy()
+                self._accumulate_stages_and_set_inner_fwd(stage, stage_cache)
 
-        #     time_old = initial_time + delta_t * (step - 1)
-        #     time_new = initial_time + delta_t * step
-        #     self._update_step_info(step, time_old, time_new)
-        #     for stage in range(butcher_tableau.number_of_stages()):
-        #         self._update_stage_info(
-        #             stage,
-        #             time_old + delta_t * butcher_tableau.butcher_time_stages[stage],
-        #             butcher_tableau.butcher_matrix[stage, stage]
-        #             - butcher_tableau.butcher_weight_vector[stage],
-        #         )
+                inner_problem.run_model()
 
-        #         self._accumulate_stages_and_set_inner_rev(stage, stage_cache)
+                self._cache_stage(stage, stage_cache)
 
-        #         inner_problem.run_model()
+            self._update_step_rev(stage_cache)
 
-        #         jvp = inner_problem.compute_jacvec_product(
-        #             of=of_vars, wrt=wrt_vars, mode="rev", seed=seed
-        #         )
+            # Note: Caching of this result is not necessary as long as we don't call an _update_step_* again
 
-        #         for quantity, var_tuple in self.options[
-        #             "quantity_to_inner_vars"
-        #         ].items():
-        #             contributions[quantity + "_final"] += (
-        #                 delta_t
-        #                 * butcher_tableau.butcher_weight_vector[stage]
-        #                 * jvp[var_tuple[0]]
-        #             )
+            # second: step forward, caching the complete input-vector of the inner problem
+            self.options["integration_control"].delta_t *= -1
+            for stage in range(butcher_tableau.number_of_stages()):
+                self._update_stage_info(
+                    stage,
+                    time_new + delta_t * butcher_tableau.butcher_time_stages[stage],
+                    butcher_tableau.butcher_matrix[stage, stage],
+                )
 
-        #         self._cache_stage(stage, stage_cache)
+                self._accumulate_stages_and_set_inner_fwd(stage, stage_cache)
+                inner_problem.run_model()
+                self._cache_stage(stage, stage_cache)
+                # need to cache complete input_vector for linearize to work later
+                fwd_input_cache[stage].add_scal_vec(1.0, inner_problem.model._inputs)
 
-        #     self._update_step_rev(stage_cache)
+                d_stage_cache[stage] = self._reverse_jacvec_stage(
+                    stage, fwd_input_cache, contributions, of_vars, wrt_vars
+                )
 
-        # # get the result at the end
-        # for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-        #     d_inputs[quantity + "_initial"] += contributions[quantity + "_final"]
+            self._update_contribution(d_stage_cache, contributions)
+
+        # get the result at the end
+        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+            d_inputs[quantity + "_initial"] += contributions[quantity + "_final"]
+
+        print(d_inputs)
 
     def _setup_inputs_and_outputs_and_fill_quantity_to_inner_vars(self):
         inner_problem = self.options["inner_problem"]
@@ -429,10 +446,40 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         # compute contribution to new step
 
+        for stage in range(butcher_tableau.number_of_stages()):
+            contributions.add_scal_vec(
+                delta_t * butcher_tableau.butcher_weight_vector[stage],
+                d_stage_cache[stage],
+            )
+
+    def _reverse_jacvec_stage(
+        self, stage, fwd_input_cache, contributions, of_vars, wrt_vars
+    ):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+
+        result = om.DefaultVector("linear", "output", self)
+        intermediate = om.DefaultVector("linear", "output", self)
+        result.add_scal_vec(1.0, contributions)
+
+        seed = {}
         for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            for stage in range(butcher_tableau.number_of_stages()):
-                contributions[quantity + "_initial"] += (
-                    delta_t
-                    * butcher_tableau.butcher_weight_vector[stage]
-                    * d_stage_cache[stage][quantity + "_initial"]
-                )
+            # fill with "d_residual" values (according to documentation)
+            seed[var_tuple[2]] = contributions[quantity + "_final"].copy()
+
+        inner_problem.model._inputs = fwd_input_cache[stage]
+        inner_problem.model._linearize(None)
+        jvp = inner_problem.compute_jacvec_product(of_vars, wrt_vars, "rev", seed)
+        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+            result[quantity + "_final"] += jvp[var_tuple[0]]
+            intermediate[quantity + "_final"] = jvp[var_tuple[1]]
+
+        for prev_stage in range(stage):
+            result.add_scal_vec(
+                butcher_tableau.butcher_matrix[stage, prev_stage],
+                self._reverse_jacvec_stage(
+                    prev_stage, fwd_input_cache, intermediate, of_vars, wrt_vars
+                ),
+            )
+
+        return result

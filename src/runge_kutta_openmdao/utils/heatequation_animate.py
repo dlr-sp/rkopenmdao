@@ -30,7 +30,7 @@ if __name__ == "__main__":
         ax.set_ylim(0.0, 1.0)
         ax.set_ylabel("y")
         ax.set_zlim(0.0, 2.0)
-        ax.set_zlabel("heat")
+        ax.set_zlabel("u")
 
     axs[0].set_title("analytic solution")
     axs[1].set_title("monolithic numerical solution")
@@ -38,7 +38,16 @@ if __name__ == "__main__":
     ims = []
 
     checkpoint_distance = 10
-
+    fig.suptitle(r"Newton solver, solve_subsystems=True, $\Delta t = 10^{-4}$, $\Delta x = \Delta y = 0.05$")
+    fig.subplots_adjust(bottom=0.20)
+    tax = fig.add_axes([0.7,0.05,0.25,0.05])
+    tax.axis("off")
+    cax = fig.add_axes([0.05, 0.05, 0.6, 0.05])
+    fig.colorbar(
+        cm.ScalarMappable(norm=colors.Normalize(vmin=0.0, vmax=2.0), cmap=cm.coolwarm),
+        cax=cax,
+        location="bottom",
+    )
     with h5py.File("inner_problem_stage.h5", mode="r") as f_1, h5py.File(
         "analytic.h5", mode="r"
     ) as f_2, h5py.File("monolithic.h5", mode="r") as f_3:
@@ -89,16 +98,13 @@ if __name__ == "__main__":
                 linewidth=0,
                 antialiased=False,
             )
-            ims.append([im1, im2, im3, im4])
+            im5 = tax.text(x=0,y=0, s = "time: "+ str(i * checkpoint_distance * 1e-4)[:5])
+            ims.append([im1, im2, im3, im4, im5])
 
-    fig.subplots_adjust(bottom=0.15)
-    cax = fig.add_axes([0.2, 0.05, 0.6, 0.05])
+    
+    
 
-    fig.colorbar(
-        cm.ScalarMappable(norm=colors.Normalize(vmin=0.0, vmax=2.0), cmap=cm.coolwarm),
-        cax=cax,
-        location="bottom",
-    )
+    
 
     ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat=False)
-    ani.save("HeatEquOpenMDAOAnimation.mp4")
+    ani.save("HeatEquOpenMDAOAnimation.gif")
