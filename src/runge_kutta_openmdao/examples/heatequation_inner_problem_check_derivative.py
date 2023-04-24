@@ -16,6 +16,8 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
 
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
+from scipy.sparse.linalg import LinearOperator
+
 
 class MiddleNeumann(om.ExplicitComponent):
     def initialize(self):
@@ -130,13 +132,21 @@ if __name__ == "__main__":
     #     np.array([0.5, 0.667, 0.5, 1.0]),
     # )
 
+    heat_precon = LinearOperator(
+        shape=(
+            (points_per_direction * points_x),
+            (points_per_direction * points_x),
+        ),
+        matvec=lambda x: delta_x**2 / -4 * x,
+    )
+
     heat_equation_1 = HeatEquation(
         domain_half_1,
         lambda t, x, y: 0.0,
         boundary_condition_1,
         1.0,
         lambda x, y: g(x) * g(y),
-        {"tol": 1e-12, "atol": "legacy"},
+        {"tol": 1e-12, "atol": "legacy", "M": heat_precon},
     )
 
     heat_equation_2 = HeatEquation(
@@ -145,7 +155,7 @@ if __name__ == "__main__":
         boundary_condition_2,
         1.0,
         lambda x, y: g(x) * g(y),
-        {"tol": 1e-12, "atol": "legacy"},
+        {"tol": 1e-12, "atol": "legacy", "M": heat_precon},
     )
 
     integration_control = IntegrationControl(0.0, 1, 10, 1e-4)
@@ -216,7 +226,8 @@ if __name__ == "__main__":
         solve_subsystems=True,  # atol=atol, rtol=rtol
     )
     # newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
-    inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
+    inner_prob.model.linear_solver = om.ScipyKrylov(maxiter=20, iprint=0)
+    # inner_prob.model.linear_solver.precon = om.LinearBlockJac(maxiter=20, iprint=0)
 
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(

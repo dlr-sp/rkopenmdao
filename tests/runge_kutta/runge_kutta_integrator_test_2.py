@@ -8,7 +8,7 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 
-class TestComp1(om.ExplicitComponent):
+class TestComp2(om.ExplicitComponent):
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -18,22 +18,15 @@ class TestComp1(om.ExplicitComponent):
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        outputs["x_stage"] = (inputs["x"] + delta_t * inputs["acc_stages"]) / (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
-        )
+        stages_time = self.options["integration_control"].stage_time
+        outputs["x_stage"] = stages_time
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        divisor = (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
-        )
         if mode == "fwd":
-            d_outputs["x_stage"] += d_inputs["x"] / divisor
-            d_outputs["x_stage"] += delta_t * d_inputs["acc_stages"] / divisor
+            d_outputs["x_stage"] += 0
         elif mode == "rev":
-            d_inputs["x"] += d_outputs["x_stage"] / divisor
-            d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
+            d_inputs["x"] += 0
+            d_inputs["acc_stages"] += 0
 
 
 # butcher_tableau = ButcherTableau(
@@ -90,7 +83,7 @@ integration_control = IntegrationControl(0.0, 20, 10, 2e-2)
 inner_prob = om.Problem()
 
 inner_prob.model.add_subsystem(
-    "x_comp", TestComp1(integration_control=integration_control)
+    "x_comp", TestComp2(integration_control=integration_control)
 )
 
 newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(

@@ -8,7 +8,7 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 
-class TestComp1(om.ExplicitComponent):
+class TestComp3(om.ExplicitComponent):
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -19,21 +19,38 @@ class TestComp1(om.ExplicitComponent):
 
     def compute(self, inputs, outputs):
         delta_t = self.options["integration_control"].delta_t
-        outputs["x_stage"] = (inputs["x"] + delta_t * inputs["acc_stages"]) / (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+        stage_time = self.options["integration_control"].stage_time
+        outputs["x_stage"] = (
+            stage_time
+            * (inputs["x"] + delta_t * inputs["acc_stages"])
+            / (
+                1
+                - delta_t
+                * self.options["integration_control"].butcher_diagonal_element
+                * stage_time
+            )
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         delta_t = self.options["integration_control"].delta_t
+        stage_time = self.options["integration_control"].stage_time
+
         divisor = (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+            1
+            - delta_t
+            * self.options["integration_control"].butcher_diagonal_element
+            * stage_time
         )
         if mode == "fwd":
-            d_outputs["x_stage"] += d_inputs["x"] / divisor
-            d_outputs["x_stage"] += delta_t * d_inputs["acc_stages"] / divisor
+            d_outputs["x_stage"] += stage_time * d_inputs["x"] / divisor
+            d_outputs["x_stage"] += (
+                delta_t * stage_time * d_inputs["acc_stages"] / divisor
+            )
         elif mode == "rev":
-            d_inputs["x"] += d_outputs["x_stage"] / divisor
-            d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
+            d_inputs["x"] += stage_time * d_outputs["x_stage"] / divisor
+            d_inputs["acc_stages"] += (
+                delta_t * stage_time * d_outputs["x_stage"] / divisor
+            )
 
 
 # butcher_tableau = ButcherTableau(
@@ -50,7 +67,6 @@ class TestComp1(om.ExplicitComponent):
 # )
 
 alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
-
 butcher_tableau = ButcherTableau(
     np.array(
         [
@@ -75,22 +91,23 @@ butcher_tableau = ButcherTableau(
 #     np.array([gamma, 1.0]),
 # )
 
+
 # butcher_tableau = ButcherTableau(
 #     np.array(
 #         [
-#             [0.5],
+#             [1.0],
 #         ]
 #     ),
 #     np.array([1.0]),
-#     np.array([0.5]),
+#     np.array([1.0]),
 # )
 
-integration_control = IntegrationControl(0.0, 20, 10, 2e-2)
+integration_control = IntegrationControl(0.0, 20, 10, 1e-1)
 
 inner_prob = om.Problem()
 
 inner_prob.model.add_subsystem(
-    "x_comp", TestComp1(integration_control=integration_control)
+    "x_comp", TestComp3(integration_control=integration_control)
 )
 
 newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
@@ -114,5 +131,6 @@ outer_prob.model.add_subsystem(
 outer_prob.setup()
 outer_prob.set_val("x_initial", 1.0)
 outer_prob.run_model()
+print(integration_control.stage_time)
 
-outer_prob.check_partials(form="central")
+outer_prob.check_partials()
