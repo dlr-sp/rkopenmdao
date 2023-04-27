@@ -18,101 +18,87 @@ class FdmMatrix:
         if old_vector.size != self.vector_size:
             raise AssertionError("Vector has the wrong dimension")
 
-        new_vector = np.zeros_like(old_vector)
-        for j in range(self.domain.n_y):
-            for i in range(self.domain.n_x):
-                index = self.domain.ij_to_index(i, j)
-                new_vector[index] -= 2 * old_vector[index] / self.domain.delta_x**2
-                if i == 0:
-                    new_vector[index] += (
-                        2 * old_vector[index + 1] / self.domain.delta_x**2
-                    )
-                elif i == self.domain.n_x - 1:
-                    new_vector[index] += (
-                        2 * old_vector[index - 1] / self.domain.delta_x**2
-                    )
-                else:
-                    new_vector[index] += (
-                        old_vector[index + 1] + old_vector[index - 1]
-                    ) / self.domain.delta_x**2
+        new_vector = np.zeros((self.domain.n_y, self.domain.n_x))
+        old_vector_reshape = old_vector.reshape((self.domain.n_y, self.domain.n_x))
 
-                new_vector[index] -= 2 * old_vector[index] / self.domain.delta_y**2
-                if j == 0:
-                    new_vector[index] += (
-                        2
-                        * old_vector[index + self.domain.n_x]
-                        / self.domain.delta_y**2
-                    )
-                elif j == self.domain.n_y - 1:
-                    new_vector[index] += (
-                        2
-                        * old_vector[index - self.domain.n_x]
-                        / self.domain.delta_y**2
-                    )
-                else:
-                    new_vector[index] += (
-                        old_vector[index + self.domain.n_x]
-                        + old_vector[index - self.domain.n_x]
-                    ) / self.domain.delta_y**2
+        # diagonal entries
+        new_vector -= 2 * old_vector_reshape / self.domain.delta_x**2
+        new_vector -= 2 * old_vector_reshape / self.domain.delta_y**2
+
+        # direct sup/superdiagonal coming from the x-direction
+        new_vector[:, 0] += 2 * old_vector_reshape[:, 1] / self.domain.delta_x**2
+        new_vector[:, self.domain.n_x - 1] += (
+            2 * old_vector_reshape[:, self.domain.n_x - 2] / self.domain.delta_x**2
+        )
+        new_vector[:, 1 : self.domain.n_x - 1] += (
+            old_vector_reshape[:, : self.domain.n_x - 2] + old_vector_reshape[:, 2:]
+        ) / self.domain.delta_x**2
+
+        # sup/superdiagonal coming from the y-direction
+        new_vector[0, :] += 2 * old_vector_reshape[1, :] / self.domain.delta_y**2
+        new_vector[self.domain.n_y - 1, :] += (
+            2 * old_vector_reshape[self.domain.n_y - 2, :] / self.domain.delta_y**2
+        )
+        new_vector[1 : self.domain.n_y - 1, :] += (
+            old_vector_reshape[: self.domain.n_y - 2, :] + old_vector_reshape[2:, :]
+        ) / self.domain.delta_y**2
 
         new_vector *= self.diffusivity
-        return new_vector
+        return new_vector.reshape(self.vector_size)
 
     def mat_vec_prod_transpose(self, old_vector: np.ndarray) -> np.ndarray:
-        new_vector = np.zeros_like(old_vector)
+        if old_vector.size != self.vector_size:
+            print(
+                "old_vec_size: ",
+                old_vector.size,
+                "expected_vec_size: ",
+                self.vector_size,
+            )
+            raise AssertionError("Vector has the wrong dimension")
 
-        for j in range(self.domain.n_y):
-            for i in range(self.domain.n_x):
-                index = self.domain.ij_to_index(i, j)
-                new_vector[index] -= 2 * old_vector[index] / self.domain.delta_x**2
-                if i == 0:
-                    new_vector[index] += (
-                        old_vector[index + 1] / self.domain.delta_x**2
-                    )
-                elif i == 1:
-                    new_vector[index] += (
-                        old_vector[index + 1] + 2 * old_vector[index - 1]
-                    ) / (self.domain.delta_x**2)
-                elif i == self.domain.n_x - 2:
-                    new_vector[index] += (
-                        2 * old_vector[index + 1] + old_vector[index - 1]
-                    ) / (self.domain.delta_x**2)
-                elif i == self.domain.n_x - 1:
-                    new_vector[index] += (
-                        old_vector[index - 1] / self.domain.delta_x**2
-                    )
-                else:
-                    new_vector[index] += (
-                        old_vector[index + 1] + old_vector[index - 1]
-                    ) / self.domain.delta_x**2
+        new_vector = np.zeros((self.domain.n_y, self.domain.n_x))
+        old_vector_reshape = old_vector.reshape((self.domain.n_y, self.domain.n_x))
 
-                new_vector[index] -= 2 * old_vector[index] / self.domain.delta_y**2
-                if j == 0:
-                    new_vector[index] += (
-                        old_vector[index + self.domain.n_x] / self.domain.delta_y**2
-                    )
-                elif j == 1:
-                    new_vector[index] += (
-                        old_vector[index + self.domain.n_x]
-                        + 2 * old_vector[index - self.domain.n_x]
-                    ) / self.domain.delta_y**2
-                elif j == self.domain.n_y - 2:
-                    new_vector[index] += (
-                        2 * old_vector[index + self.domain.n_x]
-                        + old_vector[index - self.domain.n_x]
-                    ) / self.domain.delta_y**2
-                elif j == self.domain.n_y - 1:
-                    new_vector[index] += (
-                        old_vector[index - self.domain.n_x] / self.domain.delta_y**2
-                    )
-                else:
-                    new_vector[index] += (
-                        old_vector[index + self.domain.n_x]
-                        + old_vector[index - self.domain.n_x]
-                    ) / self.domain.delta_y**2
+        # diagonal entries
+        new_vector -= 2 * old_vector_reshape / self.domain.delta_x**2
+        new_vector -= 2 * old_vector_reshape / self.domain.delta_y**2
+
+        # direct sup/superdiagonal coming from the x-direction
+        new_vector[:, 0] += old_vector_reshape[:, 1] / self.domain.delta_x**2
+        new_vector[:, 1] += (
+            old_vector_reshape[:, 2] + 2 * old_vector_reshape[:, 0]
+        ) / self.domain.delta_x**2
+        new_vector[:, self.domain.n_x - 2] += (
+            2 * old_vector_reshape[:, self.domain.n_x - 1]
+            + old_vector_reshape[:, self.domain.n_x - 3]
+        ) / self.domain.delta_x**2
+        new_vector[:, self.domain.n_x - 1] += (
+            old_vector_reshape[:, self.domain.n_x - 2] / self.domain.delta_x**2
+        )
+        new_vector[:, 2 : self.domain.n_x - 2] += (
+            old_vector_reshape[:, 1 : self.domain.n_x - 3]
+            + old_vector_reshape[:, 3 : self.domain.n_x - 1]
+        ) / self.domain.delta_x**2
+
+        # sup/superdiagonal coming from the y-direction
+        new_vector[0, :] += old_vector_reshape[1, :] / self.domain.delta_y**2
+        new_vector[1, :] += (
+            old_vector_reshape[2, :] + 2 * old_vector_reshape[0, :]
+        ) / self.domain.delta_y**2
+        new_vector[self.domain.n_y - 2, :] += (
+            2 * old_vector_reshape[self.domain.n_y - 1, :]
+            + old_vector_reshape[self.domain.n_y - 3, :]
+        ) / self.domain.delta_y**2
+        new_vector[self.domain.n_y - 1, :] += (
+            old_vector_reshape[self.domain.n_y - 2, :] / self.domain.delta_y**2
+        )
+        new_vector[2 : self.domain.n_y - 2, :] += (
+            old_vector_reshape[1 : self.domain.n_y - 3, :]
+            + old_vector_reshape[3 : self.domain.n_y - 1, :]
+        ) / self.domain.delta_y**2
 
         new_vector *= self.diffusivity
-        return new_vector
+        return new_vector.reshape(self.vector_size)
 
     def mat_mat_prod(self, old_matrix: np.ndarray) -> np.ndarray:
         if old_matrix.shape[0] != self.vector_size:

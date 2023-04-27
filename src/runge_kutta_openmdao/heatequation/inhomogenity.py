@@ -66,19 +66,16 @@ class InhomogenityVector:
                         segment, time, boundary_coordinates
                     )
                     boundary_indices = self.domain.boundary_indices(segment)
-                    for i in range(segment_boundary_inhomogenity.size):
-                        self.self_updating_boundary_inhomogenity[
-                            boundary_indices[i]
-                        ] += (
-                            2
-                            * self.diffusivity
-                            * segment_boundary_inhomogenity[i]
-                            / (
-                                self.domain.delta_x
-                                if segment in ("right", "left")
-                                else self.domain.delta_y
-                            )
+                    self.self_updating_boundary_inhomogenity[boundary_indices] += (
+                        2
+                        * self.diffusivity
+                        * segment_boundary_inhomogenity
+                        / (
+                            self.domain.delta_x
+                            if segment in ("right", "left")
+                            else self.domain.delta_y
                         )
+                    )
 
         for segment, kind in update_kinds.items():
             boundary_slice_index = -1
@@ -102,31 +99,15 @@ class InhomogenityVector:
                 update = True
                 boundary_slice_index = 3
             if update:
-                for i in range(segment_boundary_inhomogenity.size):
-                    self.user_updating_boundary_inhomogenity[
-                        boundary_indices[i], boundary_slice_index
-                    ] = (
-                        2
-                        * self.diffusivity
-                        * segment_boundary_inhomogenity[i]
-                        / (
-                            self.domain.delta_x
-                            if segment in ("right", "left")
-                            else self.domain.delta_y
-                        )
+                self.user_updating_boundary_inhomogenity[
+                    boundary_indices, boundary_slice_index
+                ] = (
+                    2
+                    * self.diffusivity
+                    * segment_boundary_inhomogenity
+                    / (
+                        self.domain.delta_x
+                        if segment in ("right", "left")
+                        else self.domain.delta_y
                     )
-                # print(
-                #     self.user_updating_boundary_inhomogenity[
-                #         boundary_indices, boundary_slice_index
-                #     ]
-                # )
-                # print(
-                #     2
-                #     * self.diffusivity
-                #     * segment_boundary_inhomogenity
-                #     / (
-                #         self.domain.delta_x
-                #         if segment in ("right", "left")
-                #         else self.domain.delta_y
-                #     )
-                # )
+                )

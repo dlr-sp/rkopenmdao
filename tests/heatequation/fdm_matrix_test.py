@@ -79,4 +79,4 @@ def test_matrix_matrix_prod(test_matrix, other_matrix, result):
     ],
 )
 def test_transpose_matrix_matrix_prod(test_matrix, other_matrix, result):
-    assert np.array_equal(test_matrix.mat_vec_prod_transpose(other_matrix), result)
+    assert np.array_equal(test_matrix.mat_mat_prod_transpose(other_matrix), result)

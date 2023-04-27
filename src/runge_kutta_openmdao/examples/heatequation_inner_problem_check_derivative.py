@@ -9,7 +9,7 @@ from runge_kutta_openmdao.heatequation.heatequation import HeatEquation
 from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
-
+from runge_kutta_openmdao.heatequation.flux_component import FluxComponent
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
@@ -17,50 +17,6 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 from scipy.sparse.linalg import LinearOperator
-
-
-class MiddleNeumann(om.ExplicitComponent):
-    def initialize(self):
-        self.options.declare("delta")
-        self.options.declare("shape")
-
-    def setup(self):
-        self.add_input("left_side", shape=self.options["shape"])
-        self.add_input("right_side", shape=self.options["shape"])
-        self.add_output("flux", shape=self.options["shape"])
-        self.add_output("reverse_flux", shape=self.options["shape"])
-
-    def compute(self, inputs, outputs):  # pylint: disable=arguments-differ
-        outputs["flux"] = (
-            0.5 * (inputs["right_side"] - inputs["left_side"]) / self.options["delta"]
-        )
-        outputs["reverse_flux"] = (
-            0.5 * (inputs["left_side"] - inputs["right_side"]) / self.options["delta"]
-        )
-
-    def compute_jacvec_product(
-        self, inputs, d_inputs, d_outputs, mode
-    ):  # pylint: disable=arguments-differ
-        if mode == "fwd":
-            d_outputs["flux"] += (
-                0.5
-                * (d_inputs["right_side"] - d_inputs["left_side"])
-                / self.options["delta"]
-            )
-            d_outputs["reverse_flux"] -= (
-                0.5
-                * (d_inputs["right_side"] - d_inputs["left_side"])
-                / self.options["delta"]
-            )
-        elif mode == "rev":
-            d_inputs["right_side"] += 0.5 * d_outputs["flux"] / self.options["delta"]
-            d_inputs["left_side"] -= 0.5 * d_outputs["flux"] / self.options["delta"]
-            d_inputs["left_side"] += (
-                0.5 * d_outputs["reverse_flux"] / self.options["delta"]
-            )
-            d_inputs["right_side"] -= (
-                0.5 * d_outputs["reverse_flux"] / self.options["delta"]
-            )
 
 
 if __name__ == "__main__":
@@ -197,7 +153,10 @@ if __name__ == "__main__":
         ],
     )
     inner_prob.model.add_subsystem(
-        "flux_comp", MiddleNeumann(delta=delta_x, shape=points_per_direction)
+        "flux_comp",
+        FluxComponent(
+            delta=delta_x, shape=points_per_direction, orientation="vertical"
+        ),
     )
 
     left_boundary_indices_1 = domain_half_2.boundary_indices("left") + 1

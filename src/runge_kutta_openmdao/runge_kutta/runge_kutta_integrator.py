@@ -22,7 +22,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare(
             "butcher_tableau",
             types=ButcherTableau,
-            desc="The btucher tableau for the RK-scheme",
+            desc="The butcher tableau for the RK-scheme",
         )
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -182,10 +182,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._update_contribution(d_stage_cache, contributions)
 
         # get the result at the end
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            d_outputs[quantity + "_final"] += contributions[quantity + "_initial"]
-
-    # TODO: debug
+        d_outputs.add_scal_vec(1.0, contributions)
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
         # some variable initializations
@@ -278,9 +275,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             for stage in range(butcher_tableau.number_of_stages()):
                 fwd_input_cache[stage].imul(0)
         # get the result at the end
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            d_inputs[quantity + "_initial"] += contributions[quantity + "_final"]
+        d_inputs.add_scal_vec(1.0, contributions)
 
+    # TODO: this should probably be reworked
     def _setup_inputs_and_outputs_and_fill_quantity_to_inner_vars(self):
         inner_problem = self.options["inner_problem"]
 
@@ -336,11 +333,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         accumulated_stages = om.DefaultVector("nonlinear", "input", self)
         # accumulate previous stages for current stage
         for prev_stage in range(stage):
-            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-                accumulated_stages[quantity + "_initial"] += (
-                    butcher_tableau.butcher_matrix[stage, prev_stage]
-                    * stage_cache[prev_stage][quantity + "_initial"]
-                )
+            accumulated_stages.add_scal_vec(
+                butcher_tableau.butcher_matrix[stage, prev_stage],
+                stage_cache[prev_stage],
+            )
 
         # set accumulated previous stage in inner problem
         for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
@@ -367,12 +363,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         stage_contributions = om.DefaultVector("nonlinear", "input", self)
         # compute contribution to new step
         for stage in range(butcher_tableau.number_of_stages()):
-            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-                stage_contributions[quantity + "_initial"] += (
-                    delta_t
-                    * butcher_tableau.butcher_weight_vector[stage]
-                    * stage_cache[stage][quantity + "_initial"]
-                )
+            stage_contributions.add_scal_vec(
+                delta_t * butcher_tableau.butcher_weight_vector[stage],
+                stage_cache[stage],
+            )
 
         # add that contribution to the old step
         for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
@@ -386,12 +380,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         stage_contributions = om.DefaultVector("nonlinear", "input", self)
         # compute contribution to new step
         for stage in range(butcher_tableau.number_of_stages()):
-            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-                stage_contributions[quantity + "_initial"] += (
-                    delta_t
-                    * butcher_tableau.butcher_weight_vector[stage]
-                    * stage_cache[stage][quantity + "_initial"]
-                )
+            stage_contributions.add_scal_vec(
+                delta_t * butcher_tableau.butcher_weight_vector[stage],
+                stage_cache[stage],
+            )
 
         # add that contribution to the old step
         for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
