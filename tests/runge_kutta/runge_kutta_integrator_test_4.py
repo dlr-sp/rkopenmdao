@@ -119,7 +119,7 @@ butcher_tableau = ButcherTableau(
 #     np.array([1.0]),
 # )
 
-integration_control = IntegrationControl(0.0, 1, 10, 1e-1)
+integration_control = IntegrationControl(0.0, 20, 10, 1e-1)
 
 inner_prob = om.Problem()
 
@@ -131,7 +131,7 @@ newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
     iprint=0, solve_subsystems=True
 )
 
-inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
+inner_prob.model.linear_solver = om.LinearBlockGS(iprint=0, maxiter=20)
 
 outer_prob = om.Problem()
 outer_prob.model.add_subsystem(
@@ -148,6 +148,6 @@ outer_prob.model.add_subsystem(
 outer_prob.setup()
 outer_prob.set_val("x_initial", [1.0, 1.0])
 outer_prob.run_model()
-print(integration_control.stage_time)
+
 
 outer_prob.check_partials(form="central")

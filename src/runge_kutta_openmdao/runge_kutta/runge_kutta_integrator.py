@@ -15,10 +15,27 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     outside of the inner problem.
     """
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.quantity_to_inner_vars: dict = {}
+        self.stage_cache: dict = {}
+        self.d_stage_cache: dict = {}
+        self._time_cache = {}
+        self.of_vars: list = []
+        self.wrt_vars: list = []
+
     def initialize(self):
         self.options.declare(
             "inner_problem", types=om.Problem, desc="The inner problem"
         )
+
+        # self.options.declare(
+        #     "postprocessing_problem",
+        #     types=(om.Problem, None),
+        #     desc="A problem used to calculate additional values (e.g. functionals) based on the results of the timesteps.",
+        #     default=None,
+        # )
+
         self.options.declare(
             "butcher_tableau",
             types=ButcherTableau,
@@ -30,7 +47,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             "write_file",
             types=str,
             default="data.h5",
-            desc="The file where the results of each time steps are written.",
+            desc="The file where the results of each time steps are written. In parallel, the rank is prepended",
         )
 
         self.options.declare(
@@ -39,423 +56,672 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             desc="tags used to differentiate the quantitys",
         )
 
-        self.options.declare("quantity_to_inner_vars", default={})
+        self.options.declare(
+            "quadrature_rule_weights",
+            types=(np.ndarray, None),
+            default=None,
+            desc="Quadrature rule weights, needs to be of size num_steps + 1 from integration_control",
+        )
+
+        self.options.declare(
+            "integrated_quantities",
+            types=list,
+            default=[],
+            desc="""subset of the quantities from quantity_tags indicating which of them gets integrated via the given quadrature rule.
+            If there is no quadrature rule while integrated_quantities isn't empty, an error gets thrown.""",
+        )
 
     def setup(self):
+        assert set(self.options["integrated_quantities"]).issubset(
+            set(self.options["quantity_tags"])
+        )
         self.options["inner_problem"].setup()
 
-        self._setup_inputs_and_outputs_and_fill_quantity_to_inner_vars()
+        self._setup_variable_information()
+
+        self._setup_wrt_and_of_vars()
 
         # TODO: maybe add methods for time-independent in/outputs
 
     def compute(self, inputs, outputs):  # pylint: disable = arguments-differ
-        inner_problem: om.Problem = self.options["inner_problem"]
-        initial_time = self.options["integration_control"].initial_time
-        delta_t = self.options["integration_control"].delta_t
-        num_steps = self.options["integration_control"].num_steps
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        self._setup_stage_cache()
+        self._transfer_input_vector_from_outer_to_inner_problem(inputs)
 
-        stage_cache = {}
-        for stage in range(butcher_tableau.number_of_stages()):
-            stage_cache[stage] = om.DefaultVector("nonlinear", "input", self)
+        self._create_file_and_write_initial_data(inputs)
 
-        # set initial values
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            old_variable_name = var_tuple[0]
-            inner_problem.set_val(old_variable_name, inputs[quantity + "_initial"])
+        self._integrated_quantities_initial_values(inputs, outputs)
 
-        with h5py.File(self.options["write_file"], mode="w") as f:
-            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-                f.create_dataset(quantity + "/0", data=inputs[quantity + "_initial"])
+        self._run_steps(outputs)
 
-        for step in range(1, num_steps + 1):
-            time_old = initial_time + delta_t * (step - 1)
-            time_new = initial_time + delta_t * step
-            self._update_step_info(step, time_old, time_new)
-            for stage in range(butcher_tableau.number_of_stages()):
-                self._update_stage_info(
-                    stage,
-                    time_old + delta_t * butcher_tableau.butcher_time_stages[stage],
-                    butcher_tableau.butcher_matrix[stage, stage],
-                )
-                self._accumulate_stages_and_set_inner(stage, stage_cache)
+        self._transfer_output_vector_from_inner_to_outer_problem(outputs)
 
-                inner_problem.run_model()
-
-                self._cache_stage(stage, stage_cache)
-
-            self._update_step_fwd(stage_cache)
-
-            if (
-                step % self.options["integration_control"].checkpoint_distance == 0
-                or step == num_steps
-            ):
-                with h5py.File(self.options["write_file"], mode="r+") as f:
-                    for quantity, var_tuple in self.options[
-                        "quantity_to_inner_vars"
-                    ].items():
-                        f.create_dataset(
-                            quantity + "/" + str(step), data=inner_problem[var_tuple[0]]
-                        )
-
-        # get the result at the end
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            outputs[quantity + "_final"] = inner_problem.get_val(var_tuple[0])
+    def _integrated_quantities_initial_values(self, input_vector, output_vector):
+        integrated_quantities = self.options["integrated_quantities"]
+        quadrature_rule_weights = self.options["quadrature_rule_weights"]
+        for quantity in integrated_quantities:
+            output_vector[quantity + "_integrated"] += (
+                quadrature_rule_weights[0] * input_vector[quantity + "_initial"]
+            )
 
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode
     ):  # pylint: disable = arguments-differ
-        # reverse mode is currently not implemented
+        self._setup_stage_cache()
+        self._setup_d_stage_cache()
         if mode == "fwd":
             self._compute_jacvec_product_fwd(inputs, d_inputs, d_outputs)
+
         elif mode == "rev":
             self._compute_jacvec_product_rev(inputs, d_inputs, d_outputs)
 
     def _compute_jacvec_product_fwd(self, inputs, d_inputs, d_outputs):
-        inner_problem: om.Problem = self.options["inner_problem"]
-        initial_time = self.options["integration_control"].initial_time
-        delta_t = self.options["integration_control"].delta_t
-        num_steps = self.options["integration_control"].num_steps
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        contributions = self._vector_class("linear", "input", self)
+        self.vector_set_between_runge_kutta_parts(contributions, d_inputs)
 
-        stage_cache = {}
-        d_stage_cache = {}
-        for stage in range(butcher_tableau.number_of_stages()):
-            stage_cache[stage] = om.DefaultVector("nonlinear", "input", self)
-            d_stage_cache[stage] = om.DefaultVector("linear", "input", self)
+        self._transfer_input_vector_from_outer_to_inner_problem(inputs)
 
-        contributions = om.DefaultVector("linear", "input", self)
-        contributions.add_scal_vec(1.0, d_inputs)
+        self._integrated_quantities_initial_values(d_inputs, d_outputs)
 
-        of_vars = []
-        wrt_vars = []
+        self._run_steps_jacvec_fwd(d_outputs, contributions)
 
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            of_vars.append(var_tuple[2])
-            wrt_vars.append(var_tuple[0])
-            wrt_vars.append(var_tuple[1])
-
-        # set initial values
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            old_variable_name = var_tuple[0]
-            inner_problem.set_val(old_variable_name, inputs[quantity + "_initial"])
-
-        for step in range(1, num_steps + 1):
-            seed = {}
-            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-                # fill with "d_residual" values (according to documentation)
-                seed[var_tuple[0]] = contributions[quantity + "_initial"].copy()
-                seed[var_tuple[1]] = np.zeros_like(contributions[quantity + "_initial"])
-
-            time_old = initial_time + delta_t * (step - 1)
-            time_new = initial_time + delta_t * step
-            self._update_step_info(step, time_old, time_new)
-            for stage in range(butcher_tableau.number_of_stages()):
-                self._update_stage_info(
-                    stage,
-                    time_old + delta_t * butcher_tableau.butcher_time_stages[stage],
-                    butcher_tableau.butcher_matrix[stage, stage],
-                )
-                self._accumulate_stages_and_set_inner(stage, stage_cache)
-                self._accumulate_d_stages_into_seed_fwd(stage, d_stage_cache, seed)
-
-                inner_problem.run_model()
-                inner_problem.model._linearize(None)
-
-                jvp = inner_problem.compute_jacvec_product(
-                    of=of_vars, wrt=wrt_vars, mode="fwd", seed=seed
-                )
-
-                # for quantity, var_tuple in self.options[
-                #     "quantity_to_inner_vars"
-                # ].items():
-                #     contributions[quantity + "_initial"] += (
-                #         delta_t
-                #         * butcher_tableau.butcher_weight_vector[stage]
-                #         * jvp[var_tuple[2]]
-                #     )
-
-                self._cache_stage(stage, stage_cache)
-                self._cache_d_stage(stage, d_stage_cache, jvp)
-
-            self._update_step_fwd(stage_cache)
-            self._update_contribution(d_stage_cache, contributions)
-
-        # get the result at the end
-        d_outputs.add_scal_vec(1.0, contributions)
+        self.vector_scaled_add_between_runge_kutta_parts(d_outputs, 1.0, contributions)
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
-        # some variable initializations
+        contributions = self._vector_class("linear", "output", self)
+        self.vector_set_between_runge_kutta_parts(contributions, d_outputs)
 
+        self._setup_time_cache()
+
+        self._run_checkpoints_jacvec_rev(contributions)
+        self.vector_scaled_add_between_runge_kutta_parts(d_inputs, 1.0, contributions)
+
+    def _setup_variable_information(self):
         inner_problem: om.Problem = self.options["inner_problem"]
-        initial_time = self.options["integration_control"].initial_time
-        delta_t = self.options["integration_control"].delta_t
-        num_steps = self.options["integration_control"].num_steps
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
 
-        # For the reverse derivative, we need to go backward in time
-        # Because of this, we need to start with result of the time-stepping
-
-        time_stepping_result = om.DefaultVector("nonlinear", "output", self)
-        with h5py.File(self.options["write_file"], mode="r") as f:
-            for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-                time_stepping_result[quantity + "_final"] = f.get(
-                    quantity + "/" + str(num_steps)
-                )
-
-        stage_cache = {}
-        d_stage_cache = {}
-        fwd_input_cache = {}
-        for stage in range(butcher_tableau.number_of_stages()):
-            stage_cache[stage] = om.DefaultVector("nonlinear", "input", self)
-            d_stage_cache[stage] = om.DefaultVector("linear", "output", self)
-            fwd_input_cache[stage] = om.DefaultVector(
-                "nonlinear", "input", inner_problem.model
-            )
-
-        contributions = om.DefaultVector("linear", "output", self)
-        contributions.add_scal_vec(1.0, d_outputs)
-
-        of_vars = []
-        wrt_vars = []
-
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            of_vars.append(var_tuple[2])
-            wrt_vars.append(var_tuple[0])
-            wrt_vars.append(var_tuple[1])
-
-        # set initial values
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            old_variable_name = var_tuple[0]
-            inner_problem.set_val(
-                old_variable_name, time_stepping_result[quantity + "_final"]
-            )
-
-        # time-stepping:
-        for step in range(num_steps, 0, -1):
-            # first: step backwards in time,
-            time_old = initial_time + delta_t * step
-            time_new = initial_time + delta_t * (step - 1)
-            self._update_step_info(step, time_old, time_new)
-            self.options["integration_control"].delta_t *= -1
-            for stage in range(butcher_tableau.number_of_stages()):
-                self._update_stage_info(
-                    stage,
-                    time_old + delta_t * butcher_tableau.butcher_time_stages[stage],
-                    butcher_tableau.butcher_matrix[stage, stage],
-                )
-
-                self._accumulate_stages_and_set_inner(stage, stage_cache)
-
-                inner_problem.run_model()
-
-                self._cache_stage(stage, stage_cache)
-
-            self._update_step_rev(stage_cache)
-
-            self.options["integration_control"].delta_t *= -1
-            for stage in range(butcher_tableau.number_of_stages()):
-                self._update_stage_info(
-                    stage,
-                    time_new + delta_t * butcher_tableau.butcher_time_stages[stage],
-                    butcher_tableau.butcher_matrix[stage, stage],
-                )
-
-                self._accumulate_stages_and_set_inner(stage, stage_cache)
-                inner_problem.run_model()
-                self._cache_stage(stage, stage_cache)
-                # need to cache complete input_vector for linearize to work later
-                fwd_input_cache[stage].add_scal_vec(1.0, inner_problem.model._inputs)
-
-                d_stage_cache[stage] = self._reverse_jacvec_stage(
-                    stage, fwd_input_cache, contributions, of_vars, wrt_vars
-                )
-
-            self._update_contribution(d_stage_cache, contributions)
-            for stage in range(butcher_tableau.number_of_stages()):
-                fwd_input_cache[stage].imul(0)
-        # get the result at the end
-        d_inputs.add_scal_vec(1.0, contributions)
-
-    # TODO: this should probably be reworked
-    def _setup_inputs_and_outputs_and_fill_quantity_to_inner_vars(self):
-        inner_problem = self.options["inner_problem"]
-
-        step_input_vars = dict(
+        old_step_input_vars = dict(
             inner_problem.model.list_inputs(
                 val=False,
-                shape=True,
+                prom_name=True,
                 tags=["step_input_var"],
                 out_stream=None,
+                all_procs=True,
+                # is_indep_var=True,
             )
         )
-        for quantity in self.options["quantity_tags"]:
-            quantity_inputs = inner_problem.model.list_inputs(
+
+        acc_stage_input_vars = dict(
+            inner_problem.model.list_inputs(
                 val=False,
                 prom_name=True,
-                shape=True,
-                tags=[quantity],
+                tags=["accumulated_stage_var"],
                 out_stream=None,
+                all_procs=True,
+                # is_indep_var=True,
             )
-            quantity_outputs = inner_problem.model.list_outputs(
+        )
+
+        stage_output_vars = dict(
+            inner_problem.model.list_outputs(
                 val=False,
-                tags=[quantity],
+                prom_name=True,
+                tags=["stage_output_var"],
                 out_stream=None,
+                all_procs=True,
             )
-            self.options["quantity_to_inner_vars"][quantity] = [
-                None,
-                None,
-                quantity_outputs[0][0],
-            ]
-            for var, metadata in quantity_inputs:
-                if var in step_input_vars:
-                    self.options["quantity_to_inner_vars"][quantity][0] = var
-                    self.add_input(quantity + "_initial", shape=metadata["shape"])
-                    self.add_output(quantity + "_final", shape=metadata["shape"])
+        )
+
+        for quantity in self.options["quantity_tags"]:
+            self._fill_quantity_to_inner_vars(
+                quantity, old_step_input_vars, acc_stage_input_vars, stage_output_vars
+            )
+
+            if self.quantity_to_inner_vars[quantity]["stage_output_var"] is None:
+                raise AssertionError(
+                    f"There is no stage_output_var for quantity {quantity}"
+                )
+
+            if (
+                self.quantity_to_inner_vars[quantity]["step_input_var"] is not None
+                and self.quantity_to_inner_vars[quantity]["accumulated_stage_var"]
+                is None
+            ) or (
+                self.quantity_to_inner_vars[quantity]["step_input_var"] is None
+                and self.quantity_to_inner_vars[quantity]["accumulated_stage_var"]
+                is not None
+            ):
+                raise AssertionError(
+                    f"There needs to be either both or none of step_input_var and accumulated_stage_var for quantity {quantity}"
+                )
+
+            self._add_inputs_and_outputs(quantity)
+
+    def _fill_quantity_to_inner_vars(
+        self, quantity, old_step_input_vars, acc_stage_input_vars, stage_output_vars
+    ):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        quantity_inputs = dict(
+            inner_problem.model.list_inputs(
+                val=False,
+                prom_name=True,
+                tags=[quantity],
+                shape=True,
+                global_shape=True,
+                out_stream=None,
+                # all_procs=True,
+                # is_indep_var=True,
+            )
+        )
+
+        quantity_outputs = dict(
+            inner_problem.model.list_outputs(
+                val=False,
+                prom_name=True,
+                tags=[quantity],
+                shape=True,
+                global_shape=True,
+                out_stream=None,
+                # all_procs=True,
+            )
+        )
+
+        self.quantity_to_inner_vars[quantity] = {
+            "step_input_var": None,
+            "accumulated_stage_var": None,
+            "stage_output_var": None,
+            "shape": None,
+            "global_shape": None,
+        }
+
+        # TODO: use own error types instead of AssertionError, like in the DevRound
+
+        for var, metadata in quantity_inputs.items():
+            if var in old_step_input_vars:
+                self.quantity_to_inner_vars[quantity]["step_input_var"] = var
+                if self.quantity_to_inner_vars[quantity]["shape"] is None:
+                    self.quantity_to_inner_vars[quantity]["shape"] = metadata["shape"]
                 else:
-                    self.options["quantity_to_inner_vars"][quantity][1] = var
+                    assert (
+                        metadata["shape"]
+                        == self.quantity_to_inner_vars[quantity]["shape"]
+                    )
+                if self.quantity_to_inner_vars[quantity]["global_shape"] is None:
+                    self.quantity_to_inner_vars[quantity]["global_shape"] = metadata[
+                        "global_shape"
+                    ]
+                else:
+                    assert (
+                        metadata["global_shape"]
+                        == self.quantity_to_inner_vars[quantity]["global_shape"]
+                    )
 
-    def _update_step_info(self, step, step_time_old, step_time_new):
+            elif var in acc_stage_input_vars:
+                self.quantity_to_inner_vars[quantity]["accumulated_stage_var"] = var
+                if self.quantity_to_inner_vars[quantity]["shape"] is None:
+                    self.quantity_to_inner_vars[quantity]["shape"] = metadata["shape"]
+                else:
+                    assert (
+                        metadata["shape"]
+                        == self.quantity_to_inner_vars[quantity]["shape"]
+                    )
+                if self.quantity_to_inner_vars[quantity]["global_shape"] is None:
+                    self.quantity_to_inner_vars[quantity]["global_shape"] = metadata[
+                        "global_shape"
+                    ]
+                else:
+                    assert (
+                        metadata["global_shape"]
+                        == self.quantity_to_inner_vars[quantity]["global_shape"]
+                    )
+
+        for var, metadata in quantity_outputs.items():
+            if var in stage_output_vars:
+                self.quantity_to_inner_vars[quantity]["stage_output_var"] = var
+            if self.quantity_to_inner_vars[quantity]["shape"] is None:
+                self.quantity_to_inner_vars[quantity]["shape"] = metadata["shape"]
+            else:
+                assert (
+                    metadata["shape"] == self.quantity_to_inner_vars[quantity]["shape"]
+                )
+            if self.quantity_to_inner_vars[quantity]["global_shape"] is None:
+                self.quantity_to_inner_vars[quantity]["global_shape"] = metadata[
+                    "global_shape"
+                ]
+            else:
+                assert (
+                    metadata["global_shape"]
+                    == self.quantity_to_inner_vars[quantity]["global_shape"]
+                )
+
+    def _add_inputs_and_outputs(self, quantity):
+        self.add_input(
+            quantity + "_initial",
+            shape=self.quantity_to_inner_vars[quantity]["shape"],
+            distributed=self.quantity_to_inner_vars[quantity]["shape"]
+            != self.quantity_to_inner_vars[quantity]["global_shape"],
+        )
+        self.add_output(
+            quantity + "_final",
+            copy_shape=quantity + "_initial",
+            distributed=self.quantity_to_inner_vars[quantity]["shape"]
+            != self.quantity_to_inner_vars[quantity]["global_shape"],
+        )
+        if quantity in self.options["integrated_quantities"]:
+            self.add_output(
+                quantity + "_integrated",
+                copy_shape=quantity + "_initial",
+                distributed=self.quantity_to_inner_vars[quantity]["shape"]
+                != self.quantity_to_inner_vars[quantity]["global_shape"],
+            )
+
+    def _setup_wrt_and_of_vars(self):
+        for var_dict in self.quantity_to_inner_vars.values():
+            self.of_vars.append(var_dict["stage_output_var"])
+            self.wrt_vars.append(var_dict["step_input_var"])
+            self.wrt_vars.append(var_dict["accumulated_stage_var"])
+
+    def _update_step_info(self, step):
+        initial_time = self.options["integration_control"].initial_time
+        delta_t = self.options["integration_control"].delta_t
         self.options["integration_control"].step = step
-        self.options["integration_control"].step_time_old = step_time_old
-        self.options["integration_control"].step_time_new = step_time_new
+        self.options["integration_control"].step_time_old = initial_time + delta_t * (
+            step - 1
+        )
+        self.options["integration_control"].step_time_new = (
+            initial_time + delta_t * step
+        )
 
-    def _update_stage_info(self, stage, stage_time, butcher_diagonal_element):
+    def _run_steps(self, output_vector):
+        num_steps = self.options["integration_control"].num_steps
+        for step in range(1, num_steps + 1):
+            self._update_step_info(step)
+            self._run_stages()
+            self._update_step_fwd()
+            self._integrated_quantities_contribution(output_vector, step)
+            self._save_to_file_at_checkpoint(step)
+
+    def _integrated_quantities_contribution(self, output_vector, step):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        integrated_quantities = self.options["integrated_quantities"]
+        quadrature_rule_weights = self.options["quadrature_rule_weights"]
+        for quantity in integrated_quantities:
+            step_variable_name = self.quantity_to_inner_vars[quantity]["step_input_var"]
+            output_vector[quantity + "_final"] += quadrature_rule_weights[
+                step
+            ] * inner_problem.get_val(step_variable_name)
+
+    def _run_steps_jacvec_fwd(self, d_output_vector, contributions):
+        num_steps = self.options["integration_control"].num_steps
+        for step in range(1, num_steps + 1):
+            seed = self._fwd_seed_step(contributions)
+
+            self._update_step_info(step)
+            self._run_stages_jacvec_fwd(seed)
+
+            self._update_step_fwd()
+            self._update_contribution(contributions)
+            self._integrated_quantities_contribution_jacvec_fwd(
+                d_output_vector, contributions, step
+            )
+
+    def _integrated_quantities_contribution_jacvec_fwd(
+        self, output_vector, contributions, step
+    ):
+        integrated_quantities = self.options["integrated_quantities"]
+        quadrature_rule_weights = self.options["quadrature_rule_weights"]
+        for quantity in integrated_quantities:
+            output_vector[quantity + "_final"] += (
+                quadrature_rule_weights[step] * contributions[quantity + "_initial"]
+            )
+
+    def _run_checkpoints_jacvec_rev(self, contributions):
+        for checkpoint in self._checkpoint_generator_reverse():
+            self._write_checkpoint_into_inner_problem(checkpoint)
+            self._forward_iteration_part(checkpoint)
+            self._backward_iteration_part(contributions, checkpoint)
+            self._clear_time_cache()
+
+    def _checkpoint_generator_reverse(self):
+        checkpoint_distance = self.options["integration_control"].checkpoint_distance
+        num_steps = self.options["integration_control"].num_steps
+        num_iterations = (num_steps - 1) // checkpoint_distance
+        for i in range(num_iterations, -1, -1):
+            yield checkpoint_distance * i
+
+    def _forward_iteration_part(self, checkpoint):
+        checkpoint_distance = self.options["integration_control"].checkpoint_distance
+        num_steps = self.options["integration_control"].num_steps
+        for step in range(
+            checkpoint + 1,
+            min(num_steps, checkpoint + checkpoint_distance) + 1,
+        ):
+            self._update_step_info(step)
+            self._run_stages_jacvec_rev_forward_part()
+            self._update_step_fwd()
+
+    def _backward_iteration_part(self, contributions, checkpoint):
+        checkpoint_distance = self.options["integration_control"].checkpoint_distance
+        num_steps = self.options["integration_control"].num_steps
+        for step in range(
+            min(num_steps, checkpoint + checkpoint_distance), checkpoint, -1
+        ):
+            self._update_step_info(step)
+            self._run_stages_jacvec_rev_backward_part(contributions)
+            self._update_contribution(contributions)
+
+    def _update_stage_info(self, stage):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         self.options["integration_control"].stage = stage
-        self.options["integration_control"].stage_time = stage_time
+        self.options["integration_control"].stage_time = (
+            self.options["integration_control"].step_time_old
+            + self.options["integration_control"].delta_t
+            * butcher_tableau.butcher_time_stages[stage]
+        )
         self.options[
             "integration_control"
-        ].butcher_diagonal_element = butcher_diagonal_element
+        ].butcher_diagonal_element = butcher_tableau.butcher_matrix[stage, stage]
 
-    def _accumulate_stages_and_set_inner(self, stage: int, stage_cache: dict):
+    def _run_stages(self):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for stage in range(butcher_tableau.number_of_stages()):
+            self._update_stage_info(stage)
+            self._dirk_stage(stage)
+
+    def _run_stages_jacvec_fwd(self, seed):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for stage in range(butcher_tableau.number_of_stages()):
+            self._update_stage_info(stage)
+            self._dirk_stage(stage)
+            self._dirk_stage_jacvec_fwd(stage, seed)
+
+    def _run_stages_jacvec_rev_forward_part(self):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for stage in range(butcher_tableau.number_of_stages()):
+            self._update_stage_info(stage)
+            self._dirk_stage_rev_forward(stage)
+
+    def _run_stages_jacvec_rev_backward_part(self, contributions):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for stage in range(butcher_tableau.number_of_stages()):
+            self._update_stage_info(stage)
+
+            self.d_stage_cache[stage] = self._dirk_stage_rev_backward(
+                stage, contributions
+            )
+
+    def _dirk_stage(self, stage):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        self._accumulate_stages_into_inner_problem(stage)
+        inner_problem.run_model()
+        self._cache_stage(stage)
+
+    def _dirk_stage_jacvec_fwd(self, stage, seed):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        self._accumulate_d_stages_into_seed_fwd(stage, seed)
+        inner_problem.model._linearize(None)
+
+        jvp = inner_problem.compute_jacvec_product(
+            of=self.of_vars, wrt=self.wrt_vars, mode="fwd", seed=seed
+        )
+
+        self._cache_d_stage(stage, jvp)
+
+    def _dirk_stage_rev_forward(self, stage):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        self._accumulate_stages_into_inner_problem(stage)
+        inner_problem.run_model()
+        self._cache_stage(stage)
+        self._cache_inner_state()
+
+    def _dirk_stage_rev_backward(self, stage, contributions):
+        step = (
+            self.options["integration_control"].step
+            % self.options["integration_control"].checkpoint_distance
+        )
         inner_problem: om.Problem = self.options["inner_problem"]
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        accumulated_stages = om.DefaultVector("nonlinear", "input", self)
-        # accumulate previous stages for current stage
+        self._update_stage_info(stage)
+
+        result = self._vector_class("linear", "output", self)
+        intermediate = self._vector_class("linear", "output", self)
+
+        seed = {}
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            # fill with "d_residual" values (according to documentation)
+            seed[var_dict["stage_output_var"]] = contributions[
+                quantity + "_final"
+            ].copy()
+        inner_problem.model._inputs.set_vec(self._time_cache[step][stage]["input"])
+        inner_problem.model._outputs.set_vec(self._time_cache[step][stage]["output"])
+        inner_problem.model._linearize(None)
+        jvp = inner_problem.compute_jacvec_product(
+            self.of_vars, self.wrt_vars, "rev", seed
+        )
+
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            result[quantity + "_final"] += jvp[var_dict["step_input_var"]]
+            intermediate[quantity + "_final"] = jvp[var_dict["accumulated_stage_var"]]
+
         for prev_stage in range(stage):
-            accumulated_stages.add_scal_vec(
+            self.vector_scaled_add_between_runge_kutta_parts(
+                result,
                 butcher_tableau.butcher_matrix[stage, prev_stage],
-                stage_cache[prev_stage],
+                self._dirk_stage_rev_backward(prev_stage, intermediate),
             )
+
+        return result
+
+    def _accumulate_stages_into_inner_problem(self, stage: int):
+        accumulated_stages = self._vector_class("nonlinear", "input", self)
+        # accumulate previous stages for current stage
+        self._accumulate_stages(stage, accumulated_stages)
+
+        self._fill_inner_accumulated_stages(accumulated_stages)
 
         # set accumulated previous stage in inner problem
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            accumulated_variable_name = var_tuple[1]
-            inner_problem.set_val(
-                accumulated_variable_name,
-                accumulated_stages[quantity + "_initial"],
+
+    def _accumulate_stages(self, stage, accumulated_stages):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for prev_stage in range(stage):
+            self.vector_scaled_add_between_runge_kutta_parts(
+                accumulated_stages,
+                butcher_tableau.butcher_matrix[stage, prev_stage],
+                self.stage_cache[prev_stage],
             )
 
-    def _cache_stage(self, stage, stage_cache):
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
+    def _fill_inner_accumulated_stages(self, vector):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            inner_problem.set_val(
+                var_dict["accumulated_stage_var"],
+                vector[quantity + "_initial"],
+            )
+
+    def _update_step_fwd(self):
+        step_contributions = self._vector_class("nonlinear", "input", self)
+
+        self._step_contribution(step_contributions)
+
+        self._add_contribution_to_inner_old_step(step_contributions)
+
+    def _step_contribution(self, vector):
+        delta_t = self.options["integration_control"].delta_t
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for stage in range(butcher_tableau.number_of_stages()):
+            self.vector_scaled_add_between_runge_kutta_parts(
+                vector,
+                delta_t * butcher_tableau.butcher_weight_vector[stage],
+                self.stage_cache[stage],
+            )
+
+    def _add_contribution_to_inner_old_step(self, vector):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            inner_problem[var_dict["step_input_var"]] += vector[quantity + "_initial"]
+
+    def _accumulate_d_stages_into_seed_fwd(self, stage, seed):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        # accumulate previous stages for current stage
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            seed[var_dict["accumulated_stage_var"]].fill(0.0)
+            for prev_stage in range(stage):
+                seed[var_dict["accumulated_stage_var"]] += (
+                    butcher_tableau.butcher_matrix[stage, prev_stage]
+                    * self.d_stage_cache[prev_stage][quantity + "_initial"]
+                )
+
+    def _update_contribution(self, contributions):
+        delta_t = self.options["integration_control"].delta_t
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+
+        # compute contribution to new step
+
+        for stage in range(butcher_tableau.number_of_stages()):
+            self.vector_scaled_add_between_runge_kutta_parts(
+                contributions,
+                delta_t * butcher_tableau.butcher_weight_vector[stage],
+                self.d_stage_cache[stage],
+            )
+
+    def _fwd_seed_step(self, contributions):
+        seed = {}
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            # fill with "d_residual" values (according to documentation)
+            seed[var_dict["step_input_var"]] = contributions[
+                quantity + "_initial"
+            ].copy()
+            seed[var_dict["accumulated_stage_var"]] = np.zeros_like(
+                contributions[quantity + "_initial"]
+            )
+        return seed
+
+    # cache related functions
+
+    def _setup_stage_cache(self):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for stage in range(butcher_tableau.number_of_stages()):
+            self.stage_cache[stage] = self._vector_class("nonlinear", "input", self)
+
+    def _cache_stage(self, stage):
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
             inner_problem: om.Problem = self.options["inner_problem"]
-            new_stage_name = var_tuple[2]
-            stage_cache[stage].set_var(
+            new_stage_name = var_dict["stage_output_var"]
+            self.stage_cache[stage].set_var(
                 quantity + "_initial",
                 inner_problem.get_val(new_stage_name),
             )
 
-    def _update_step_fwd(self, stage_cache):
-        inner_problem: om.Problem = self.options["inner_problem"]
-        delta_t = self.options["integration_control"].delta_t
+    def _setup_d_stage_cache(self):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-
-        stage_contributions = om.DefaultVector("nonlinear", "input", self)
-        # compute contribution to new step
         for stage in range(butcher_tableau.number_of_stages()):
-            stage_contributions.add_scal_vec(
-                delta_t * butcher_tableau.butcher_weight_vector[stage],
-                stage_cache[stage],
-            )
+            self.d_stage_cache[stage] = self._vector_class("linear", "input", self)
 
-        # add that contribution to the old step
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            inner_problem[var_tuple[0]] += stage_contributions[quantity + "_initial"]
-
-    def _update_step_rev(self, stage_cache):
-        inner_problem: om.Problem = self.options["inner_problem"]
-        delta_t = self.options["integration_control"].delta_t
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-
-        stage_contributions = om.DefaultVector("nonlinear", "input", self)
-        # compute contribution to new step
-        for stage in range(butcher_tableau.number_of_stages()):
-            stage_contributions.add_scal_vec(
-                delta_t * butcher_tableau.butcher_weight_vector[stage],
-                stage_cache[stage],
-            )
-
-        # add that contribution to the old step
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            inner_problem[var_tuple[0]] -= stage_contributions[quantity + "_initial"]
-
-    def _accumulate_d_stages_into_seed_fwd(self, stage, d_stage_cache, seed):
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        # accumulate previous stages for current stage
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            seed[var_tuple[1]].fill(0.0)
-            for prev_stage in range(stage):
-                seed[var_tuple[1]] += (
-                    butcher_tableau.butcher_matrix[stage, prev_stage]
-                    * d_stage_cache[prev_stage][quantity + "_initial"]
-                )
-
-    def _cache_d_stage(self, stage, d_stage_cache, jvp):
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            new_stage_name = var_tuple[2]
-            d_stage_cache[stage].set_var(
+    def _cache_d_stage(self, stage, jvp):
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            new_stage_name = var_dict["stage_output_var"]
+            self.d_stage_cache[stage].set_var(
                 quantity + "_initial",
                 jvp[new_stage_name],
             )
 
-    def _update_contribution(self, d_stage_cache, contributions):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-
-        # compute contribution to new step
-
-        for stage in range(butcher_tableau.number_of_stages()):
-            contributions.add_scal_vec(
-                delta_t * butcher_tableau.butcher_weight_vector[stage],
-                d_stage_cache[stage],
-            )
-
-    def _reverse_jacvec_stage(
-        self, stage, fwd_input_cache, contributions, of_vars, wrt_vars
-    ):
+    def _setup_time_cache(self):
         inner_problem: om.Problem = self.options["inner_problem"]
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        delta_t = self.options["integration_control"].delta_t
-        step_time = self.options["integration_control"].step_time_new
+        for i in range(self.options["integration_control"].checkpoint_distance):
+            self._time_cache[i] = {}
+            for j in range(butcher_tableau.number_of_stages()):
+                self._time_cache[i][j] = {
+                    "input": inner_problem.model._vector_class(
+                        "nonlinear", "input", inner_problem.model
+                    ),
+                    "output": inner_problem.model._vector_class(
+                        "nonlinear", "output", inner_problem.model
+                    ),
+                }
 
-        self._update_stage_info(
-            stage,
-            step_time + delta_t * butcher_tableau.butcher_time_stages[stage],
-            butcher_tableau.butcher_matrix[stage, stage],
+    def _cache_inner_state(self):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        stage = self.options["integration_control"].stage
+        step = self.options["integration_control"].step
+        checkpoint_distance = self.options["integration_control"].checkpoint_distance
+        self._time_cache[step % checkpoint_distance][stage]["input"].add_scal_vec(
+            1.0, inner_problem.model._inputs
+        )
+        self._time_cache[step % checkpoint_distance][stage]["output"].add_scal_vec(
+            1.0, inner_problem.model._outputs
         )
 
-        result = om.DefaultVector("linear", "output", self)
-        intermediate = om.DefaultVector("linear", "output", self)
-        # result.add_scal_vec(1.0, contributions)
+    def _clear_time_cache(self):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for i in range(self.options["integration_control"].checkpoint_distance):
+            for j in range(butcher_tableau.number_of_stages()):
+                self._time_cache[i][j]["input"].imul(0.0)
+                self._time_cache[i][j]["output"].imul(0.0)
 
-        seed = {}
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            # fill with "d_residual" values (according to documentation)
-            seed[var_tuple[2]] = contributions[quantity + "_final"].copy()
+    # Transfer functions between inner and outer
 
-        inner_problem.model._inputs = fwd_input_cache[stage]
-        inner_problem.model._linearize(None)
-        jvp = inner_problem.compute_jacvec_product(of_vars, wrt_vars, "rev", seed)
-        for quantity, var_tuple in self.options["quantity_to_inner_vars"].items():
-            result[quantity + "_final"] += jvp[var_tuple[0]]
-            intermediate[quantity + "_final"] = jvp[var_tuple[1]]
-
-        for prev_stage in range(stage):
-            result.add_scal_vec(
-                butcher_tableau.butcher_matrix[stage, prev_stage],
-                self._reverse_jacvec_stage(
-                    prev_stage, fwd_input_cache, intermediate, of_vars, wrt_vars
-                ),
+    def _transfer_input_vector_from_outer_to_inner_problem(self, outer_inputs):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            inner_problem.set_val(
+                var_dict["step_input_var"],
+                outer_inputs[quantity + "_initial"],
             )
 
-        return result
+    def _transfer_output_vector_from_inner_to_outer_problem(self, outputs):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        # get the result at the end TODO: how parallel (probably via get_remote option)
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
+            outputs[quantity + "_final"] = inner_problem.get_val(
+                var_dict["step_input_var"]
+            )
+
+    # file operation
+    def _create_file_and_write_initial_data(self, vector):
+        with h5py.File(
+            f"{self.comm.rank}_" + self.options["write_file"], mode="w"
+        ) as f:
+            for quantity in self.quantity_to_inner_vars:
+                f.create_dataset(quantity + "/0", data=vector[quantity + "_initial"])
+
+    def _save_to_file_at_checkpoint(self, step):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        checkpoint_distance = self.options["integration_control"].checkpoint_distance
+        num_steps = self.options["integration_control"].num_steps
+        if step % checkpoint_distance == 0 or step == num_steps:
+            with h5py.File(
+                f"{self.comm.rank}_" + self.options["write_file"], mode="r+"
+            ) as f:
+                for quantity, var_dict in self.quantity_to_inner_vars.items():
+                    f.create_dataset(
+                        quantity + "/" + str(step),
+                        data=inner_problem[var_dict["step_input_var"]],
+                    )
+
+    def _write_checkpoint_into_inner_problem(self, checkpoint):
+        inner_problem: om.Problem = self.options["inner_problem"]
+        with h5py.File(
+            f"{self.comm.rank}_" + self.options["write_file"], mode="r"
+        ) as f:
+            for quantity, var_dict in self.quantity_to_inner_vars.items():
+                inner_problem.set_val(
+                    var_dict["step_input_var"],
+                    f.get(quantity + "/" + str(checkpoint)),
+                )
+
+    def vector_scaled_add_between_runge_kutta_parts(
+        self, result_vector, scale_vector, initial_vector
+    ):
+        result_suffix = "_initial" if result_vector._kind == "input" else "_final"
+        initial_suffix = "_initial" if initial_vector._kind == "input" else "_final"
+        for quantity in self.quantity_to_inner_vars:
+            result_vector[quantity + result_suffix] += (
+                scale_vector * initial_vector[quantity + initial_suffix]
+            )
+
+    def vector_set_between_runge_kutta_parts(self, result_vector, initial_vector):
+        result_suffix = "_initial" if result_vector._kind == "input" else "_final"
+        initial_suffix = "_initial" if initial_vector._kind == "input" else "_final"
+        for quantity in self.quantity_to_inner_vars:
+            result_vector[quantity + result_suffix] = initial_vector[
+                quantity + initial_suffix
+            ]

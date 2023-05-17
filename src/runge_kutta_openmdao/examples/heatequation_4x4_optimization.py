@@ -1,6 +1,9 @@
 import numpy as np
 import openmdao.api as om
 
+from openmdao.utils.array_utils import evenly_distrib_idxs
+from openmdao.utils.mpi import MPI
+
 from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
 
 from runge_kutta_openmdao.heatequation.boundary import BoundaryCondition
@@ -15,6 +18,8 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
+
+from scipy.sparse.linalg import LinearOperator
 
 
 if __name__ == "__main__":
@@ -51,8 +56,8 @@ if __name__ == "__main__":
     for i in range(4):
         for j in range(4):
             boundary_dict[(i, j)] = BoundaryCondition(
-                left=(lambda t, x, y: 0.0) if i == 0 else None,
-                right=(lambda t, x, y: 0.0) if j == 3 else None,
+                left=(lambda t, x, y: -np.sin(np.pi * t) - 1) if i == 0 else None,
+                right=(lambda t, x, y: -np.cos(np.pi * t) - 1) if i == 3 else None,
                 lower=(lambda t, x, y: 0.0) if j == 0 else None,
                 upper=(lambda t, x, y: 0.0) if j == 3 else None,
             )
@@ -68,9 +73,6 @@ if __name__ == "__main__":
         np.array([1 - gamma, gamma]),
         np.array([gamma, 1.0]),
     )
-    atol = 1e-5
-    rtol = 1e-4
-    scipytol = 1e-4
 
     # butcher_tableau = ButcherTableau(
     #     np.array([[0.293, 0.0], [0.414, 0.293]]),
@@ -93,6 +95,13 @@ if __name__ == "__main__":
     #     np.array([0.5, 0.667, 0.5, 1.0]),
     # )
 
+    heat_precon = LinearOperator(
+        shape=(
+            (piecewise_points_per_direction * piecewise_points_per_direction),
+            (piecewise_points_per_direction * piecewise_points_per_direction),
+        ),
+        matvec=lambda x: delta_x**2 / -4 * x,
+    )
     heat_equation_dict = {}
     for i in range(4):
         for j in range(4):
@@ -101,28 +110,42 @@ if __name__ == "__main__":
                 lambda t, x, y: 0.0,
                 boundary_dict[(i, j)],
                 1.0,
-                lambda x, y: g(x) * g(y) + 1,
-                {"tol": 1e-12, "atol": "legacy"},
+                lambda x, y: 1,
+                {"tol": 1e-12, "atol": "legacy", "M": heat_precon},
             )
 
-    integration_control = IntegrationControl(0.0, 1000, 10, 1e-6)
+    integration_control = IntegrationControl(0.0, 20000, 100, 1e-5)
 
     inner_prob = om.Problem()
 
-    heat_group = inner_prob.model.add_subsystem("heat_group", om.Group())
+    heat_group = inner_prob.model.add_subsystem(
+        "heat_group", om.ParallelGroup(), min_procs=1, max_procs=16
+    )
 
     for i in range(4):
         for j in range(4):
             shared_boundary = []
             if i != 0:
-                shared_boundary.append("lower")
-            if i != 3:
-                shared_boundary.append("upper")
-            if j != 0:
                 shared_boundary.append("left")
-            if j != 3:
+            if i != 3:
                 shared_boundary.append("right")
-            heat_group.add_subsystem(
+            if j != 0:
+                shared_boundary.append("lower")
+            if j != 3:
+                shared_boundary.append("upper")
+
+            heat_subgroup = heat_group.add_subsystem(
+                f"heat_subgroup_{i}_{j}", om.Group(), promotes=["*"]
+            )
+
+            heat_indep = om.IndepVarComp(f"heat_indep_{i}_{j}")
+            heat_indep.add_output(f"heat_{i}_{j}", shape_by_conn=True)
+
+            heat_subgroup.add_subsystem(
+                f"heat_indep_{i}_{j}", heat_indep, promotes=["*"]
+            )
+
+            heat_subgroup.add_subsystem(
                 f"heat_component_{i}_{j}",
                 HeatEquationStageComponent(
                     heat_equation=heat_equation_dict[(i, j)],
@@ -140,12 +163,14 @@ if __name__ == "__main__":
                 ],
             )
 
-    flux_group = inner_prob.model.add_subsystem("flux_group", om.Group())
+    flux_group = inner_prob.model.add_subsystem(
+        "flux_group", om.ParallelGroup(), min_procs=1, max_procs=24
+    )
 
-    for i in range(4):
-        for j in range(3):
+    for i in range(3):
+        for j in range(4):
             flux_group.add_subsystem(
-                f"flux_comp_{4 *i + j}_{4* i + j + 1}",
+                f"flux_comp_{4 *i + j}_{4* (i+1) + j}",
                 FluxComponent(
                     delta=delta_x,
                     shape=piecewise_points_per_direction,
@@ -154,27 +179,27 @@ if __name__ == "__main__":
             )
             inner_prob.model.connect(
                 f"heat_group.stage_heat_{i}_{j}",
-                f"flux_group.flux_comp_{4 * i + j}_{4*i + j +1}.left_side",
+                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.left_side",
                 src_indices=domain_dict[(i, j)].boundary_indices("right") - 1,
             )
             inner_prob.model.connect(
-                f"heat_group.stage_heat_{i}_{j + 1}",
-                f"flux_group.flux_comp_{4 * i + j}_{4*i + j +1}.right_side",
-                src_indices=domain_dict[(i, j + 1)].boundary_indices("left") + 1,
+                f"heat_group.stage_heat_{i+1}_{j}",
+                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.right_side",
+                src_indices=domain_dict[(i + 1, j)].boundary_indices("left") + 1,
             )
             inner_prob.model.connect(
-                f"flux_group.flux_comp_{4 * i + j}_{4*i + j +1}.flux",
+                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.flux",
                 f"heat_group.heat_component_{i}_{j}.boundary_segment_right",
             )
             inner_prob.model.connect(
-                f"flux_group.flux_comp_{4 * i + j}_{4*i + j +1}.reverse_flux",
-                f"heat_group.heat_component_{i}_{j+1}.boundary_segment_left",
+                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.reverse_flux",
+                f"heat_group.heat_component_{i+1}_{j}.boundary_segment_left",
             )
 
-    for i in range(3):
-        for j in range(4):
+    for i in range(4):
+        for j in range(3):
             flux_group.add_subsystem(
-                f"flux_comp_{4 * i + j}_{4 * (i+1) + j}",
+                f"flux_comp_{4 * i + j}_{4 * i + j + 1}",
                 FluxComponent(
                     delta=delta_x,
                     shape=piecewise_points_per_direction,
@@ -183,32 +208,35 @@ if __name__ == "__main__":
             )
             inner_prob.model.connect(
                 f"heat_group.stage_heat_{i}_{j}",
-                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.lower_side",
+                f"flux_group.flux_comp_{4 * i + j}_{4*i + j+1}.lower_side",
                 src_indices=domain_dict[(i, j)].boundary_indices("upper")
                 - piecewise_points_per_direction,
             )
             inner_prob.model.connect(
-                f"heat_group.stage_heat_{i+1}_{j}",
-                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.upper_side",
-                src_indices=domain_dict[(i + 1, j)].boundary_indices("lower")
+                f"heat_group.stage_heat_{i}_{j+1}",
+                f"flux_group.flux_comp_{4 * i + j}_{4*i + j+1}.upper_side",
+                src_indices=domain_dict[(i, j + 1)].boundary_indices("lower")
                 + piecewise_points_per_direction,
             )
             inner_prob.model.connect(
-                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.flux",
+                f"flux_group.flux_comp_{4 * i + j}_{4*i + j+1}.flux",
                 f"heat_group.heat_component_{i}_{j}.boundary_segment_upper",
             )
             inner_prob.model.connect(
-                f"flux_group.flux_comp_{4 * i + j}_{4*(i+1) + j}.reverse_flux",
-                f"heat_group.heat_component_{i+1}_{j}.boundary_segment_lower",
+                f"flux_group.flux_comp_{4 * i + j}_{4*i + j+1}.reverse_flux",
+                f"heat_group.heat_component_{i}_{j+1}.boundary_segment_lower",
             )
 
     # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=True, iprint=2
+        solve_subsystems=True, iprint=2, maxiter=20, atol=1e-7, rtol=1e-7
     )
 
-    inner_prob.model.linear_solver = om.ScipyKrylov(iprint=2)
-    # inner_prob.model.linear_solver = om.LinearBlockGS()
+    inner_prob.model.linear_solver = om.PETScKrylov(
+        atol=1e-10, rtol=1e-10, ksp_type="gmres"
+    )
+    # inner_prob.model.linear_solver.precon = om.LinearBlockGS(iprint=-1)
+    # inner_prob.model.linear_solver.precon.options["maxiter"] = 2
 
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(
@@ -217,17 +245,47 @@ if __name__ == "__main__":
             inner_problem=inner_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
-            write_file="inner_problem_stage.h5",
+            write_file="heat_equ_4x4.h5",
             quantity_tags=[f"heat_{i}" for i in range(16)],
         ),
         promotes_inputs=[f"heat_{i}_initial" for i in range(16)],
     )
 
-    outer_prob.setup()
+    var_comp = om.IndepVarComp("indep")
     for i in range(4):
         for j in range(4):
-            outer_prob.set_val(
-                f"heat_{4*i + j}_initial", heat_equation_dict[(i, j)].initial_vector
-            )
+            if MPI:
+                comm = MPI.COMM_WORLD
+                rank = comm.rank
+                sizes, offsets = evenly_distrib_idxs(
+                    comm.size, heat_equation_dict[(i, j)].initial_vector.size
+                )
+            else:
+                rank = 0
+                sizes = {rank: heat_equation_dict[(i, j)].initial_vector.size}
+                offsets = {rank: 0}
+        var_comp.add_output(
+            f"heat_{4*i + j}_initial", shape_by_conn=True, distributed=True
+        )
 
-    outer_prob.run_model()
+    outer_prob.model.add_subsystem("indep", var_comp, promotes=["*"])
+
+    inner_prob.setup()
+    inner_prob.run_model()
+    metadata = inner_prob.model.get_io_metadata()
+
+    if inner_prob.comm.rank == 1:
+        for key, value in metadata.items():
+            print(key, value)
+
+    # outer_prob.setup()
+    # for i in range(4):
+    #     for j in range(4):
+    #         outer_prob.set_val(
+    #             f"heat_{4*i + j}_initial",
+    #             heat_equation_dict[(i, j)].initial_vector[
+    #                 offsets[rank] : offsets[rank] + sizes[rank]
+    #             ],
+    #         )
+
+    # outer_prob.run_model()

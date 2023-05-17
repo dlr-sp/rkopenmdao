@@ -49,19 +49,19 @@ class TestComp1(om.ExplicitComponent):
 #     np.array([0.0, 0.5, 0.5, 1.0]),
 # )
 
-alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
+# alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
 
-butcher_tableau = ButcherTableau(
-    np.array(
-        [
-            [0.5 * (1 + alpha), 0.0, 0.0],
-            [-0.5 * alpha, 0.5 * (1 + alpha), 0.0],
-            [1 + alpha, -(1 + 2 * alpha), 0.5 * (1 + alpha)],
-        ]
-    ),
-    np.array([1 / (6 * alpha**2), 1 - 1 / (3 * alpha**2), 1 / (6 * alpha**2)]),
-    np.array([0.5 * (1 + alpha), 0.5, 0.5 * (1 - alpha)]),
-)
+# butcher_tableau = ButcherTableau(
+#     np.array(
+#         [
+#             [0.5 * (1 + alpha), 0.0, 0.0],
+#             [-0.5 * alpha, 0.5 * (1 + alpha), 0.0],
+#             [1 + alpha, -(1 + 2 * alpha), 0.5 * (1 + alpha)],
+#         ]
+#     ),
+#     np.array([1 / (6 * alpha**2), 1 - 1 / (3 * alpha**2), 1 / (6 * alpha**2)]),
+#     np.array([0.5 * (1 + alpha), 0.5, 0.5 * (1 - alpha)]),
+# )
 
 # gamma = (2.0 - np.sqrt(2.0)) / 2.0
 # butcher_tableau = ButcherTableau(
@@ -75,17 +75,17 @@ butcher_tableau = ButcherTableau(
 #     np.array([gamma, 1.0]),
 # )
 
-# butcher_tableau = ButcherTableau(
-#     np.array(
-#         [
-#             [0.5],
-#         ]
-#     ),
-#     np.array([1.0]),
-#     np.array([0.5]),
-# )
+butcher_tableau = ButcherTableau(
+    np.array(
+        [
+            [0.5],
+        ]
+    ),
+    np.array([1.0]),
+    np.array([0.5]),
+)
 
-integration_control = IntegrationControl(0.0, 20, 10, 2e-2)
+integration_control = IntegrationControl(0.0, 20, 10, 1e-1)
 
 inner_prob = om.Problem()
 
@@ -108,11 +108,14 @@ outer_prob.model.add_subsystem(
         integration_control=integration_control,
         quantity_tags=["x"],
     ),
-    promotes_inputs=["x_initial"],
+    promotes=["*"],
 )
 
 outer_prob.setup()
 outer_prob.set_val("x_initial", 1.0)
 outer_prob.run_model()
 
-outer_prob.check_partials(form="central")
+
+outer_prob.set_val("x_initial", 1.0)
+
+outer_prob.check_partials()

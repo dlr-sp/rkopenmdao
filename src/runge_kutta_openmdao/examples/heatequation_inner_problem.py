@@ -10,15 +10,19 @@ from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
 from runge_kutta_openmdao.heatequation.flux_component import FluxComponent
+from runge_kutta_openmdao.heatequation.flux_integral_operator_component import (
+    FluxIntegralOperatorComponent,
+)
 
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
+from scipy.sparse.linalg import LinearOperator
 
 if __name__ == "__main__":
-    points_per_direction = 21
+    points_per_direction = 51
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
     domain_half_1 = Domain([0.0, 0.5], [0.0, 1.0], points_x, points_per_direction)
@@ -42,12 +46,12 @@ if __name__ == "__main__":
     boundary_condition_1 = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
         lower=lambda t, x, y: 0.0,
-        left=lambda t, x, y: 0.0,
+        left=lambda t, x, y: -np.sin(np.pi * t) - 1,
     )
     boundary_condition_2 = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
         lower=lambda t, x, y: 0.0,
-        right=lambda t, x, y: 0.0,
+        right=lambda t, x, y: -np.cos(np.pi * t) - 1,
     )
 
     gamma = (2.0 - np.sqrt(2.0)) / 2.0
@@ -86,13 +90,21 @@ if __name__ == "__main__":
     #     np.array([0.5, 0.667, 0.5, 1.0]),
     # )
 
+    heat_precon = LinearOperator(
+        shape=(
+            (points_per_direction * points_x),
+            (points_per_direction * points_x),
+        ),
+        matvec=lambda x: delta_x**2 / -4 * x,
+    )
+
     heat_equation_1 = HeatEquation(
         domain_half_1,
         lambda t, x, y: 0.0,
         boundary_condition_1,
         1.0,
-        lambda x, y: g(x) * g(y) + 1,
-        {"tol": 1e-12, "atol": "legacy"},
+        lambda x, y: 1,
+        {"tol": 1e-15, "atol": "legacy", "M": heat_precon},
     )
 
     heat_equation_2 = HeatEquation(
@@ -100,11 +112,11 @@ if __name__ == "__main__":
         lambda t, x, y: 0.0,
         boundary_condition_2,
         1.0,
-        lambda x, y: g(x) * g(y) + 1,
-        {"tol": 1e-12, "atol": "legacy"},
+        lambda x, y: 1,
+        {"tol": 1e-15, "atol": "legacy", "M": heat_precon},
     )
 
-    integration_control = IntegrationControl(0.0, 1000, 10, 1e-4)
+    integration_control = IntegrationControl(0.0, 1000, 100, 1e-5)
 
     inner_prob = om.Problem()
 
@@ -149,6 +161,11 @@ if __name__ == "__main__":
         ),
     )
 
+    inner_prob.model.add_subsystem(
+        "flux_integral",
+        FluxIntegralOperatorComponent(delta=delta_x, shape=points_per_direction),
+    )
+
     left_boundary_indices_1 = domain_half_2.boundary_indices("left") + 1
 
     right_boundary_indices_1 = domain_half_1.boundary_indices("right") - 1
@@ -171,17 +188,21 @@ if __name__ == "__main__":
         "flux_comp.reverse_flux", "heat_component_2.boundary_segment_left"
     )
 
+    inner_prob.model.connect("flux_comp.flux", "flux_integral.flux")
+
     # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True,
+        iprint=2,
         # atol=atol,
         # rtol=rtol
     )
-
+    inner_prob.model.linear_solver = om.PETScKrylov(iprint=2, atol=1e-12, rtol=1e-12)
     # inner_prob.model.linear_solver = om.ScipyKrylov(
-    #     # atol=scipytol
+    # iprint=2,
+    # atol=scipytol
     # )
-    inner_prob.model.linear_solver = om.LinearBlockGS()
+    # inner_prob.model.linear_solver = om.LinearBlockGS()
 
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(
@@ -195,6 +216,12 @@ if __name__ == "__main__":
         ),
         promotes_inputs=["heat_1_initial", "heat_2_initial"],
     )
+
+    var_comp = om.IndepVarComp("indep")
+    var_comp.add_output("heat_1_initial", shape_by_conn=True, distributed=True)
+    var_comp.add_output("heat_2_initial", shape_by_conn=True, distributed=True)
+
+    outer_prob.model.add_subsystem("indep", var_comp, promotes=["*"])
 
     outer_prob.setup()
     outer_prob.set_val("heat_1_initial", heat_equation_1.initial_vector)

@@ -14,7 +14,7 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
 
     def setup(self):
         self.add_input("flux", shape=self.options["shape"])
-        self.add_output("integrated_flux", shape=1)
+        self.add_output("integrated_flux", shape=1, tags="functional")
 
     def compute(self, inputs, outputs):  # pylint: disable=arguments-differ
         outputs["integrated_flux"] = self.options["delta"] * (

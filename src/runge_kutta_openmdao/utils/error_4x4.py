@@ -5,17 +5,15 @@ from matplotlib import colors
 import h5py
 
 
-errors_half_1 = np.zeros(101)
-errors_half_2 = np.zeros(101)
+errors_half_1 = np.zeros((16,101))
 errors_rel_half_1 = np.zeros(101)
-errors_rel_half_2 = np.zeros(101)
 errors_half_1_analytic = np.zeros(101)
 errors_half_2_analytic = np.zeros(101)
 errors_rel_half_1_analytic = np.zeros(101)
 errors_rel_half_2_analytic = np.zeros(101)
 
 checkpoint_distance = 100
-points_per_direction = 51
+points_per_direction = 101
 half_points = points_per_direction // 2
 
 with h5py.File("monolithic.h5", mode="r") as f_1, h5py.File(

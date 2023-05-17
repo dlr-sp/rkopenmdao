@@ -4,7 +4,7 @@ from matplotlib import cm, animation, colors
 import h5py
 
 if __name__ == "__main__":
-    points_per_direction = 21
+    points_per_direction = 51
     points_x = points_per_direction // 2 + 1
 
     fig = plt.figure()
@@ -37,10 +37,12 @@ if __name__ == "__main__":
     axs[2].set_title("OpenMDAO numerical solution")
     ims = []
 
-    checkpoint_distance = 10
-    fig.suptitle(r"Newton solver, solve_subsystems=True, $\Delta t = 10^{-4}$, $\Delta x = \Delta y = 0.05$")
+    checkpoint_distance = 100
+    fig.suptitle(
+        r"Newton solver, solve_subsystems=True, $\Delta t = 10^{-5}$, $\Delta x = \Delta y = 0.02$"
+    )
     fig.subplots_adjust(bottom=0.20)
-    tax = fig.add_axes([0.7,0.05,0.25,0.05])
+    tax = fig.add_axes([0.7, 0.05, 0.25, 0.05])
     tax.axis("off")
     cax = fig.add_axes([0.05, 0.05, 0.6, 0.05])
     fig.colorbar(
@@ -98,13 +100,10 @@ if __name__ == "__main__":
                 linewidth=0,
                 antialiased=False,
             )
-            im5 = tax.text(x=0,y=0, s = "time: "+ str(i * checkpoint_distance * 1e-4)[:5])
+            im5 = tax.text(
+                x=0, y=0, s="time: " + str(i * checkpoint_distance * 1e-5)[:5]
+            )
             ims.append([im1, im2, im3, im4, im5])
-
-    
-    
-
-    
 
     ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat=False)
     ani.save("HeatEquOpenMDAOAnimation.gif")
