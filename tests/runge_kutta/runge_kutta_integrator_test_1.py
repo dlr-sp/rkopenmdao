@@ -36,18 +36,18 @@ class TestComp1(om.ExplicitComponent):
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
 
 
-# butcher_tableau = ButcherTableau(
-#     np.array(
-#         [
-#             [0.0, 0.0, 0.0, 0.0],
-#             [0.5, 0.0, 0.0, 0.0],
-#             [0.0, 0.5, 0.0, 0.0],
-#             [0.0, 0.0, 1.0, 0.0],
-#         ]
-#     ),
-#     np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
-#     np.array([0.0, 0.5, 0.5, 1.0]),
-# )
+butcher_tableau = ButcherTableau(
+    np.array(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.5, 0.0, 0.0, 0.0],
+            [0.0, 0.5, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+        ]
+    ),
+    np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
+    np.array([0.0, 0.5, 0.5, 1.0]),
+)
 
 # alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
 
@@ -75,17 +75,20 @@ class TestComp1(om.ExplicitComponent):
 #     np.array([gamma, 1.0]),
 # )
 
-butcher_tableau = ButcherTableau(
-    np.array(
-        [
-            [0.5],
-        ]
-    ),
-    np.array([1.0]),
-    np.array([0.5]),
-)
+# butcher_tableau = ButcherTableau(
+#     np.array(
+#         [
+#             [0.5],
+#         ]
+#     ),
+#     np.array([1.0]),
+#     np.array([0.5]),
+# )
+num_steps = 1
+integration_control = IntegrationControl(0.0, num_steps, 10, 1e-1)
 
-integration_control = IntegrationControl(0.0, 20, 10, 1e-1)
+trapezoidal_rule = np.ones(num_steps + 1)
+trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
@@ -106,6 +109,8 @@ outer_prob.model.add_subsystem(
         inner_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
+        integrated_quantities=["x"],
+        quadrature_rule_weights=trapezoidal_rule,
         quantity_tags=["x"],
     ),
     promotes=["*"],

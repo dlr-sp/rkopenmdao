@@ -22,6 +22,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.d_stage_cache: dict = {}
         self._time_cache = {}
         self.of_vars: list = []
+        self.of_vars_functional: list = []
         self.wrt_vars: list = []
 
     def initialize(self):
@@ -98,16 +99,19 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _integrated_quantities_initial_values(self, input_vector, output_vector):
         integrated_quantities = self.options["integrated_quantities"]
         quadrature_rule_weights = self.options["quadrature_rule_weights"]
+        delta_t = self.options["integration_control"].delta_t
         for quantity in integrated_quantities:
             output_vector[quantity + "_integrated"] += (
-                quadrature_rule_weights[0] * input_vector[quantity + "_initial"]
+                delta_t
+                * quadrature_rule_weights[0]
+                * input_vector[quantity + "_initial"]
             )
 
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode
     ):  # pylint: disable = arguments-differ
         self._setup_stage_cache()
-        self._setup_d_stage_cache()
+        self._setup_d_stage_cache(mode)
         if mode == "fwd":
             self._compute_jacvec_product_fwd(inputs, d_inputs, d_outputs)
 
@@ -128,12 +132,26 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
         contributions = self._vector_class("linear", "output", self)
-        self.vector_set_between_runge_kutta_parts(contributions, d_outputs)
+        contributions.set_vec(d_outputs)
 
         self._setup_time_cache()
 
-        self._run_checkpoints_jacvec_rev(contributions)
+        self._run_checkpoints_jacvec_rev(contributions, d_outputs)
         self.vector_scaled_add_between_runge_kutta_parts(d_inputs, 1.0, contributions)
+        self._add_functional_contributions(d_inputs, contributions, d_outputs)
+
+    def _add_functional_contributions(
+        self, d_input_vector, contributions, d_output_vector
+    ):
+        delta_t = self.options["integration_control"].delta_t
+        quadrature_rule_weights = self.options["quadrature_rule_weights"]
+        for quantity in self.options["integrated_quantities"]:
+            d_input_vector[quantity + "_initial"] += (
+                delta_t
+                * quadrature_rule_weights[0]
+                * d_output_vector[quantity + "_integrated"]
+                + contributions[quantity + "_integrated"]
+            )
 
     def _setup_variable_information(self):
         inner_problem: om.Problem = self.options["inner_problem"]
@@ -314,10 +332,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
 
     def _setup_wrt_and_of_vars(self):
-        for var_dict in self.quantity_to_inner_vars.values():
+        for quantity, var_dict in self.quantity_to_inner_vars.items():
             self.of_vars.append(var_dict["stage_output_var"])
             self.wrt_vars.append(var_dict["step_input_var"])
             self.wrt_vars.append(var_dict["accumulated_stage_var"])
+            if quantity in self.options["integrated_quantities"]:
+                self.of_vars_functional.append(var_dict["stage_output_var"])
 
     def _update_step_info(self, step):
         initial_time = self.options["integration_control"].initial_time
@@ -343,11 +363,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         inner_problem: om.Problem = self.options["inner_problem"]
         integrated_quantities = self.options["integrated_quantities"]
         quadrature_rule_weights = self.options["quadrature_rule_weights"]
+        delta_t = self.options["integration_control"].delta_t
         for quantity in integrated_quantities:
             step_variable_name = self.quantity_to_inner_vars[quantity]["step_input_var"]
-            output_vector[quantity + "_final"] += quadrature_rule_weights[
-                step
-            ] * inner_problem.get_val(step_variable_name)
+            output_vector[quantity + "_integrated"] += (
+                delta_t
+                * quadrature_rule_weights[step]
+                * inner_problem.get_val(step_variable_name)
+            )
 
     def _run_steps_jacvec_fwd(self, d_output_vector, contributions):
         num_steps = self.options["integration_control"].num_steps
@@ -368,16 +391,19 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     ):
         integrated_quantities = self.options["integrated_quantities"]
         quadrature_rule_weights = self.options["quadrature_rule_weights"]
+        delta_t = self.options["integration_control"].delta_t
         for quantity in integrated_quantities:
-            output_vector[quantity + "_final"] += (
-                quadrature_rule_weights[step] * contributions[quantity + "_initial"]
+            output_vector[quantity + "_integrated"] += (
+                delta_t
+                * quadrature_rule_weights[step]
+                * contributions[quantity + "_initial"]
             )
 
-    def _run_checkpoints_jacvec_rev(self, contributions):
+    def _run_checkpoints_jacvec_rev(self, intermediate_d_outputs, d_outputs):
         for checkpoint in self._checkpoint_generator_reverse():
             self._write_checkpoint_into_inner_problem(checkpoint)
             self._forward_iteration_part(checkpoint)
-            self._backward_iteration_part(contributions, checkpoint)
+            self._backward_iteration_part(checkpoint, d_outputs, intermediate_d_outputs)
             self._clear_time_cache()
 
     def _checkpoint_generator_reverse(self):
@@ -398,15 +424,103 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._run_stages_jacvec_rev_forward_part()
             self._update_step_fwd()
 
-    def _backward_iteration_part(self, contributions, checkpoint):
+    # def _backward_iteration_part(
+    #     self, time_stepping_contributions, functional_contributions, checkpoint
+    # ):
+    #     checkpoint_distance = self.options["integration_control"].checkpoint_distance
+    #     num_steps = self.options["integration_control"].num_steps
+    #     for step in range(
+    #         min(num_steps, checkpoint + checkpoint_distance), checkpoint, -1
+    #     ):
+    #         self._update_step_info(step)
+    #         self._run_stages_jacvec_rev_backward_part(
+    #             time_stepping_contributions, functional_contributions
+    #         )
+    #         self._update_contribution(time_stepping_contributions)
+    #         self._update_functional_contribution(functional_contributions)
+
+    def _backward_iteration_part(self, checkpoint, d_outputs, intermediate_d_outputs):
+        delta_t = self.options["integration_control"].delta_t
         checkpoint_distance = self.options["integration_control"].checkpoint_distance
         num_steps = self.options["integration_control"].num_steps
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        inner_problem: om.Problem = self.options["inner_problem"]
+        quadrature_rule_weights = self.options["quadrature_rule_weights"]
         for step in range(
             min(num_steps, checkpoint + checkpoint_distance), checkpoint, -1
         ):
+            checkpoint_step = (
+                step % self.options["integration_control"].checkpoint_distance
+            )
             self._update_step_info(step)
-            self._run_stages_jacvec_rev_backward_part(contributions)
-            self._update_contribution(contributions)
+            new_d_outputs = self._vector_class("linear", "output", self)
+            new_d_outputs.set_vec(intermediate_d_outputs)
+
+            for stage in range(butcher_tableau.number_of_stages() - 1, -1, -1):
+                self._update_stage_info(stage)
+                time_stepping_seed = {}
+                functional_seed = {}
+                for quantity, var_dict in self.quantity_to_inner_vars.items():
+                    time_stepping_seed[var_dict["stage_output_var"]] = (
+                        butcher_tableau.butcher_weight_vector[stage]
+                        * intermediate_d_outputs[quantity + "_final"]
+                    )
+                    for prev_stage in range(
+                        stage + 1, butcher_tableau.number_of_stages()
+                    ):
+                        time_stepping_seed[var_dict["stage_output_var"]] += (
+                            butcher_tableau.butcher_matrix[prev_stage, stage]
+                            * self.d_stage_cache[prev_stage][quantity + "_final"]
+                        )
+                    if quantity in self.options["integrated_quantities"]:
+                        functional_seed[
+                            var_dict["stage_output_var"]
+                        ] = butcher_tableau.butcher_weight_vector[stage] * (
+                            delta_t
+                            * quadrature_rule_weights[step]
+                            * d_outputs[quantity + "_integrated"]
+                            + intermediate_d_outputs[quantity + "_integrated"]
+                        )
+                        for prev_stage in range(
+                            stage + 1, butcher_tableau.number_of_stages()
+                        ):
+                            functional_seed[var_dict["stage_output_var"]] += (
+                                butcher_tableau.butcher_matrix[prev_stage, stage]
+                                * self.d_stage_cache[prev_stage][
+                                    quantity + "_integrated"
+                                ]
+                            )
+                inner_problem.model._inputs.set_vec(
+                    self._time_cache[checkpoint_step][stage]["input"]
+                )
+                inner_problem.model._outputs.set_vec(
+                    self._time_cache[checkpoint_step][stage]["output"]
+                )
+                inner_problem.model._linearize(None)
+                jvp_time_stepping = inner_problem.compute_jacvec_product(
+                    self.of_vars, self.wrt_vars, "rev", time_stepping_seed
+                )
+                if self.of_vars_functional:
+                    jvp_functional = inner_problem.compute_jacvec_product(
+                        self.of_vars_functional, self.wrt_vars, "rev", functional_seed
+                    )
+                for quantity, var_dict in self.quantity_to_inner_vars.items():
+                    new_d_outputs[quantity + "_final"] += (
+                        delta_t * jvp_time_stepping[var_dict["step_input_var"]]
+                    )
+                    self.d_stage_cache[stage].set_var(
+                        quantity + "_final",
+                        jvp_time_stepping[var_dict["accumulated_stage_var"]],
+                    )
+                    if quantity in self.options["integrated_quantities"]:
+                        new_d_outputs[quantity + "_integrated"] += (
+                            delta_t * jvp_functional[var_dict["step_input_var"]]
+                        )
+                        self.d_stage_cache[stage].set_var(
+                            quantity + "_integrated",
+                            jvp_functional[var_dict["accumulated_stage_var"]],
+                        )
+            intermediate_d_outputs.set_vec(new_d_outputs)
 
     def _update_stage_info(self, stage):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
@@ -439,14 +553,19 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._update_stage_info(stage)
             self._dirk_stage_rev_forward(stage)
 
-    def _run_stages_jacvec_rev_backward_part(self, contributions):
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        for stage in range(butcher_tableau.number_of_stages()):
-            self._update_stage_info(stage)
+    # def _run_stages_jacvec_rev_backward_part(
+    #     self, time_stepping_contributions, functional_contributions
+    # ):
+    #     butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+    #     for stage in range(butcher_tableau.number_of_stages()):
+    #         self._update_stage_info(stage)
 
-            self.d_stage_cache[stage] = self._dirk_stage_rev_backward(
-                stage, contributions
-            )
+    #         self.d_stage_cache[stage] = self._dirk_stage_rev_backward(
+    #             stage, time_stepping_contributions
+    #         )
+    #         self.d_stage_functional_cache[stage] = self._dirk_stage_rev_backward(
+    #             stage, functional_contributions
+    #         )
 
     def _dirk_stage(self, stage):
         inner_problem: om.Problem = self.options["inner_problem"]
@@ -472,43 +591,55 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._cache_stage(stage)
         self._cache_inner_state()
 
-    def _dirk_stage_rev_backward(self, stage, contributions):
-        step = (
-            self.options["integration_control"].step
-            % self.options["integration_control"].checkpoint_distance
-        )
-        inner_problem: om.Problem = self.options["inner_problem"]
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        self._update_stage_info(stage)
+    # def _dirk_stage_rev_backward(self, stage, contributions):
+    #     step = (
+    #         self.options["integration_control"].step
+    #         % self.options["integration_control"].checkpoint_distance
+    #     )
+    #     inner_problem: om.Problem = self.options["inner_problem"]
+    #     butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+    #     self._update_stage_info(stage)
 
-        result = self._vector_class("linear", "output", self)
-        intermediate = self._vector_class("linear", "output", self)
+    #     result = self._vector_class("linear", "output", self)
+    #     intermediate = self._vector_class("linear", "output", self)
 
-        seed = {}
-        for quantity, var_dict in self.quantity_to_inner_vars.items():
-            # fill with "d_residual" values (according to documentation)
-            seed[var_dict["stage_output_var"]] = contributions[
-                quantity + "_final"
-            ].copy()
-        inner_problem.model._inputs.set_vec(self._time_cache[step][stage]["input"])
-        inner_problem.model._outputs.set_vec(self._time_cache[step][stage]["output"])
-        inner_problem.model._linearize(None)
-        jvp = inner_problem.compute_jacvec_product(
-            self.of_vars, self.wrt_vars, "rev", seed
-        )
+    #     seed = {}
+    #     for quantity, var_dict in self.quantity_to_inner_vars.items():
+    #         # fill with "d_residual" values (according to documentation)
+    #         seed[var_dict["stage_output_var"]] = contributions[
+    #             quantity + "_final"
+    #         ].copy()
 
-        for quantity, var_dict in self.quantity_to_inner_vars.items():
-            result[quantity + "_final"] += jvp[var_dict["step_input_var"]]
-            intermediate[quantity + "_final"] = jvp[var_dict["accumulated_stage_var"]]
+    #     inner_problem.model._inputs.set_vec(self._time_cache[step][stage]["input"])
+    #     inner_problem.model._outputs.set_vec(self._time_cache[step][stage]["output"])
+    #     inner_problem.model._linearize(None)
+    #     jvp = inner_problem.compute_jacvec_product(
+    #         self.of_vars, self.wrt_vars, "rev", seed
+    #     )
 
-        for prev_stage in range(stage):
-            self.vector_scaled_add_between_runge_kutta_parts(
-                result,
-                butcher_tableau.butcher_matrix[stage, prev_stage],
-                self._dirk_stage_rev_backward(prev_stage, intermediate),
-            )
+    #     if self.of_vars_functional:
+    #         seed_functional = {}
+    #         for quantity, var_dict in self.quantity_to_inner_vars.items():
+    #             seed_functional[
+    #                 var_dict["stage_output_var"]
+    #             ] = functional_contributions[quantity + "_integrated"].copy()
 
-        return result
+    #         jvp_functional = inner_problem.compute_jacvec_product(
+    #             self.of_vars_functional, self.wrt_vars, "rev", seed_functional
+    #         )
+
+    #     for quantity, var_dict in self.quantity_to_inner_vars.items():
+    #         result[quantity + "_final"] += jvp[var_dict["step_input_var"]]
+    #         intermediate[quantity + "_final"] = jvp[var_dict["accumulated_stage_var"]]
+
+    #     for prev_stage in range(stage):
+    #         self.vector_scaled_add_between_runge_kutta_parts(
+    #             result,
+    #             butcher_tableau.butcher_matrix[stage, prev_stage],
+    #             self._dirk_stage_rev_backward(prev_stage, intermediate),
+    #         )
+
+    #     return result
 
     def _accumulate_stages_into_inner_problem(self, stage: int):
         accumulated_stages = self._vector_class("nonlinear", "input", self)
@@ -582,6 +713,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.d_stage_cache[stage],
             )
 
+    # def _update_functional_contribution(self, functional_contributions):
+    #     delta_t = self.options["integration_control"].delta_t
+    #     butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+
+    #     for stage in range(butcher_tableau.number_of_stages()):
+    #         self.vector_scaled_add_between_runge_kutta_parts(
+    #             functional_contributions,
+    #             delta_t * butcher_tableau.butcher_weight_vector[stage],
+    #             self.d_stage_functional_cache[stage],
+    #         )
+
     def _fwd_seed_step(self, contributions):
         seed = {}
         for quantity, var_dict in self.quantity_to_inner_vars.items():
@@ -601,6 +743,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for stage in range(butcher_tableau.number_of_stages()):
             self.stage_cache[stage] = self._vector_class("nonlinear", "input", self)
 
+    def _setup_d_stage_cache(self, mode):
+        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
+        for stage in range(butcher_tableau.number_of_stages()):
+            self.d_stage_cache[stage] = self._vector_class(
+                "linear", "input" if mode == "fwd" else "output", self
+            )
+
     def _cache_stage(self, stage):
         for quantity, var_dict in self.quantity_to_inner_vars.items():
             inner_problem: om.Problem = self.options["inner_problem"]
@@ -609,11 +758,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 quantity + "_initial",
                 inner_problem.get_val(new_stage_name),
             )
-
-    def _setup_d_stage_cache(self):
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        for stage in range(butcher_tableau.number_of_stages()):
-            self.d_stage_cache[stage] = self._vector_class("linear", "input", self)
 
     def _cache_d_stage(self, stage, jvp):
         for quantity, var_dict in self.quantity_to_inner_vars.items():
@@ -724,4 +868,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for quantity in self.quantity_to_inner_vars:
             result_vector[quantity + result_suffix] = initial_vector[
                 quantity + initial_suffix
+            ]
+
+    def vector_set_between_functional_parts(self, result_vector, initial_vector):
+        for quantity in self.quantity_to_inner_vars:
+            result_vector[quantity + "_integrated"] = initial_vector[
+                quantity + "_integrated"
             ]
