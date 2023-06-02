@@ -119,7 +119,11 @@ butcher_tableau = ButcherTableau(
 #     np.array([1.0]),
 # )
 
-integration_control = IntegrationControl(0.0, 20, 10, 1e-1)
+num_steps = 20
+integration_control = IntegrationControl(0.0, num_steps, 10, 1e-1)
+
+trapezoidal_rule = np.ones(num_steps + 1)
+trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
@@ -140,6 +144,8 @@ outer_prob.model.add_subsystem(
         inner_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
+        integrated_quantities=["x"],
+        quadrature_rule_weights=trapezoidal_rule,
         quantity_tags=["x"],
     ),
     promotes_inputs=["x_initial"],

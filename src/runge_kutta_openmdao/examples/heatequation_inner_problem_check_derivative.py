@@ -102,7 +102,11 @@ if __name__ == "__main__":
         boundary_condition_1,
         1.0,
         lambda x, y: g(x) * g(y),
-        {"tol": 1e-12, "atol": "legacy", "M": heat_precon},
+        {
+            "tol": 1e-15,
+            "atol": "legacy",
+            # "M": heat_precon
+        },
     )
 
     heat_equation_2 = HeatEquation(
@@ -111,10 +115,14 @@ if __name__ == "__main__":
         boundary_condition_2,
         1.0,
         lambda x, y: g(x) * g(y),
-        {"tol": 1e-12, "atol": "legacy", "M": heat_precon},
+        {
+            "tol": 1e-15,
+            "atol": "legacy",
+            # "M": heat_precon
+        },
     )
 
-    integration_control = IntegrationControl(0.0, 1, 10, 1e-4)
+    integration_control = IntegrationControl(0.0, 1, 100, 1e-4)
 
     inner_prob = om.Problem()
 
@@ -154,9 +162,7 @@ if __name__ == "__main__":
     )
     inner_prob.model.add_subsystem(
         "flux_comp",
-        FluxComponent(
-            delta=delta_x, shape=points_per_direction, orientation="vertical"
-        ),
+        FluxComponent(delta=delta_x, shape=points_per_direction, orientation="vertical"),
     )
 
     left_boundary_indices_1 = domain_half_2.boundary_indices("left") + 1
@@ -175,9 +181,7 @@ if __name__ == "__main__":
     )
 
     inner_prob.model.connect("flux_comp.flux", "heat_comp_1.boundary_segment_right")
-    inner_prob.model.connect(
-        "flux_comp.reverse_flux", "heat_comp_2.boundary_segment_left"
-    )
+    inner_prob.model.connect("flux_comp.reverse_flux", "heat_comp_2.boundary_segment_left")
 
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
         maxiter=20,
@@ -185,7 +189,8 @@ if __name__ == "__main__":
         solve_subsystems=True,  # atol=atol, rtol=rtol
     )
     # newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
-    inner_prob.model.linear_solver = om.ScipyKrylov(maxiter=20, iprint=0)
+    inner_prob.model.linear_solver = om.PETScKrylov(iprint=0, atol=1e-12, rtol=1e-12)
+    inner_prob.model.linear_solver.precon = om.LinearRunOnce()
     # inner_prob.model.linear_solver.precon = om.LinearBlockJac(maxiter=20, iprint=0)
 
     outer_prob = om.Problem()
@@ -212,4 +217,7 @@ if __name__ == "__main__":
     outer_prob.run_model()
 
     print("done running model, starting checking partials")
-    outer_prob.check_partials()
+    # for key, value in inner_prob.model._outputs.items():
+    #     print(key, value)
+    outer_prob.check_partials(form="central")
+    # inner_prob.check_partials()

@@ -10,7 +10,9 @@ from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
 from runge_kutta_openmdao.heatequation.flux_component import FluxComponent
-
+from runge_kutta_openmdao.heatequation.flux_integral_operator_component import (
+    FluxIntegralOperatorComponent,
+)
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
@@ -18,8 +20,10 @@ from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationCont
 
 from scipy.sparse.linalg import LinearOperator
 
+from pprint import pprint
+
 if __name__ == "__main__":
-    points_per_direction = 51
+    points_per_direction = 5
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
     domain_half_1 = Domain([0.0, 0.5], [0.0, 1.0], points_x, points_per_direction)
@@ -71,9 +75,9 @@ if __name__ == "__main__":
     #     np.array([0.5, 0.5]),
     #     np.array([0.293, 0.707]),
     # )
-    # butcher_tableau = ButcherTableau(
-    #     np.array([[0.5]]), np.array([1.0]), np.array([0.5])
-    # )
+
+    # butcher_tableau = ButcherTableau(np.array([[0.5]]), np.array([1.0]), np.array([0.5]))
+
     # butcher_tableau = ButcherTableau(
     #     np.array(
     #         [
@@ -113,7 +117,7 @@ if __name__ == "__main__":
         {"tol": 1e-15, "atol": "legacy", "M": heat_precon},
     )
 
-    integration_control = IntegrationControl(0.0, 1, 100, 1e-5)
+    integration_control = IntegrationControl(0.0, 2, 100, 1e-4)
 
     inner_prob = om.Problem()
 
@@ -153,8 +157,15 @@ if __name__ == "__main__":
     )
     inner_prob.model.add_subsystem(
         "flux_comp",
-        FluxComponent(
-            delta=delta_x, shape=points_per_direction, orientation="vertical"
+        FluxComponent(delta=delta_x, shape=points_per_direction, orientation="vertical"),
+    )
+
+    inner_prob.model.add_subsystem(
+        "flux_int_comp",
+        FluxIntegralOperatorComponent(
+            delta=delta_x,
+            shape=points_per_direction,
+            integration_control=integration_control,
         ),
     )
 
@@ -173,27 +184,21 @@ if __name__ == "__main__":
         src_indices=left_boundary_indices_1,
     )
 
-    inner_prob.model.connect(
-        "flux_comp.flux", "heat_component_1.boundary_segment_right"
-    )
-    inner_prob.model.connect(
-        "flux_comp.reverse_flux", "heat_component_2.boundary_segment_left"
-    )
+    inner_prob.model.connect("flux_comp.flux", "heat_component_1.boundary_segment_right")
+    inner_prob.model.connect("flux_comp.flux", "flux_int_comp.flux")
+    inner_prob.model.connect("flux_comp.reverse_flux", "heat_component_2.boundary_segment_left")
 
     # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True,
-        iprint=2,
+        iprint=1,
+        maxiter=20,
         # atol=atol,
         # rtol=rtol
     )
     inner_prob.model.linear_solver = om.PETScKrylov(iprint=0, atol=1e-12, rtol=1e-12)
-    # inner_prob.model.linear_solver = om.ScipyKrylov(
-    # iprint=2,
-    # atol=scipytol
-    # )
-    # inner_prob.model.linear_solver = om.LinearBlockGS()
-
+    inner_prob.model.linear_solver.precon = om.LinearRunOnce()
+    trapezoidal_rule = np.array([0.5, 0.5])
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(
         "RK_Integrator",
@@ -202,9 +207,11 @@ if __name__ == "__main__":
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             write_file="inner_problem_stage.h5",
-            quantity_tags=["heat_1", "heat_2"],
+            # integrated_quantities=["heat_integral"],
+            # quadrature_rule_weights=trapezoidal_rule,
+            quantity_tags=["heat_1", "heat_2", "heat_integral"],
         ),
-        promotes_inputs=["heat_1_initial", "heat_2_initial"],
+        promotes_inputs=["heat_1_initial", "heat_2_initial", "heat_integral_initial"],
     )
 
     var_comp = om.IndepVarComp("indep")
@@ -216,8 +223,13 @@ if __name__ == "__main__":
     outer_prob.setup()
     outer_prob.set_val("heat_1_initial", heat_equation_1.initial_vector)
     outer_prob.set_val("heat_2_initial", heat_equation_2.initial_vector)
+    outer_prob.set_val("heat_integral_initial", 0.0)
     outer_prob.run_model()
 
-    outer_prob.check_partials()
+    print("done running model, starting checking partials")
 
-    inner_prob.check_partials()
+    outer_prob.check_partials(step=1e-1, show_only_incorrect=True)
+    # inner_prob.check_partials(show_only_incorrect=True, step=1e-1)
+
+    # in_mod = inner_prob.model
+    # pprint(in_mod._var_offsets)

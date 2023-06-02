@@ -2,7 +2,7 @@ import numpy as np
 import openmdao.api as om
 
 from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
-from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
+from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator_new import (
     RungeKuttaIntegrator,
 )
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
@@ -25,9 +25,7 @@ class TestComp1(om.ExplicitComponent):
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         delta_t = self.options["integration_control"].delta_t
-        divisor = (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
-        )
+        divisor = 1 - delta_t * self.options["integration_control"].butcher_diagonal_element
         if mode == "fwd":
             d_outputs["x_stage"] += d_inputs["x"] / divisor
             d_outputs["x_stage"] += delta_t * d_inputs["acc_stages"] / divisor
@@ -36,18 +34,18 @@ class TestComp1(om.ExplicitComponent):
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
 
 
-butcher_tableau = ButcherTableau(
-    np.array(
-        [
-            [0.0, 0.0, 0.0, 0.0],
-            [0.5, 0.0, 0.0, 0.0],
-            [0.0, 0.5, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-        ]
-    ),
-    np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
-    np.array([0.0, 0.5, 0.5, 1.0]),
-)
+# butcher_tableau = ButcherTableau(
+#     np.array(
+#         [
+#             [0.0, 0.0, 0.0, 0.0],
+#             [0.5, 0.0, 0.0, 0.0],
+#             [0.0, 0.5, 0.0, 0.0],
+#             [0.0, 0.0, 1.0, 0.0],
+#         ]
+#     ),
+#     np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
+#     np.array([0.0, 0.5, 0.5, 1.0]),
+# )
 
 # alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
 
@@ -75,16 +73,16 @@ butcher_tableau = ButcherTableau(
 #     np.array([gamma, 1.0]),
 # )
 
-# butcher_tableau = ButcherTableau(
-#     np.array(
-#         [
-#             [0.5],
-#         ]
-#     ),
-#     np.array([1.0]),
-#     np.array([0.5]),
-# )
-num_steps = 1
+butcher_tableau = ButcherTableau(
+    np.array(
+        [
+            [0.5],
+        ]
+    ),
+    np.array([1.0]),
+    np.array([0.5]),
+)
+num_steps = 20
 integration_control = IntegrationControl(0.0, num_steps, 10, 1e-1)
 
 trapezoidal_rule = np.ones(num_steps + 1)
@@ -92,13 +90,9 @@ trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem(
-    "x_comp", TestComp1(integration_control=integration_control)
-)
+inner_prob.model.add_subsystem("x_comp", TestComp1(integration_control=integration_control))
 
-newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-    iprint=0, solve_subsystems=True
-)
+newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
 
 inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
 

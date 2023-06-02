@@ -3,7 +3,13 @@ init-hook="from pylint.config import find_pylintrc; import os, sys; sys.path.app
 
 max-args = 7
 
+ignore-paths=**/.vscode-server/**/*.pyi,**/.vscode-server/**/*.py,ignore-paths=**/.vscode-server/**
+
 [BASIC]
 
 
 good-names=ax, im, x, y, i, j, f, g, t
+
+[FORMAT]
+
+max-line-length=100

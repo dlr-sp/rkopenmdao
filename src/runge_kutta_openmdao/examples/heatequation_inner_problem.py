@@ -10,10 +10,6 @@ from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
 from runge_kutta_openmdao.heatequation.flux_component import FluxComponent
-from runge_kutta_openmdao.heatequation.flux_integral_operator_component import (
-    FluxIntegralOperatorComponent,
-)
-
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
@@ -156,14 +152,7 @@ if __name__ == "__main__":
     )
     inner_prob.model.add_subsystem(
         "flux_comp",
-        FluxComponent(
-            delta=delta_x, shape=points_per_direction, orientation="vertical"
-        ),
-    )
-
-    inner_prob.model.add_subsystem(
-        "flux_integral",
-        FluxIntegralOperatorComponent(delta=delta_x, shape=points_per_direction),
+        FluxComponent(delta=delta_x, shape=points_per_direction, orientation="vertical"),
     )
 
     left_boundary_indices_1 = domain_half_2.boundary_indices("left") + 1
@@ -181,14 +170,8 @@ if __name__ == "__main__":
         src_indices=left_boundary_indices_1,
     )
 
-    inner_prob.model.connect(
-        "flux_comp.flux", "heat_component_1.boundary_segment_right"
-    )
-    inner_prob.model.connect(
-        "flux_comp.reverse_flux", "heat_component_2.boundary_segment_left"
-    )
-
-    inner_prob.model.connect("flux_comp.flux", "flux_integral.flux")
+    inner_prob.model.connect("flux_comp.flux", "heat_component_1.boundary_segment_right")
+    inner_prob.model.connect("flux_comp.reverse_flux", "heat_component_2.boundary_segment_left")
 
     # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(

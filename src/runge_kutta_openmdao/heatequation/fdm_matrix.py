@@ -65,36 +65,32 @@ class FdmMatrix:
 
         # direct sup/superdiagonal coming from the x-direction
         new_vector[:, 0] += old_vector_reshape[:, 1] / self.domain.delta_x**2
-        new_vector[:, 1] += (
-            old_vector_reshape[:, 2] + 2 * old_vector_reshape[:, 0]
-        ) / self.domain.delta_x**2
+        new_vector[:, 1] += (old_vector_reshape[:, 0]) / self.domain.delta_x**2
         new_vector[:, self.domain.n_x - 2] += (
-            2 * old_vector_reshape[:, self.domain.n_x - 1]
-            + old_vector_reshape[:, self.domain.n_x - 3]
+            old_vector_reshape[:, self.domain.n_x - 1]
         ) / self.domain.delta_x**2
+
         new_vector[:, self.domain.n_x - 1] += (
             old_vector_reshape[:, self.domain.n_x - 2] / self.domain.delta_x**2
         )
-        new_vector[:, 2 : self.domain.n_x - 2] += (
-            old_vector_reshape[:, 1 : self.domain.n_x - 3]
-            + old_vector_reshape[:, 3 : self.domain.n_x - 1]
+        new_vector[:, 1 : self.domain.n_x - 1] += (
+            old_vector_reshape[:, : self.domain.n_x - 2]
+            + old_vector_reshape[:, 2 : self.domain.n_x]
         ) / self.domain.delta_x**2
 
         # sup/superdiagonal coming from the y-direction
         new_vector[0, :] += old_vector_reshape[1, :] / self.domain.delta_y**2
-        new_vector[1, :] += (
-            old_vector_reshape[2, :] + 2 * old_vector_reshape[0, :]
-        ) / self.domain.delta_y**2
+        new_vector[1, :] += (old_vector_reshape[0, :]) / self.domain.delta_y**2
         new_vector[self.domain.n_y - 2, :] += (
-            2 * old_vector_reshape[self.domain.n_y - 1, :]
-            + old_vector_reshape[self.domain.n_y - 3, :]
+            old_vector_reshape[self.domain.n_y - 1, :]
         ) / self.domain.delta_y**2
         new_vector[self.domain.n_y - 1, :] += (
             old_vector_reshape[self.domain.n_y - 2, :] / self.domain.delta_y**2
         )
-        new_vector[2 : self.domain.n_y - 2, :] += (
-            old_vector_reshape[1 : self.domain.n_y - 3, :]
-            + old_vector_reshape[3 : self.domain.n_y - 1, :]
+
+        new_vector[1 : self.domain.n_y - 1, :] += (
+            old_vector_reshape[: self.domain.n_y - 2, :]
+            + old_vector_reshape[2 : self.domain.n_y, :]
         ) / self.domain.delta_y**2
 
         new_vector *= self.diffusivity

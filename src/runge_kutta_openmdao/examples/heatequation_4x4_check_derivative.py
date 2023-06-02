@@ -114,7 +114,7 @@ if __name__ == "__main__":
                 {"tol": 1e-12, "atol": "legacy", "M": heat_precon},
             )
 
-    integration_control = IntegrationControl(0.0, 20000, 100, 1e-5)
+    integration_control = IntegrationControl(0.0, 1, 100, 1e-5)
 
     inner_prob = om.Problem()
 
@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
     # inner_prob.model.nonlinear_solver = om.NonlinearBlockGS()
     newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=True, iprint=2, maxiter=20, atol=1e-7, rtol=1e-7
+        solve_subsystems=True, iprint=0, maxiter=20, atol=1e-7, rtol=1e-7
     )
 
     inner_prob.model.linear_solver = om.PETScKrylov(
@@ -245,47 +245,47 @@ if __name__ == "__main__":
             inner_problem=inner_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
-            write_file="heat_equ_4x4.h5",
+            write_file="dummy.h5",
             quantity_tags=[f"heat_{i}" for i in range(16)],
         ),
-        promotes_inputs=[f"heat_{i}_initial" for i in range(16)],
+        promotes_inputs=["*"],
     )
 
-    var_comp = om.IndepVarComp("indep")
-    for i in range(4):
-        for j in range(4):
-            if MPI:
-                comm = MPI.COMM_WORLD
-                rank = comm.rank
-                sizes, offsets = evenly_distrib_idxs(
-                    comm.size, heat_equation_dict[(i, j)].initial_vector.size
-                )
-            else:
-                rank = 0
-                sizes = {rank: heat_equation_dict[(i, j)].initial_vector.size}
-                offsets = {rank: 0}
-        var_comp.add_output(
-            f"heat_{4*i + j}_initial", shape_by_conn=True, distributed=True
-        )
+    # var_comp = om.IndepVarComp("indep")
+    # for i in range(4):
+    #     for j in range(4):
+    #         if MPI:
+    #             comm = MPI.COMM_WORLD
+    #             rank = comm.rank
+    #             sizes, offsets = evenly_distrib_idxs(
+    #                 comm.size, heat_equation_dict[(i, j)].initial_vector.size
+    #             )
+    #         else:
+    #             rank = 0
+    #             sizes = {rank: heat_equation_dict[(i, j)].initial_vector.size}
+    #             offsets = {rank: 0}
+    #     var_comp.add_output(
+    #         f"heat_{4*i + j}_initial", shape_by_conn=True, distributed=False
+    #     )
 
-    outer_prob.model.add_subsystem("indep", var_comp, promotes=["*"])
+    # outer_prob.model.add_subsystem("indep", var_comp, promotes=["*"])
 
-    inner_prob.setup()
-    inner_prob.run_model()
-    metadata = inner_prob.model.get_io_metadata()
+    # inner_prob.setup()
+    # inner_prob.run_model()
+    # metadata = inner_prob.model.get_io_metadata()
 
-    if inner_prob.comm.rank == 1:
-        for key, value in metadata.items():
-            print(key, value)
+    # if inner_prob.comm.rank == 1:
+    #     for key, value in metadata.items():
+    #         print(key, value)
 
-    # outer_prob.setup()
+    outer_prob.setup()
     # for i in range(4):
     #     for j in range(4):
     #         outer_prob.set_val(
     #             f"heat_{4*i + j}_initial",
-    #             heat_equation_dict[(i, j)].initial_vector[
-    #                 offsets[rank] : offsets[rank] + sizes[rank]
-    #             ],
+    #             heat_equation_dict[(i, j)].initial_vector,
     #         )
 
-    # outer_prob.run_model()
+    outer_prob.run_model()
+    print("done running model, starting checking partials")
+    outer_prob.check_partials()

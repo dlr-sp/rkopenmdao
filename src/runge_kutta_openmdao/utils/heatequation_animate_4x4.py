@@ -20,17 +20,37 @@ if __name__ == "__main__":
 
     ims = []
 
-    checkpoint_distance = 100
-    with h5py.File("heat_equ_4x4.h5", mode="r") as f:
-        for k in range(0, 101):
+    checkpoint_distance = 1000
+
+    tax = fig.add_axes([0.7, 0.05, 0.25, 0.05])
+    tax.axis("off")
+
+    with h5py.File("0_heat_equ_4x4.h5", mode="r") as f_0, h5py.File(
+        "1_heat_equ_4x4.h5", mode="r"
+    ) as f_1, h5py.File("2_heat_equ_4x4.h5", mode="r") as f_2, h5py.File(
+        "3_heat_equ_4x4.h5", mode="r"
+    ) as f_3:
+        for k in range(0, 201):
             local_ims = []
 
             for i in range(4):
                 for j in range(4):
-                    current_heat = np.array(
-                        f[f"heat_{j+i*4}/" + str(k * checkpoint_distance)]
-                    )
-
+                    if f"heat_{j+i*4}" in f_0:
+                        current_heat = np.array(
+                            f_0[f"heat_{j+i*4}/" + str(k * checkpoint_distance)]
+                        )
+                    elif f"heat_{j+i*4}" in f_1:
+                        current_heat = np.array(
+                            f_1[f"heat_{j+i*4}/" + str(k * checkpoint_distance)]
+                        )
+                    elif f"heat_{j+i*4}" in f_2:
+                        current_heat = np.array(
+                            f_2[f"heat_{j+i*4}/" + str(k * checkpoint_distance)]
+                        )
+                    elif f"heat_{j+i*4}" in f_3:
+                        current_heat = np.array(
+                            f_3[f"heat_{j+i*4}/" + str(k * checkpoint_distance)]
+                        )
                     local_ims.append(
                         ax.plot_surface(
                             coords[j + i * 4][0],
@@ -46,8 +66,11 @@ if __name__ == "__main__":
                             antialiased=False,
                         )
                     )
+            local_ims.append(
+                tax.text(x=0, y=0, s="time: " + str(i * checkpoint_distance * 1e-4)[:4])
+            )
 
             ims.append(local_ims)
-
+    print("finished generating singular images, now put them together in animation")
     ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat=False)
     ani.save("HeatEquOpenMDAOAnimation4x4.gif")

@@ -114,29 +114,33 @@ class TestComp5_2(om.ExplicitComponent):
 #     np.array([0.5 * (1 + alpha), 0.5, 0.5 * (1 - alpha)]),
 # )
 
-# gamma = (2.0 - np.sqrt(2.0)) / 2.0
-# butcher_tableau = ButcherTableau(
-#     np.array(
-#         [
-#             [gamma, 0.0],
-#             [1 - gamma, gamma],
-#         ]
-#     ),
-#     np.array([1 - gamma, gamma]),
-#     np.array([gamma, 1.0]),
-# )
-
+gamma = (2.0 - np.sqrt(2.0)) / 2.0
 butcher_tableau = ButcherTableau(
     np.array(
         [
-            [1.0],
+            [gamma, 0.0],
+            [1 - gamma, gamma],
         ]
     ),
-    np.array([1.0]),
-    np.array([1.0]),
+    np.array([1 - gamma, gamma]),
+    np.array([gamma, 1.0]),
 )
 
-integration_control = IntegrationControl(0.0, 20, 10, 1e-1)
+# butcher_tableau = ButcherTableau(
+#     np.array(
+#         [
+#             [1.0],
+#         ]
+#     ),
+#     np.array([1.0]),
+#     np.array([1.0]),
+# )
+
+num_steps = 20
+integration_control = IntegrationControl(0.0, num_steps, 10, 1e-1)
+
+trapezoidal_rule = np.ones(num_steps + 1)
+trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
@@ -163,6 +167,8 @@ outer_prob.model.add_subsystem(
         inner_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
+        integrated_quantities=["x"],
+        quadrature_rule_weights=trapezoidal_rule,
         quantity_tags=["x", "y"],
     ),
     promotes_inputs=["x_initial", "y_initial"],

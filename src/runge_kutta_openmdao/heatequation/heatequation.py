@@ -4,7 +4,7 @@ import numpy as np
 from scipy.sparse.linalg import LinearOperator, gmres
 import h5py
 
-from runge_kutta_openmdao.runge_kutta import runge_kutta
+from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
 
 from . import fdm_matrix, domain, boundary, inhomogenity
 
@@ -206,7 +206,7 @@ class HeatEquation:
         time: float,
         delta_t: float,
         old_value: np.ndarray,
-        butcher_tableau: runge_kutta.ButcherTableau,
+        butcher_tableau: ButcherTableau,
     ):
         previous_stages = {}
         accumulated_stages = np.zeros_like(old_value)
@@ -237,7 +237,7 @@ class HeatEquation:
 
     def solve_heat_equation(
         self,
-        butcher_tableau: runge_kutta.ButcherTableau,
+        butcher_tableau: ButcherTableau,
         delta_t: float,
         number_of_steps: int,
         output_file="data.h5",
