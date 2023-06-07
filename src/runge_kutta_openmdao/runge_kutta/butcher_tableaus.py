@@ -2,6 +2,8 @@ import numpy as np
 
 from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
 
+# TODO: add more tableaux
+
 explicit_euler = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]))
 
 implicit_euler = ButcherTableau(np.array([[1.0]]), np.array([1.0]), np.array([1.0]))
@@ -17,7 +19,7 @@ two_stage_dirk = ButcherTableau(
 
 runge_kutta_four = ButcherTableau(
     np.array(
-        [0.0, 0.0, 0.0, 0.0], [0.5, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]
+        [[0.0, 0.0, 0.0, 0.0], [0.5, 0.0, 0.0, 0.0], [0.0, 0.5, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]]
     ),
     np.array([1 / 6, 1 / 3, 1 / 3, 1 / 6]),
     np.array([0.0, 0.5, 0.5, 1.0]),

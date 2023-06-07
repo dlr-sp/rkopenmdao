@@ -73,14 +73,19 @@ class TestComp1(om.ExplicitComponent):
 #     np.array([gamma, 1.0]),
 # )
 
+# butcher_tableau = ButcherTableau(
+#     np.array([[0.0, 0.0], [1.0, 0.0]]), np.array([0.5, 0.5]), np.array([0.0, 1.0])
+# )
+
+
 butcher_tableau = ButcherTableau(
     np.array(
         [
-            [0.5],
+            [1.0],
         ]
     ),
     np.array([1.0]),
-    np.array([0.5]),
+    np.array([1.0]),
 )
 num_steps = 20
 integration_control = IntegrationControl(0.0, num_steps, 10, 1e-1)

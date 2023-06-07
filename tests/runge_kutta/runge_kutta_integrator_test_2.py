@@ -2,7 +2,7 @@ import numpy as np
 import openmdao.api as om
 
 from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
-from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
+from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator_new import (
     RungeKuttaIntegrator,
 )
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
@@ -86,13 +86,9 @@ trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem(
-    "x_comp", TestComp2(integration_control=integration_control)
-)
+inner_prob.model.add_subsystem("x_comp", TestComp2(integration_control=integration_control))
 
-newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-    iprint=0, solve_subsystems=True
-)
+newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
 
 inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
 

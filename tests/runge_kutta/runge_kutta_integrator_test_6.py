@@ -2,7 +2,7 @@ import numpy as np
 import openmdao.api as om
 
 from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
-from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
+from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator_new import (
     RungeKuttaIntegrator,
 )
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
@@ -19,9 +19,7 @@ class TestComp6(om.ImplicitComponent):
 
     def apply_nonlinear(self, inputs, outputs, residuals):
         delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
         residuals["x_stage"] = outputs["x_stage"] - 3 * (
             inputs["x"]
             + delta_t * inputs["acc_stages"]
@@ -30,9 +28,7 @@ class TestComp6(om.ImplicitComponent):
 
     def linearize(self, inputs, outputs, jacobian):
         delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
         self.inv_jac = (
             1
             - 2
@@ -46,9 +42,7 @@ class TestComp6(om.ImplicitComponent):
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
         delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
         factor = 2 * (
             inputs["x"]
             + delta_t * inputs["acc_stages"]
@@ -57,16 +51,16 @@ class TestComp6(om.ImplicitComponent):
         if mode == "fwd":
             d_residuals["x_stage"] -= factor * d_inputs["x"]
             d_residuals["x_stage"] -= factor * delta_t * d_inputs["acc_stages"]
-            d_residuals["x_stage"] += (
-                1 - factor * delta_t * butcher_diagonal_element
-            ) * d_outputs["x_stage"]
+            d_residuals["x_stage"] += (1 - factor * delta_t * butcher_diagonal_element) * d_outputs[
+                "x_stage"
+            ]
 
         elif mode == "rev":
             d_inputs["x"] -= factor * d_residuals["x_stage"]
             d_inputs["acc_stages"] -= factor * delta_t * d_residuals["x_stage"]
-            d_outputs["x_stage"] += (
-                1 - factor * delta_t * butcher_diagonal_element
-            ) * d_residuals["x_stage"]
+            d_outputs["x_stage"] += (1 - factor * delta_t * butcher_diagonal_element) * d_residuals[
+                "x_stage"
+            ]
 
     def solve_linear(self, d_outputs, d_residuals, mode):
         if mode == "fwd":
@@ -132,13 +126,9 @@ trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem(
-    "x_comp", TestComp6(integration_control=integration_control)
-)
+inner_prob.model.add_subsystem("x_comp", TestComp6(integration_control=integration_control))
 
-newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-    iprint=0, solve_subsystems=True
-)
+newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
 
 inner_prob.model.linear_solver = om.ScipyKrylov(maxiter=20, iprint=0)
 
@@ -163,4 +153,4 @@ outer_prob.run_model()
 
 outer_prob.set_val("x_initial", 1.0)
 
-outer_prob.check_partials()
+outer_prob.check_partials(form="central")
