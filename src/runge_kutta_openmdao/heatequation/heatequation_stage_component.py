@@ -1,5 +1,6 @@
 # from typing import List
 import openmdao.api as om
+import numpy as np
 
 from .heatequation import HeatEquation
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
@@ -13,6 +14,8 @@ class HeatEquationStageComponent(om.ImplicitComponent):
         self.options.declare("integration_control", types=IntegrationControl)
 
         self.options.declare("domain_num", types=int, default=0)
+
+        self.options.declare("enable_scaling", types=bool, default=False)
 
     def setup(self):
         domain_num = self.options["domain_num"]
@@ -113,6 +116,7 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             self.options["integration_control"].butcher_diagonal_element,
             inputs["heat"],
             inputs["accumulated_stages"],
+            outputs["result_stage_slope"],
         )
         outputs["result_stage_heat"] = inputs["heat"] + self.options[
             "integration_control"
@@ -120,6 +124,15 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             inputs["accumulated_stages"]
             + self.options["integration_control"].butcher_diagonal_element
             * outputs["result_stage_slope"]
+        )
+
+    def guess_nonlinear(self, inputs, outputs, residuals):
+        outputs["result_stage_slope"] = self.options["heat_equation"].guess_stage(
+            self.options["integration_control"].stage_time,
+            self.options["integration_control"].delta_t,
+            self.options["integration_control"].butcher_diagonal_element,
+            inputs["heat"],
+            inputs["accumulated_stages"],
         )
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
@@ -198,6 +211,7 @@ class HeatEquationStageComponent(om.ImplicitComponent):
                 self.options["integration_control"].butcher_diagonal_element,
                 mode,
                 d_residuals["result_stage_slope"],
+                d_outputs["result_stage_slope"],
             )
             d_outputs["result_stage_heat"] = (
                 d_residuals["result_stage_heat"]
@@ -216,4 +230,5 @@ class HeatEquationStageComponent(om.ImplicitComponent):
                 + self.options["integration_control"].delta_t
                 * self.options["integration_control"].butcher_diagonal_element
                 * d_residuals["result_stage_heat"],
+                d_residuals["result_stage_slope"],
             )

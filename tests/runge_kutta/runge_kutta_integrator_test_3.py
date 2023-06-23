@@ -2,7 +2,7 @@ import numpy as np
 import openmdao.api as om
 
 from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
-from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator_new import (
+from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl

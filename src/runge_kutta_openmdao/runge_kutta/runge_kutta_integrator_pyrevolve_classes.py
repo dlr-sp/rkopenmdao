@@ -59,6 +59,8 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
 class RungeKuttaForwardOperator(pr.Operator):
     def __init__(
         self,
+        serialized_old_state_symbol: RungeKuttaIntegratorSymbol,
+        serialized_new_state_symbol: RungeKuttaIntegratorSymbol,
         state_size: int,
         functional_size: int,
         stage_number: int,
@@ -66,9 +68,8 @@ class RungeKuttaForwardOperator(pr.Operator):
             [int, np.ndarray, np.ndarray, np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray]
         ],
     ):
-        self.serialized_state_symbol: RungeKuttaIntegratorSymbol = RungeKuttaIntegratorSymbol(
-            state_size
-        )
+        self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = serialized_old_state_symbol
+        self.serialized_new_state_symbol: RungeKuttaIntegratorSymbol = serialized_new_state_symbol
         self.functional_part: np.ndarray = np.zeros(functional_size)
         self.stage_cache: np.ndarray = np.zeros((stage_number, state_size))
         self.accumulated_stages: np.ndarray = np.zeros(state_size)
@@ -78,12 +79,13 @@ class RungeKuttaForwardOperator(pr.Operator):
 
     def apply(self, t_start: int, t_end: int):
         for step in range(t_start + 1, t_end + 1):
+            self.serialized_old_state_symbol.data = self.serialized_new_state_symbol.data
             (
-                self.serialized_state_symbol.data,
+                self.serialized_new_state_symbol.data,
                 self.functional_part,
             ) = self.fwd_operation(
                 step,
-                self.serialized_state_symbol.data,
+                self.serialized_old_state_symbol.data,
                 self.functional_part,
                 self.stage_cache,
                 self.accumulated_stages,
@@ -94,6 +96,7 @@ class RungeKuttaForwardOperator(pr.Operator):
 class RungeKuttaReverseOperator(pr.Operator):
     def __init__(
         self,
+        serialized_old_state_symbol: RungeKuttaIntegratorSymbol,
         state_size: int,
         stage_number: int,
         rev_operation: Callable[
@@ -110,16 +113,14 @@ class RungeKuttaReverseOperator(pr.Operator):
             Tuple[np.ndarray, np.ndarray],
         ],
     ):
-        self.serialized_state_symbol: RungeKuttaIntegratorSymbol = RungeKuttaIntegratorSymbol(
-            state_size
-        )
+        self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = serialized_old_state_symbol
         self.stage_cache: np.ndarray = np.zeros((stage_number, state_size))
         self.accumulated_stages: np.ndarray = np.zeros(state_size)
         self.serialized_state_perturbations: np.ndarray = np.zeros(state_size)
         self.stage_perturbations_cache: np.ndarray = np.zeros((stage_number, state_size))
         self.functional_perturbations: np.ndarray = np.zeros(state_size)
         self.functional_stage_perturbations_cache: np.ndarray = np.zeros((stage_number, state_size))
-        self.original_functional_perturbations: np.zeros(state_size)
+        self.original_functional_perturbations: np.ndarray = np.zeros(state_size)
         self.rev_operation: Callable[
             [
                 int,
@@ -139,7 +140,7 @@ class RungeKuttaReverseOperator(pr.Operator):
         for step in range(t_end, t_start, -1):
             self.serialized_state_perturbations, self.functional_perturbations = self.rev_operation(
                 step,
-                self.serialized_state_symbol.data,
+                self.serialized_old_state_symbol.data,
                 self.stage_cache,
                 self.accumulated_stages,
                 self.serialized_state_perturbations,

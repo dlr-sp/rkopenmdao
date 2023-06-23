@@ -30,7 +30,7 @@ class InnerProblemComputeFunctor:
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
 
-        self.inner_problem.model.run_solve_nonlinear()
+        self.inner_problem.run_model()
 
         stage_state = np.zeros_like(old_state)
         self.get_outputs(stage_state)
@@ -43,6 +43,7 @@ class InnerProblemComputeFunctor:
             self.inner_problem.set_val(
                 metadata["step_input_var"], old_state[start:end].reshape(metadata["shape"])
             )
+
             self.inner_problem.model.set_val(
                 metadata["accumulated_stage_var"],
                 accumulated_stage[start:end].reshape(metadata["shape"]),
@@ -90,13 +91,15 @@ class InnerProblemComputeJacvecFunctor:
         self.fill_seed(old_state_perturbation, accumulated_stage_perturbation, seed)
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
-
         jvp = self.inner_problem.compute_jacvec_product(
             of=self.of_vars, wrt=self.wrt_vars, mode="fwd", seed=seed
         )
 
+        # for key, vector in jvp.items():
+        #     print(key, vector)
         stage_perturbation = np.zeros_like(old_state_perturbation)
         self.extract_jvp(jvp, stage_perturbation)
+
         return stage_perturbation
 
     def fill_seed(
@@ -139,16 +142,24 @@ class InnerProblemComputeJacvecFunctor:
                 for quantity, metadata in self.quantity_metadata.items():
                     start = metadata["numpy_start_index"]
                     end = start + np.prod(metadata["shape"])
-                    self.inner_problem.model._inputs[
-                        metadata["step_input_var"]
-                    ] = numpy_acc_stage_vec[start:end].reshape(metadata["shape"])
+                    self.inner_problem.set_val(
+                        metadata["step_input_var"],
+                        numpy_old_state_vec[start:end].reshape(metadata["shape"]),
+                    )
+                    # self.inner_problem.model._inputs[
+                    #     metadata["step_input_var"]
+                    # ] = numpy_old_state_vec[start:end].reshape(metadata["shape"])
             if numpy_acc_stage_vec is not None:
                 for quantity, metadata in self.quantity_metadata.items():
                     start = metadata["numpy_start_index"]
                     end = start + np.prod(metadata["shape"])
-                    self.inner_problem.model._inputs[
-                        metadata["accumulated_stage_var"]
-                    ] = numpy_acc_stage_vec[start:end].reshape(metadata["shape"])
+                    self.inner_problem.set_val(
+                        metadata["accumulated_stage_var"],
+                        numpy_acc_stage_vec[start:end].reshape(metadata["shape"]),
+                    )
+                    # self.inner_problem.model._inputs[
+                    #     metadata["accumulated_stage_var"]
+                    # ] = numpy_acc_stage_vec[start:end].reshape(metadata["shape"])
 
 
 class InnerProblemComputeTransposeJacvecFunctor:
@@ -187,6 +198,7 @@ class InnerProblemComputeTransposeJacvecFunctor:
         jvp = self.inner_problem.compute_jacvec_product(
             of=self.of_vars, wrt=self.wrt_vars, mode="rev", seed=seed
         )
+
         old_state_perturbation = np.zeros_like(stage_perturbation)
         accumulated_stage_perturbation = np.zeros_like(stage_perturbation)
         self.extract_jvp(jvp, old_state_perturbation, accumulated_stage_perturbation)
@@ -235,13 +247,18 @@ class InnerProblemComputeTransposeJacvecFunctor:
                 for quantity, metadata in self.quantity_metadata.items():
                     start = metadata["numpy_start_index"]
                     end = start + np.prod(metadata["shape"])
-                    self.inner_problem.model._inputs[
-                        metadata["step_input_var"]
-                    ] = numpy_acc_stage_vec[start:end].reshape(metadata["shape"])
+                    self.inner_problem.set_val(
+                        metadata["step_input_var"],
+                        numpy_old_state_vec[start:end].reshape(metadata["shape"]),
+                    )
+                    # self.inner_problem.model._inputs[
+                    #     metadata["step_input_var"]
+                    # ] = numpy_old_state_vec[start:end].reshape(metadata["shape"])
             if numpy_acc_stage_vec is not None:
                 for quantity, metadata in self.quantity_metadata.items():
                     start = metadata["numpy_start_index"]
                     end = start + np.prod(metadata["shape"])
-                    self.inner_problem.model._inputs[
-                        metadata["accumulated_stage_var"]
-                    ] = numpy_acc_stage_vec[start:end].reshape(metadata["shape"])
+                    self.inner_problem.set_val(
+                        metadata["accumulated_stage_var"],
+                        numpy_acc_stage_vec[start:end].reshape(metadata["shape"]),
+                    )

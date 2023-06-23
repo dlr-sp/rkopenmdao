@@ -8,27 +8,36 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 
-class TestComp1(om.ExplicitComponent):
+class TestComp7(om.ExplicitComponent):
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
-        self.add_input("x", shape=1, tags=["step_input_var", "x"])
-        self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
-        self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
+        self.add_input("x", shape=100, tags=["step_input_var", "x"])
+        self.add_input("acc_stages", shape=100, tags=["accumulated_stage_var", "x"])
+        self.add_output("x_stage", shape=100, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
         delta_t = self.options["integration_control"].delta_t
-        outputs["x_stage"] = (inputs["x"] + delta_t * inputs["acc_stages"]) / (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
+        outputs["x_stage"] = 0.5 * delta_t * butcher_diagonal_element + np.sqrt(
+            0.25 * delta_t**2 * butcher_diagonal_element**2
+            + inputs["x"]
+            + delta_t * inputs["acc_stages"]
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         delta_t = self.options["integration_control"].delta_t
-        divisor = 1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
+        divisor = 2 * np.sqrt(
+            0.25 * delta_t**2 * butcher_diagonal_element**2
+            + inputs["x"]
+            + delta_t * inputs["acc_stages"]
+        )
         if mode == "fwd":
             d_outputs["x_stage"] += d_inputs["x"] / divisor
             d_outputs["x_stage"] += delta_t * d_inputs["acc_stages"] / divisor
+
         elif mode == "rev":
             d_inputs["x"] += d_outputs["x_stage"] / divisor
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
@@ -48,7 +57,7 @@ class TestComp1(om.ExplicitComponent):
 # )
 
 # alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
-
+#
 # butcher_tableau = ButcherTableau(
 #     np.array(
 #         [
@@ -74,32 +83,40 @@ butcher_tableau = ButcherTableau(
 )
 
 # butcher_tableau = ButcherTableau(
-#     np.array([[0.0, 0.0], [1.0, 0.0]]), np.array([0.5, 0.5]), np.array([0.0, 1.0])
+#     np.array(
+#         [
+#             [0.0, 0.0],
+#             [0.5, 0.0],
+#         ]
+#     ),
+#     np.array([0.0, 1.0]),
+#     np.array([0.0, 0.5]),
 # )
 
 
 # butcher_tableau = ButcherTableau(
 #     np.array(
 #         [
-#             [1.0],
+#             [0.5],
 #         ]
 #     ),
 #     np.array([1.0]),
-#     np.array([1.0]),
+#     np.array([0.5]),
 # )
+
 num_steps = 1
-integration_control = IntegrationControl(0.0, num_steps, 10, 1e-5)
+integration_control = IntegrationControl(0.0, num_steps, 10, 1e-2)
 
 trapezoidal_rule = np.ones(num_steps + 1)
 trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem("x_comp", TestComp1(integration_control=integration_control))
+inner_prob.model.add_subsystem("x_comp", TestComp6(integration_control=integration_control))
 
 newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
 
-inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
+inner_prob.model.linear_solver = om.ScipyKrylov(maxiter=20, iprint=0)
 
 outer_prob = om.Problem()
 outer_prob.model.add_subsystem(

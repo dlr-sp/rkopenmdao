@@ -10,6 +10,7 @@ from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
 from runge_kutta_openmdao.heatequation.flux_component import FluxComponent
+from runge_kutta_openmdao.heatequation.split_heat_group import create_split_heat_group
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
@@ -20,11 +21,10 @@ from scipy.sparse.linalg import LinearOperator
 
 
 if __name__ == "__main__":
-    points_per_direction = 11
+    points_per_direction = 5
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
-    domain_half_1 = Domain([0.0, 0.5], [0.0, 1.0], points_x, points_per_direction)
-    domain_half_2 = Domain([0.5, 1.0], [0.0, 1.0], points_x, points_per_direction)
+    delta_t = 1e-6
 
     def f(t: float):
         return np.exp(-8 * np.pi**2 * t)
@@ -52,29 +52,24 @@ if __name__ == "__main__":
         right=lambda t, x, y: 0.0,
     )
 
-    gamma = (2.0 - np.sqrt(2.0)) / 2.0
-    butcher_tableau = ButcherTableau(
-        np.array(
-            [
-                [gamma, 0.0],
-                [1 - gamma, gamma],
-            ]
-        ),
-        np.array([1 - gamma, gamma]),
-        np.array([gamma, 1.0]),
-    )
-    atol = 1e-5
-    rtol = 1e-4
-    scipytol = 1e-4
+    # gamma = (2.0 - np.sqrt(2.0)) / 2.0
+    # butcher_tableau = ButcherTableau(
+    #     np.array(
+    #         [
+    #             [gamma, 0.0],
+    #             [1 - gamma, gamma],
+    #         ]
+    #     ),
+    #     np.array([1 - gamma, gamma]),
+    #     np.array([gamma, 1.0]),
+    # )
 
     # butcher_tableau = ButcherTableau(
     #     np.array([[0.293, 0.0], [0.414, 0.293]]),
     #     np.array([0.5, 0.5]),
     #     np.array([0.293, 0.707]),
     # )
-    # butcher_tableau = ButcherTableau(
-    #     np.array([[0.5]]), np.array([1.0]), np.array([0.5])
-    # )
+    butcher_tableau = ButcherTableau(np.array([[1.0]]), np.array([1.0]), np.array([1.0]))
     # butcher_tableau = ButcherTableau(
     #     np.array(
     #         [
@@ -93,105 +88,36 @@ if __name__ == "__main__":
             (points_per_direction * points_x),
             (points_per_direction * points_x),
         ),
-        matvec=lambda x: delta_x**2 / -4 * x,
+        matvec=lambda x: delta_x**2 / (delta_x**2 + 4 * delta_t) * x,
     )
 
-    heat_equation_1 = HeatEquation(
-        domain_half_1,
-        lambda t, x, y: 0.0,
-        boundary_condition_1,
-        1.0,
-        lambda x, y: g(x) * g(y),
-        {
-            "tol": 1e-15,
-            "atol": "legacy",
-            # "M": heat_precon
-        },
-    )
-
-    heat_equation_2 = HeatEquation(
-        domain_half_2,
-        lambda t, x, y: 0.0,
-        boundary_condition_2,
-        1.0,
-        lambda x, y: g(x) * g(y),
-        {
-            "tol": 1e-15,
-            "atol": "legacy",
-            # "M": heat_precon
-        },
-    )
-
-    integration_control = IntegrationControl(0.0, 1, 100, 1e-4)
-
+    integration_control = IntegrationControl(0.0, 1, 100, delta_t)
+    # heat_lin_solver = om.LinearBlockGS(atol=1e-12, rtol=1e-12, iprint=2)
+    heat_lin_solver = om.PETScKrylov(atol=1e-6, rtol=1e-8)
+    heat_lin_solver.precon = om.LinearRunOnce()
     inner_prob = om.Problem()
-
-    inner_prob.model.add_subsystem(
-        "heat_comp_1",
-        HeatEquationStageComponent(
-            heat_equation=heat_equation_1,
-            shared_boundary=["right"],
-            domain_num=1,
-            integration_control=integration_control,
+    heat_group = create_split_heat_group(
+        points_per_direction,
+        boundary_condition_1,
+        boundary_condition_2,
+        lambda t, x, y: 0.0,
+        lambda t, x, y: 0.0,
+        1.0,
+        1.0,
+        lambda x, y: g(x) * g(y),
+        lambda x, y: g(x) * g(y),
+        integration_control,
+        {"tol": 1e-10, "atol": "legacy", "M": heat_precon},
+        om.NewtonSolver(
+            solve_subsystems=False,
+            maxiter=30,
+            atol=1e-5,
+            rtol=1e-6,
         ),
-        promotes_inputs=[
-            ("heat", "heat_1"),
-            ("accumulated_stages", "accumulated_stages_1"),
-        ],
-        promotes_outputs=[
-            ("result_stage_heat", "stage_heat_1"),
-            ("result_stage_slope", "stage_slope_1"),
-        ],
-    )
-    inner_prob.model.add_subsystem(
-        "heat_comp_2",
-        HeatEquationStageComponent(
-            heat_equation=heat_equation_2,
-            shared_boundary=["left"],
-            domain_num=2,
-            integration_control=integration_control,
-        ),
-        promotes_inputs=[
-            ("heat", "heat_2"),
-            ("accumulated_stages", "accumulated_stages_2"),
-        ],
-        promotes_outputs=[
-            ("result_stage_heat", "stage_heat_2"),
-            ("result_stage_slope", "stage_slope_2"),
-        ],
-    )
-    inner_prob.model.add_subsystem(
-        "flux_comp",
-        FluxComponent(delta=delta_x, shape=points_per_direction, orientation="vertical"),
+        heat_lin_solver,
     )
 
-    left_boundary_indices_1 = domain_half_2.boundary_indices("left") + 1
-
-    right_boundary_indices_1 = domain_half_1.boundary_indices("right") - 1
-
-    inner_prob.model.connect(
-        "stage_heat_1",
-        "flux_comp.left_side",
-        src_indices=right_boundary_indices_1,
-    )
-    inner_prob.model.connect(
-        "stage_heat_2",
-        "flux_comp.right_side",
-        src_indices=left_boundary_indices_1,
-    )
-
-    inner_prob.model.connect("flux_comp.flux", "heat_comp_1.boundary_segment_right")
-    inner_prob.model.connect("flux_comp.reverse_flux", "heat_comp_2.boundary_segment_left")
-
-    newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
-        maxiter=20,
-        iprint=0,
-        solve_subsystems=True,  # atol=atol, rtol=rtol
-    )
-    # newton.linesearch = om.ArmijoGoldsteinLS(iprint=2, atol=atol, rtol=rtol)
-    inner_prob.model.linear_solver = om.PETScKrylov(iprint=0, atol=1e-12, rtol=1e-12)
-    inner_prob.model.linear_solver.precon = om.LinearRunOnce()
-    # inner_prob.model.linear_solver.precon = om.LinearBlockJac(maxiter=20, iprint=0)
+    inner_prob.model.add_subsystem("heat_group", heat_group)
 
     outer_prob = om.Problem()
     outer_prob.model.add_subsystem(
@@ -205,19 +131,29 @@ if __name__ == "__main__":
         promotes_inputs=["heat_1_initial", "heat_2_initial"],
     )
 
-    var_comp = om.IndepVarComp("indep")
-    var_comp.add_output("heat_1_initial", shape_by_conn=True, distributed=True)
-    var_comp.add_output("heat_2_initial", shape_by_conn=True, distributed=True)
-
-    outer_prob.model.add_subsystem("indep", var_comp, promotes=["*"])
-
     outer_prob.setup()
-    outer_prob.set_val("heat_1_initial", heat_equation_1.initial_vector)
-    outer_prob.set_val("heat_2_initial", heat_equation_2.initial_vector)
+
     outer_prob.run_model()
 
     print("done running model, starting checking partials")
     # for key, value in inner_prob.model._outputs.items():
     #     print(key, value)
-    outer_prob.check_partials(form="central")
-    # inner_prob.check_partials()
+    outer_prob.check_partials(step=1e-1)
+    # for i in range(100):
+    #     inner_prob.check_partials(step=1e-1)
+    # inner_prob.check_totals(
+    #     of=[
+    #         "heat_group.stage_heat_1",
+    #         "heat_group.stage_slope_1",
+    #         "heat_group.stage_heat_2",
+    #         "heat_group.stage_slope_2",
+    #     ],
+    #     wrt=[
+    #         "heat_group.heat_1",
+    #         "heat_group.accumulated_stages_1",
+    #         "heat_group.heat_2",
+    #         "heat_group.accumulated_stages_2",
+    #     ],
+    #     step=1e-1,
+    #     form="central",
+    # )

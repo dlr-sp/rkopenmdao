@@ -42,6 +42,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     cached_input: np.ndarray
     revolver: pr.BaseRevolver
+    serialized_old_state_symbol: RungeKuttaIntegratorSymbol
+    serialized_new_state_symbol: RungeKuttaIntegratorSymbol
     forward_operator: RungeKuttaForwardOperator
     reverse_operator: RungeKuttaReverseOperator
 
@@ -62,6 +64,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.cached_input = None
         self.revolver = None
+        self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = None
+        self.serialized_new_state_symbol: RungeKuttaIntegratorSymbol = None
         self.forward_operator: RungeKuttaForwardOperator = None
         self.reverse_operator: RungeKuttaReverseOperator = None
 
@@ -124,7 +128,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.setup_runge_kutta_scheme()
 
+        self.serialized_old_state_symbol = RungeKuttaIntegratorSymbol(self.numpy_array_size)
+        self.serialized_new_state_symbol = RungeKuttaIntegratorSymbol(self.numpy_array_size)
+
         self.forward_operator = RungeKuttaForwardOperator(
+            self.serialized_old_state_symbol,
+            self.serialized_new_state_symbol,
             self.numpy_array_size,
             self.numpy_functional_size,
             butcher_tableau.number_of_stages(),
@@ -132,7 +141,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
         self.reverse_operator = RungeKuttaReverseOperator(
-            self.numpy_array_size, butcher_tableau.number_of_stages(), self._run_step_jacvec_rev
+            self.serialized_old_state_symbol,
+            self.numpy_array_size,
+            butcher_tableau.number_of_stages(),
+            self._run_step_jacvec_rev,
         )
 
         # TODO: maybe add methods for time-independent in/outputs
@@ -144,23 +156,24 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         quadrature_rule_weights = self.options["quadrature_rule_weights"]
 
-        serialized_state_symbol = RungeKuttaIntegratorSymbol(self.numpy_array_size)
-        self.to_numpy_array(inputs, serialized_state_symbol.data)
-        self.cached_input = serialized_state_symbol.data.copy()
+        self.to_numpy_array(inputs, self.serialized_new_state_symbol.data)
+        self.cached_input = self.serialized_new_state_symbol.data.copy()
 
-        checkpoint_dict = {"serialized_state": serialized_state_symbol}
+        checkpoint_dict = {
+            "serialized_old_state": self.serialized_old_state_symbol,
+            "serialized_new_state": self.serialized_new_state_symbol,
+        }
 
         functional_part = np.zeros(self.numpy_functional_size)
         if self.options["integrated_quantities"]:
             functional_part.data += (
                 delta_t
                 * quadrature_rule_weights[0]
-                * self.get_functional_contribution(serialized_state_symbol.data)
+                * self.get_functional_contribution(self.serialized_new_state_symbol.data)
             )
 
         checkpoint = RungeKuttaCheckpoint(checkpoint_dict)
 
-        self.forward_operator.serialized_state_symbol = serialized_state_symbol
         self.forward_operator.functional_part = functional_part
 
         self.revolver = pr.Revolver(
@@ -173,7 +186,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.revolver.apply_forward()
 
-        self.from_numpy_array(serialized_state_symbol.data, outputs)
+        self.from_numpy_array(self.serialized_new_state_symbol.data, outputs)
 
         if self.options["integrated_quantities"]:
             self.add_functional_part_to_om_vec(functional_part, outputs)
@@ -353,10 +366,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 stage, delta_t, time, serialized_state, accumulated_stages
             )
         new_serialized_state_perturbations = serialized_state_perturbations.copy()
-        new_functional_perturbations = functional_perturbations.copy()
+        if self.options["integrated_quantities"]:
+            new_functional_perturbations = functional_perturbations.copy()
         for stage in range(butcher_tableau.number_of_stages() - 1, -1, -1):
             linearization_args = {}
-            if stage != butcher_tableau.number_of_stages():
+            if stage != butcher_tableau.number_of_stages() - 1:
                 linearization_args[
                     "numpy_acc_stage_vec"
                 ] = self.runge_kutta_scheme.compute_accumulated_stages(stage, stage_cache)
@@ -371,6 +385,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ) = self.runge_kutta_scheme.compute_stage_transposed_jacvec(
                 stage, delta_t, time, joined_perturbations, **linearization_args
             )
+
             new_serialized_state_perturbations += delta_t * wrt_old_state
             if self.options["integrated_quantities"]:
                 functional_joined_perturbations = (
@@ -392,7 +407,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         return (
             new_serialized_state_perturbations,
             new_functional_perturbations
-            + quadrature_rule_weights[step - 1] * original_functional_perturbations,
+            + quadrature_rule_weights[step - 1] * original_functional_perturbations
+            if self.options["integrated_quantities"]
+            else functional_perturbations,
         )
 
     def _setup_variable_information(self):
@@ -527,9 +544,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 )
 
     def _add_inputs_and_outputs(self, quantity):
+        inner_problem: om.Problem = self.options["inner_problem"]
         self.add_input(
             quantity + "_initial",
             shape=self.quantity_metadata[quantity]["shape"],
+            val=inner_problem.get_val(self.quantity_metadata[quantity]["step_input_var"]),
             distributed=self.quantity_metadata[quantity]["shape"]
             != self.quantity_metadata[quantity]["global_shape"],
         )

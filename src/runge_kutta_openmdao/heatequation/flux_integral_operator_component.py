@@ -12,8 +12,7 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
         self.options.declare("delta")
         self.options.declare("shape")
         self.options.declare("integration_control", types=IntegrationControl)
-        # we add that later, for now without
-        # self.options.declare("heat_coefficient", default = lambda x: 1.0)
+        self.options.declare("heat_coefficient", default=1e-5)
 
     def setup(self):
         delta_t = self.options["integration_control"].delta_t
@@ -32,6 +31,7 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
         delta_t = self.options["integration_control"].delta_t
         outputs["integrated_flux_stage"] = (
             self.options["delta"]
+            * self.options["heat_coefficient"]
             * (np.sum(inputs["flux"]) - 0.5 * (inputs["flux"][0] + inputs["flux"][-1]))
             - inputs["initial_flux"]
             - delta_t * inputs["flux_acc_stage"]
@@ -44,8 +44,10 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
         divisor = delta_t * self.options["integration_control"].butcher_diagonal_element
 
         if mode == "fwd":
-            d_outputs["integrated_flux_stage"] += self.options["delta"] * (
-                np.sum(d_inputs["flux"]) - 0.5 * (d_inputs["flux"][0] + d_inputs["flux"][-1])
+            d_outputs["integrated_flux_stage"] += (
+                self.options["delta"]
+                * self.options["heat_coefficient"]
+                * (np.sum(d_inputs["flux"]) - 0.5 * (d_inputs["flux"][0] + d_inputs["flux"][-1]))
             )
             d_outputs["integrated_flux_stage"] -= d_inputs["initial_flux"]
             d_outputs["integrated_flux_stage"] -= delta_t * d_inputs["flux_acc_stage"]
@@ -53,10 +55,22 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
         elif mode == "rev":
             d_inputs["flux"] += np.full_like(
                 d_inputs["flux"],
-                self.options["delta"] * d_outputs["integrated_flux_stage"],
+                self.options["delta"]
+                * self.options["heat_coefficient"]
+                * d_outputs["integrated_flux_stage"],
             )
-            d_inputs["flux"][0] -= 0.5 * self.options["delta"] * d_outputs["integrated_flux_stage"]
-            d_inputs["flux"][-1] -= 0.5 * self.options["delta"] * d_outputs["integrated_flux_stage"]
+            d_inputs["flux"][0] -= (
+                0.5
+                * self.options["delta"]
+                * self.options["heat_coefficient"]
+                * d_outputs["integrated_flux_stage"]
+            )
+            d_inputs["flux"][-1] -= (
+                0.5
+                * self.options["delta"]
+                * self.options["heat_coefficient"]
+                * d_outputs["integrated_flux_stage"]
+            )
             d_inputs["flux"] /= divisor
 
             d_inputs["initial_flux"] -= d_outputs["integrated_flux_stage"] / divisor
