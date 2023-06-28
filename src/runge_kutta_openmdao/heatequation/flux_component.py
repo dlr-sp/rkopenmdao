@@ -15,10 +15,15 @@ class FluxComponent(om.ExplicitComponent):
         else:
             self.add_input("lower_side", shape=self.options["shape"])
             self.add_input("upper_side", shape=self.options["shape"])
-        self.add_output("flux", shape=self.options["shape"])
+        self.add_output(
+            "flux",
+            shape=self.options["shape"],
+            # res_ref=self.options["delta"],
+        )
         self.add_output(
             "reverse_flux",
             shape=self.options["shape"],
+            # res_ref=self.options["delta"],
         )
 
     def compute(self, inputs, outputs):  # pylint: disable=arguments-differ

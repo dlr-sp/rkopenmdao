@@ -25,6 +25,7 @@ class InnerProblemComputeFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
+        # self.reset_output_stages()
         self.fill_inputs(old_state, accumulated_stages)
 
         self.integration_control.stage_time = stage_time
@@ -35,6 +36,10 @@ class InnerProblemComputeFunctor:
         stage_state = np.zeros_like(old_state)
         self.get_outputs(stage_state)
         return stage_state
+
+    # def reset_output_stages(self):
+    #     for quantity, metadata in self.quantity_metadata.items():
+    #         self.inner_problem.set_val(metadata["stage_output_var"], np.zeros(metadata["shape"]))
 
     def fill_inputs(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
         for quantity, metadata in self.quantity_metadata.items():

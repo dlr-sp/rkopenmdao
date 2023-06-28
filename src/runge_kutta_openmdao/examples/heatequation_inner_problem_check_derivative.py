@@ -21,10 +21,10 @@ from scipy.sparse.linalg import LinearOperator
 
 
 if __name__ == "__main__":
-    points_per_direction = 5
+    points_per_direction = 21
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
-    delta_t = 1e-6
+    delta_t = delta_x**2 / 10
 
     def f(t: float):
         return np.exp(-8 * np.pi**2 * t)
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     #     np.array([0.5, 0.5]),
     #     np.array([0.293, 0.707]),
     # )
-    butcher_tableau = ButcherTableau(np.array([[1.0]]), np.array([1.0]), np.array([1.0]))
+    butcher_tableau = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]))
     # butcher_tableau = ButcherTableau(
     #     np.array(
     #         [
@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     integration_control = IntegrationControl(0.0, 1, 100, delta_t)
     # heat_lin_solver = om.LinearBlockGS(atol=1e-12, rtol=1e-12, iprint=2)
-    heat_lin_solver = om.PETScKrylov(atol=1e-6, rtol=1e-8)
+    heat_lin_solver = om.PETScKrylov(restart=20, iprint=2, err_on_non_converge=True)
     heat_lin_solver.precon = om.LinearRunOnce()
     inner_prob = om.Problem()
     heat_group = create_split_heat_group(
@@ -107,12 +107,14 @@ if __name__ == "__main__":
         lambda x, y: g(x) * g(y),
         lambda x, y: g(x) * g(y),
         integration_control,
-        {"tol": 1e-10, "atol": "legacy", "M": heat_precon},
+        {"tol": 1e-10, "atol": 1e-10},  # "M": heat_precon},
         om.NewtonSolver(
-            solve_subsystems=False,
+            rtol=1e-10,
+            solve_subsystems=True,
             maxiter=30,
-            atol=1e-5,
-            rtol=1e-6,
+            max_sub_solves=3,
+            err_on_non_converge=True,
+            iprint=2,
         ),
         heat_lin_solver,
     )
@@ -139,14 +141,14 @@ if __name__ == "__main__":
     # for key, value in inner_prob.model._outputs.items():
     #     print(key, value)
     outer_prob.check_partials(step=1e-1)
-    # for i in range(100):
-    #     inner_prob.check_partials(step=1e-1)
+
+    # inner_prob.check_partials(step=1e-1)
     # inner_prob.check_totals(
     #     of=[
     #         "heat_group.stage_heat_1",
-    #         "heat_group.stage_slope_1",
+    #         "heat_group.heat_slope_1",
     #         "heat_group.stage_heat_2",
-    #         "heat_group.stage_slope_2",
+    #         "heat_group.heat_slope_2",
     #     ],
     #     wrt=[
     #         "heat_group.heat_1",
@@ -155,5 +157,4 @@ if __name__ == "__main__":
     #         "heat_group.accumulated_stages_2",
     #     ],
     #     step=1e-1,
-    #     form="central",
     # )

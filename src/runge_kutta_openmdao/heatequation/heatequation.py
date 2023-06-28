@@ -47,6 +47,19 @@ class HeatEquation:
         self.time = start_time
         self.solver_options = solver_options
 
+        # we use a 1d array instead of a 2d one because its a diagonal matrix and it can be
+        # emulated via the hadamard product
+        self.mass_matrix = np.ones_like(self.initial_vector)
+        self.mass_matrix[0 : self.domain.n_x] /= 2
+        self.mass_matrix[
+            (self.domain.n_y - 1) * self.domain.n_x : self.domain.n_y * self.domain.n_x
+        ] /= 2
+
+        self.mass_matrix[0 : self.domain.n_x * self.domain.n_y : self.domain.n_x] /= 2
+        self.mass_matrix[
+            self.domain.n_x - 1 : self.domain.n_x * self.domain.n_y : self.domain.n_x
+        ] /= 2
+
     def set_time(self, new_time: float):
         self.time = new_time
         self.inhomogenity_vector.update_pde_inhomogenity(self.time)
@@ -64,21 +77,23 @@ class HeatEquation:
         butcher_diagonal_element: float,
         old_value: np.ndarray,
         accumulated_stages: np.ndarray,
-        current_guess: np.ndarray,
+        current_slope: np.ndarray,
     ):
         value = (
             old_value
             + delta_t * accumulated_stages
-            + delta_t * butcher_diagonal_element * current_guess
+            + delta_t * butcher_diagonal_element * current_slope
         )
 
         self.inhomogenity_vector.update_boundary_inhomogenity(stage_time)
         self.inhomogenity_vector.update_pde_inhomogenity(stage_time)
-        return (
-            current_guess
-            - self.fdm_matrix.mat_vec_prod(value)
-            - self.inhomogenity_vector.return_vector()
+        guess_stage = (
+            self.fdm_matrix.mat_vec_prod(value)
+            + self.mass_matrix * self.inhomogenity_vector.return_vector()
         )
+        new_guess_residual = self.mass_matrix * current_slope - guess_stage
+
+        return new_guess_residual
 
     def d_stage_d_old_value(self):
         return LinearOperator(
@@ -96,9 +111,9 @@ class HeatEquation:
                 self.domain.n_x * self.domain.n_y,
                 self.domain.n_x * self.domain.n_y,
             ),
-            matvec=lambda vec: vec
+            matvec=lambda vec: self.mass_matrix * vec
             - delta_t * butcher_diagonal_element * self.fdm_matrix.mat_vec_prod(vec),
-            rmatvec=lambda vec: vec
+            rmatvec=lambda vec: self.mass_matrix * vec
             - delta_t * butcher_diagonal_element * self.fdm_matrix.mat_vec_prod_transpose(vec),
         )
 
@@ -118,19 +133,13 @@ class HeatEquation:
     def d_stage_d_boundary_segment(self, delta: float, segment: str):
         def boundary_mat_vec(vector):
             result = np.zeros(self.domain.n_x * self.domain.n_y)
-            if segment in ("left", "right"):
-                result[self.domain.boundary_indices(segment)] = -2.0 * vector / delta
-            elif segment in ("upper", "lower"):
-                result[self.domain.boundary_indices(segment)] = -2.0 * vector / delta
-            return result
+            result[self.domain.boundary_indices(segment)] = -2.0 * vector / delta
+            return self.mass_matrix * result
 
         def boundary_mat_vec_transpose(vector):
             result = np.zeros(self.domain.n_y if segment in ("left", "right") else self.domain.n_x)
-            if segment in ("left", "right"):
-                result = -2.0 * vector[self.domain.boundary_indices(segment)] / delta
-            elif segment in ("upper", "lower"):
-                result = -2.0 * vector[self.domain.boundary_indices(segment)] / delta
-            return result
+            result = -2.0 * vector[self.domain.boundary_indices(segment)] / delta
+            return self.mass_matrix[self.domain.boundary_indices(segment)] * result
 
         return LinearOperator(
             shape=(
@@ -165,10 +174,10 @@ class HeatEquation:
 
             self.inhomogenity_vector.update_boundary_inhomogenity(stage_time)
             self.inhomogenity_vector.update_pde_inhomogenity(stage_time)
-            rhs += self.inhomogenity_vector.return_vector()
+            rhs += self.mass_matrix * self.inhomogenity_vector.return_vector()
             lhs_matrix = LinearOperator(
                 (self.domain.n_x * self.domain.n_y, self.domain.n_x * self.domain.n_y),
-                matvec=lambda vector: vector
+                matvec=lambda vector: self.mass_matrix * vector
                 - delta_t * butcher_diagonal_element * self.fdm_matrix.mat_vec_prod(vector),
             )
 
@@ -231,25 +240,25 @@ class HeatEquation:
         delta_t: float,
         butcher_diagonal_element: float,
         mode: str,
-        rhs: np.ndarray,
+        rhs_slope: np.ndarray,
         guessed_result=None,
     ):
         if butcher_diagonal_element != 0:
             matrix = self.d_stage_d_stage(delta_t, butcher_diagonal_element)
             approx_inverse = self.guess_d_stage(delta_t, butcher_diagonal_element)
-            result, iterstatus = gmres(
+            slope_result, iterstatus = gmres(
                 matrix if mode == "fwd" else matrix.transpose(),
-                rhs,
-                x0=approx_inverse.matvec(rhs)
+                rhs_slope,
+                x0=approx_inverse.matvec(rhs_slope)
                 if mode == "fwd"
-                else approx_inverse.rmatvec(rhs)
+                else approx_inverse.rmatvec(rhs_slope)
                 if guessed_result is None
                 else guessed_result,
                 **self.solver_options,
             )
-            return result
+            return slope_result
         else:
-            return rhs
+            return rhs_slope
 
     def heat_equation_time_step(
         self,

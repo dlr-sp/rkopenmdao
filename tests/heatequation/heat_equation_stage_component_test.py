@@ -278,7 +278,7 @@ def test_heat_equation_stage_component_partials(
         test_prob.run_model()
         # The component models a linear system, so we don't need a small step size form finite differences.
         # This additionally prevents cancellation errors in the fd-computation.
-        test_data = test_prob.check_partials(out_stream=None, step=1e-1)
+        test_data = test_prob.check_partials(step=1e-1)
         assert_check_partials(test_data)
 
 

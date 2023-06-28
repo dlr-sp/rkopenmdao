@@ -10,6 +10,7 @@ from runge_kutta_openmdao.heatequation.heatequation import HeatEquation
 from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
+from runge_kutta_openmdao.runge_kutta.stage_value_component import StageValueComponent
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 
@@ -52,7 +53,8 @@ def create_split_heat_group(
     )
 
     split_heat_group = om.Group()
-    split_heat_group.add_subsystem(
+    heat_group_1 = om.Group()
+    heat_group_1.add_subsystem(
         "heat_component_1",
         HeatEquationStageComponent(
             heat_equation=heat_equation_1,
@@ -65,11 +67,26 @@ def create_split_heat_group(
             ("accumulated_stages", "accumulated_stages_1"),
         ],
         promotes_outputs=[
-            ("result_stage_heat", "stage_heat_1"),
-            ("result_stage_slope", "stage_slope_1"),
+            ("result_stage_slope", "heat_slope_1"),
         ],
     )
-    split_heat_group.add_subsystem(
+    heat_group_1.add_subsystem(
+        "heat_accumulator",
+        StageValueComponent(integration_control=integration_control),
+        promotes_inputs=[
+            ("old_value", "heat_1"),
+            ("acc_stages", "accumulated_stages_1"),
+            ("stage_slope", "heat_slope_1"),
+        ],
+        promotes_outputs=[("stage_value", "stage_heat_1")],
+    )
+    heat_group_1.set_input_defaults("heat_1", val=heat_equation_1.initial_vector)
+    heat_group_1.nonlinear_solver = om.NonlinearRunOnce()
+    heat_group_1.linear_solver = om.LinearRunOnce()
+    split_heat_group.add_subsystem("heat_1", heat_group_1, promotes=["*"])
+
+    heat_group_2 = om.Group()
+    heat_group_2.add_subsystem(
         "heat_component_2",
         HeatEquationStageComponent(
             heat_equation=heat_equation_2,
@@ -82,10 +99,25 @@ def create_split_heat_group(
             ("accumulated_stages", "accumulated_stages_2"),
         ],
         promotes_outputs=[
-            ("result_stage_heat", "stage_heat_2"),
-            ("result_stage_slope", "stage_slope_2"),
+            ("result_stage_slope", "heat_slope_2"),
         ],
     )
+    heat_group_2.add_subsystem(
+        "heat_accumulator",
+        StageValueComponent(integration_control=integration_control),
+        promotes_inputs=[
+            ("old_value", "heat_2"),
+            ("acc_stages", "accumulated_stages_2"),
+            ("stage_slope", "heat_slope_2"),
+        ],
+        promotes_outputs=[("stage_value", "stage_heat_2")],
+    )
+    heat_group_2.set_input_defaults("heat_2", val=heat_equation_1.initial_vector)
+    heat_group_2.nonlinear_solver = om.NonlinearRunOnce()
+    heat_group_2.linear_solver = om.LinearRunOnce()
+
+    split_heat_group.add_subsystem("heat_2", heat_group_2, promotes=["*"])
+
     split_heat_group.add_subsystem(
         "flux_comp",
         FluxComponent(delta=delta_x, shape=points_per_direction, orientation="vertical"),

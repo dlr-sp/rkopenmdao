@@ -42,10 +42,6 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             shape=self.options["heat_equation"].initial_vector.shape,
             tags=["stage_output_var", f"heat_{domain_num}"],
         )
-        self.add_output(
-            "result_stage_heat",
-            shape=self.options["heat_equation"].initial_vector.shape,
-        )
 
     def apply_nonlinear(self, inputs, outputs, residuals):  # pylint: disable = arguments-differ
         heat_equation: HeatEquation = self.options["heat_equation"]
@@ -76,16 +72,6 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             inputs["heat"],
             inputs["accumulated_stages"],
             outputs["result_stage_slope"],
-        )
-        residuals["result_stage_heat"] = (
-            outputs["result_stage_heat"]
-            - inputs["heat"]
-            - self.options["integration_control"].delta_t
-            * (
-                inputs["accumulated_stages"]
-                + self.options["integration_control"].butcher_diagonal_element
-                * outputs["result_stage_slope"]
-            )
         )
 
     def solve_nonlinear(self, inputs, outputs):
@@ -118,61 +104,41 @@ class HeatEquationStageComponent(om.ImplicitComponent):
             inputs["accumulated_stages"],
             outputs["result_stage_slope"],
         )
-        outputs["result_stage_heat"] = inputs["heat"] + self.options[
-            "integration_control"
-        ].delta_t * (
-            inputs["accumulated_stages"]
-            + self.options["integration_control"].butcher_diagonal_element
-            * outputs["result_stage_slope"]
-        )
-
-    def guess_nonlinear(self, inputs, outputs, residuals):
-        outputs["result_stage_slope"] = self.options["heat_equation"].guess_stage(
-            self.options["integration_control"].stage_time,
-            self.options["integration_control"].delta_t,
-            self.options["integration_control"].butcher_diagonal_element,
-            inputs["heat"],
-            inputs["accumulated_stages"],
-        )
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
         heat_equation: HeatEquation = self.options["heat_equation"]
+        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
         if mode == "fwd":
-            d_residuals["result_stage_slope"] += heat_equation.d_stage_d_old_value().matvec(
-                d_inputs["heat"]
-            )
-            d_residuals["result_stage_slope"] += heat_equation.d_stage_d_stage(
+            d_slope_d_old = heat_equation.d_stage_d_old_value().matvec(d_inputs["heat"])
+            d_residuals["result_stage_slope"] += d_slope_d_old
+
+            d_slope_d_slope = heat_equation.d_stage_d_stage(
                 self.options["integration_control"].delta_t,
                 self.options["integration_control"].butcher_diagonal_element,
             ).matvec(d_outputs["result_stage_slope"])
+            d_residuals["result_stage_slope"] += d_slope_d_slope
 
-            d_residuals["result_stage_slope"] += heat_equation.d_stage_d_accumulated_stages(
+            d_slope_d_acc = heat_equation.d_stage_d_accumulated_stages(
                 self.options["integration_control"].delta_t
             ).matvec(d_inputs["accumulated_stages"])
+            d_residuals["result_stage_slope"] += d_slope_d_acc
+
             for segment in self.options["shared_boundary"]:
                 delta = (
                     heat_equation.domain.delta_x
                     if segment in ("left", "right")
                     else heat_equation.domain.delta_y
                 )
-                d_residuals["result_stage_slope"] += heat_equation.d_stage_d_boundary_segment(
+                d_slope_d_boundary = heat_equation.d_stage_d_boundary_segment(
                     delta, segment
                 ).matvec(d_inputs[f"boundary_segment_{segment}"])
-            d_residuals["result_stage_heat"] += d_outputs["result_stage_heat"]
-            d_residuals["result_stage_heat"] -= d_inputs["heat"]
-            d_residuals["result_stage_heat"] -= (
-                self.options["integration_control"].delta_t * d_inputs["accumulated_stages"]
-            )
-            d_residuals["result_stage_heat"] -= (
-                self.options["integration_control"].delta_t
-                * self.options["integration_control"].butcher_diagonal_element
-                * d_outputs["result_stage_slope"]
-            )
-
+                d_residuals["result_stage_slope"] += d_slope_d_boundary
         elif mode == "rev":
             d_inputs["heat"] += heat_equation.d_stage_d_old_value().rmatvec(
                 d_residuals["result_stage_slope"]
             )
+
             d_outputs["result_stage_slope"] += heat_equation.d_stage_d_stage(
                 self.options["integration_control"].delta_t,
                 self.options["integration_control"].butcher_diagonal_element,
@@ -192,17 +158,6 @@ class HeatEquationStageComponent(om.ImplicitComponent):
                     delta, segment
                 ).rmatvec(d_residuals["result_stage_slope"])
 
-            d_outputs["result_stage_heat"] += d_residuals["result_stage_heat"]
-            d_inputs["heat"] -= d_residuals["result_stage_heat"]
-            d_inputs["accumulated_stages"] -= (
-                self.options["integration_control"].delta_t * d_residuals["result_stage_heat"]
-            )
-            d_outputs["result_stage_slope"] -= (
-                self.options["integration_control"].delta_t
-                * self.options["integration_control"].butcher_diagonal_element
-                * d_residuals["result_stage_heat"]
-            )
-
     def solve_linear(self, d_outputs, d_residuals, mode):
         heat_equation: HeatEquation = self.options["heat_equation"]
         if mode == "fwd":
@@ -213,22 +168,11 @@ class HeatEquationStageComponent(om.ImplicitComponent):
                 d_residuals["result_stage_slope"],
                 d_outputs["result_stage_slope"],
             )
-            d_outputs["result_stage_heat"] = (
-                d_residuals["result_stage_heat"]
-                + self.options["integration_control"].delta_t
-                * self.options["integration_control"].butcher_diagonal_element
-                * d_outputs["result_stage_slope"]
-            )
-
         elif mode == "rev":
-            d_residuals["result_stage_heat"] = d_outputs["result_stage_heat"]
             d_residuals["result_stage_slope"] = self.options["heat_equation"].solve_d_stage_d_stage(
                 self.options["integration_control"].delta_t,
                 self.options["integration_control"].butcher_diagonal_element,
                 mode,
-                d_outputs["result_stage_slope"]
-                + self.options["integration_control"].delta_t
-                * self.options["integration_control"].butcher_diagonal_element
-                * d_residuals["result_stage_heat"],
+                d_outputs["result_stage_slope"],
                 d_residuals["result_stage_slope"],
             )
