@@ -64,6 +64,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.cached_input = None
         self.revolver = None
+        self._revolver_class = None
         self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = None
         self.serialized_new_state_symbol: RungeKuttaIntegratorSymbol = None
         self.forward_operator: RungeKuttaForwardOperator = None
@@ -118,12 +119,46 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             "resets",
             types=(bool, list),
             default=False,
-            desc="""If True, sets outputs of inner problem to zero before
-        any call to run_solve_nonlinear. If a list, then it only sets the variables in the list to zero. This can be useful due to the way
-        the rtol option of nonlinear solvers in OpenMDAO works. After each time stage, the remaining values can cause the initial
-        residual in the next stage to already be quite close to zero. While good in principle, this causes problems with the relative tolerance
-        in OpenMDAO, since this compares to this initial residual.""",
+            desc="""If True, sets outputs of inner problem to zero before any call to run_solve_nonlinear. If a list, 
+            then it only sets the variables in the list to zero. This can be useful due to the way the rtol option of
+            nonlinear solvers in OpenMDAO works. After each time stage, the remaining values can cause the initial
+            residual in the next stage to already be quite close to zero. While good in principle, this causes problems
+            with the relative tolerance in OpenMDAO, since this compares to this initial residual.""",
         )
+
+        self.options.declare(
+            "revolver_type",
+            values=["SingleLevel", "MultiLevel", "Memory", "Disk", "Base"],
+            default="Memory",
+            desc="""Chooses the type of revolver from pyrevolve. The default is the MemoryRevolver using numpy arrays as
+            storage""",
+        )
+
+        self.options.declare(
+            "revolver_options",
+            types=dict,
+            default={},
+            desc="""Options that are given to the constructor of the revolver.""",
+        )
+
+    def _setup_revolver_class(self):
+        revolver_type = self.options["revolver_type"]
+        if revolver_type == "SingleLevel":
+            self._revolver_class = pr.SingleLevelRevolver
+        elif revolver_type == "MultiLevel":
+            self._revolver_class = pr.MultiLevelRevolver
+        elif revolver_type == "Disk":
+            self._revolver_class = pr.DiskRevolver
+        elif revolver_type == "Base":
+            self._revolver_class = pr.BaseRevolver
+        else:
+            self._revolver_class = pr.MemoryRevolver
+
+    def _check_num_checkpoints_in_revolver_options(self):
+        if "n_checkpoints" not in self.options["revolver_options"].keys():
+            self.options["revolver_options"]["n_checkpoints"] = (
+                1 if self.options["integration_control"].num_steps == 1 else None
+            )
 
     def setup(self):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
@@ -138,6 +173,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_wrt_and_of_vars()
 
         self.setup_runge_kutta_scheme()
+
+        self._setup_revolver_class()
+
+        self._check_num_checkpoints_in_revolver_options()
 
         self.serialized_old_state_symbol = RungeKuttaIntegratorSymbol(self.numpy_array_size)
         self.serialized_new_state_symbol = RungeKuttaIntegratorSymbol(self.numpy_array_size)
@@ -187,12 +226,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.forward_operator.functional_part = functional_part
 
-        self.revolver = pr.Revolver(
-            checkpoint,
-            self.forward_operator,
-            self.reverse_operator,
-            num_steps if num_steps == 1 else None,
-            num_steps,
+        self.revolver = self._revolver_class(
+            checkpoint=checkpoint,
+            fwd_operator=self.forward_operator,
+            rev_operator=self.reverse_operator,
+            n_timesteps=num_steps,
+            **self.options["revolver_options"]
         )
 
         self.revolver.apply_forward()
