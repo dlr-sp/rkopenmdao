@@ -75,7 +75,7 @@ def test_heat_equation_stage_component_zero_vector(
         {"tol": 1e-10, "atol": "legacy"},
     )
 
-    integration_control = IntegrationControl(0.0, 1, 1, delta_t)
+    integration_control = IntegrationControl(0.0, 1, delta_t)
 
     test_prob = om.Problem()
     test_prob.model.add_subsystem(

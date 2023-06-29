@@ -120,7 +120,7 @@ butcher_tableau = ButcherTableau(
 # )
 
 num_steps = 20
-integration_control = IntegrationControl(0.0, num_steps, 10, 1e-1)
+integration_control = IntegrationControl(0.0, num_steps, 1e-1)
 
 trapezoidal_rule = np.ones(num_steps + 1)
 trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5

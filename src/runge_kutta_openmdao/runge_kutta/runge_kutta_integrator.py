@@ -1,5 +1,6 @@
-import openmdao.api as om
+import h5py
 import numpy as np
+import openmdao.api as om
 import pyrevolve as pr
 
 from .butcher_tableau import ButcherTableau
@@ -70,6 +71,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.forward_operator: RungeKuttaForwardOperator = None
         self.reverse_operator: RungeKuttaReverseOperator = None
 
+        self._disable_write_out = False
+
     def initialize(self):
         self.options.declare("inner_problem", types=om.Problem, desc="The inner problem")
 
@@ -86,6 +89,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             desc="The butcher tableau for the RK-scheme",
         )
         self.options.declare("integration_control", types=IntegrationControl)
+
+        self.options.declare(
+            "write_out_distance",
+            types=int,
+            default=0,
+            desc="""If zero, no data is written out. Else, every ... time steps the data of the quantities are written 
+            out to the write file.""",
+        )
 
         self.options.declare(
             "write_file",
@@ -160,6 +171,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 1 if self.options["integration_control"].num_steps == 1 else None
             )
 
+    def _configure_write_out(self):
+        self._disable_write_out = self.options["write_out_distance"] == 0
+
     def setup(self):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         assert set(self.options["integrated_quantities"]).issubset(
@@ -173,6 +187,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_wrt_and_of_vars()
 
         self.setup_runge_kutta_scheme()
+
+        self._configure_write_out()
 
         self._setup_revolver_class()
 
@@ -208,6 +224,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.to_numpy_array(inputs, self.serialized_new_state_symbol.data)
         self.cached_input = self.serialized_new_state_symbol.data.copy()
+
+        if not self._disable_write_out:
+            self.write_out(0, initial_time, self.serialized_new_state_symbol.data, "w")
 
         checkpoint_dict = {
             "serialized_old_state": self.serialized_old_state_symbol,
@@ -270,7 +289,25 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 * quadrature_rule_weights[step]
                 * self.get_functional_contribution(serialized_state)
             )
+
+        if not self._disable_write_out and (
+            step % self.options["write_out_distance"] == 0
+            or step == self.options["integration_control"].num_steps
+        ):
+            self.write_out(step, time, serialized_state, "r+")
+
         return serialized_state, functional_part
+
+    def write_out(self, step: int, time: float, serialized_state: np.ndarray, open_mode: str):
+        with h5py.File(self.options["write_file"], mode=open_mode) as f:
+            for quantity, metadata in self.quantity_metadata.items():
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                dataset = f.create_dataset(
+                    quantity + "/" + str(step),
+                    data=serialized_state[start:end].reshape(metadata["shape"]),
+                )
+                dataset.attrs["time"] = time
 
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode
@@ -354,6 +391,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self.add_functional_part_to_om_vec(functional_part_perturbations, d_outputs)
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
+        self._disable_write_out = True
         quadrature_rule_weights = self.options["quadrature_rule_weights"]
         delta_t = self.options["integration_control"].delta_t
         serialized_state = np.zeros(self.numpy_array_size)
@@ -385,6 +423,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             d_inputs.add_scal_vec(delta_t, d_inputs_functional)
 
         self.revolver = None
+        self._disable_write_out = self._configure_write_out()
 
     def _run_step_jacvec_rev(
         self,

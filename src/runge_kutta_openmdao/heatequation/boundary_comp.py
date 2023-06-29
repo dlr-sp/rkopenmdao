@@ -90,7 +90,7 @@ class BoundaryComp(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    integration_control = IntegrationControl(0.0, 10, 10, 0.1, 2, 2.0, 3.0, 1, 0.2, 1.0)
+    integration_control = IntegrationControl(0.0, 10, 0.1, 2, 2.0, 3.0, 1, 0.2, 1.0)
     prob = om.Problem()
     domain = Domain([0, 1], [0, 1], 11, 11)
     prob.model.add_subsystem(

@@ -372,7 +372,7 @@ class LiftDragForceComp(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    integration_control = IntegrationControl(0.0, 10, 10, 1e-8)
+    integration_control = IntegrationControl(0.0, 100, 1e-5)
     cannon_prob = om.Problem()
 
     velocity_angle_group = om.Group()
@@ -472,6 +472,8 @@ if __name__ == "__main__":
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             quantity_tags=["velocity", "flight_path_angle", "altitude", "range"],
+            write_out_distance=10,
+            write_file="cannonball.h5",
         ),
     )
 
@@ -479,4 +481,4 @@ if __name__ == "__main__":
 
     outer_prob.run_model()
 
-    outer_prob.check_partials()
+    # outer_prob.check_partials()

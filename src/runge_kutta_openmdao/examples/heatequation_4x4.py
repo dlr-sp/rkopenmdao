@@ -114,7 +114,7 @@ if __name__ == "__main__":
                 {"tol": 1e-12, "atol": "legacy", "M": heat_precon},
             )
 
-    integration_control = IntegrationControl(0.0, 200000, 100, 1e-5)
+    integration_control = IntegrationControl(0.0, 200000, 1e-5)
 
     inner_prob = om.Problem()
 
@@ -141,9 +141,7 @@ if __name__ == "__main__":
             heat_indep = om.IndepVarComp(f"heat_indep_{i}_{j}")
             heat_indep.add_output(f"heat_{i}_{j}", shape_by_conn=True)
 
-            heat_subgroup.add_subsystem(
-                f"heat_indep_{i}_{j}", heat_indep, promotes=["*"]
-            )
+            heat_subgroup.add_subsystem(f"heat_indep_{i}_{j}", heat_indep, promotes=["*"])
 
             heat_subgroup.add_subsystem(
                 f"heat_component_{i}_{j}",
@@ -232,9 +230,7 @@ if __name__ == "__main__":
         solve_subsystems=True, iprint=2, maxiter=20, atol=1e-7, rtol=1e-7
     )
 
-    inner_prob.model.linear_solver = om.PETScKrylov(
-        atol=1e-10, rtol=1e-10, ksp_type="gmres"
-    )
+    inner_prob.model.linear_solver = om.PETScKrylov(atol=1e-10, rtol=1e-10, ksp_type="gmres")
     # inner_prob.model.linear_solver.precon = om.LinearBlockGS(iprint=-1)
     # inner_prob.model.linear_solver.precon.options["maxiter"] = 2
 

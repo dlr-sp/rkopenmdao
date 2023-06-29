@@ -21,7 +21,7 @@ zeros_boundary_right = BoundaryCondition(
     right=lambda t, x, y: 0.0,
 )
 
-integration_control_1 = IntegrationControl(0.0, 1, 0, 1e-4)
+integration_control_1 = IntegrationControl(0.0, 1, 1e-4)
 
 
 gmres_args_without_precon = {

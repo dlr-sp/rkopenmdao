@@ -7,7 +7,6 @@ class IntegrationControl:
     # General information
     initial_time: float
     num_steps: int
-    checkpoint_distance: int
 
     # We later probably want step size control, so then it would be step data
     delta_t: float

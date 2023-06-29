@@ -113,7 +113,7 @@ if __name__ == "__main__":
         {"tol": 1e-15, "atol": "legacy", "M": heat_precon},
     )
 
-    integration_control = IntegrationControl(0.0, 10000, 100, 1e-5)
+    integration_control = IntegrationControl(0.0, 10000, 1e-5)
 
     inner_prob = om.Problem()
 

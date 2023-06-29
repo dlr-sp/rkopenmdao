@@ -55,7 +55,7 @@ if __name__ == "__main__":
         {"tol": 1e-10, "atol": 1e-10},
     )
 
-    integration_control = IntegrationControl(0.0, 1, 100, 1e-5)
+    integration_control = IntegrationControl(0.0, 1, 1e-5)
 
     inner_prob = om.Problem()
 

@@ -91,7 +91,7 @@ if __name__ == "__main__":
         matvec=lambda x: delta_x**2 / -4 * x,
     )
 
-    integration_control = IntegrationControl(0.0, 1000, 100, 1e-5)
+    integration_control = IntegrationControl(0.0, 1000, 1e-5)
 
     inner_prob = om.Problem()
 

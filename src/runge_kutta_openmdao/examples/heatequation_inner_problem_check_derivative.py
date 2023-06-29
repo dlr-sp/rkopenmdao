@@ -91,7 +91,7 @@ if __name__ == "__main__":
         matvec=lambda x: delta_x**2 / (delta_x**2 + 4 * delta_t) * x,
     )
 
-    integration_control = IntegrationControl(0.0, 1, 100, delta_t)
+    integration_control = IntegrationControl(0.0, 1, delta_t)
     # heat_lin_solver = om.LinearBlockGS(atol=1e-12, rtol=1e-12, iprint=2)
     heat_lin_solver = om.PETScKrylov(restart=20, iprint=2, err_on_non_converge=True)
     heat_lin_solver.precon = om.LinearRunOnce()
