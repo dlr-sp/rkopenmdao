@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
 import openmdao.api as om
@@ -12,10 +12,12 @@ class InnerProblemComputeFunctor:
         inner_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
+        resets: Union[bool, list],
     ):
         self.inner_problem: om.Problem = inner_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
+        self.resets = resets
 
     def __call__(
         self,
@@ -25,21 +27,26 @@ class InnerProblemComputeFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
-        # self.reset_output_stages()
+        if self.resets:
+            self.reset_values()
         self.fill_inputs(old_state, accumulated_stages)
 
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
 
-        self.inner_problem.run_model()
+        self.inner_problem.model.run_solve_nonlinear()
 
         stage_state = np.zeros_like(old_state)
         self.get_outputs(stage_state)
         return stage_state
 
-    # def reset_output_stages(self):
-    #     for quantity, metadata in self.quantity_metadata.items():
-    #         self.inner_problem.set_val(metadata["stage_output_var"], np.zeros(metadata["shape"]))
+    def reset_values(self):
+        if isinstance(self.resets, bool):
+            self.inner_problem.model._outputs.imul(0.0)
+            self.inner_problem.model._inputs.imul(0.0)
+        else:
+            for var in self.resets:
+                self.inner_problem[var] *= 0.0
 
     def fill_inputs(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
         for quantity, metadata in self.quantity_metadata.items():
@@ -77,7 +84,6 @@ class InnerProblemComputeJacvecFunctor:
         self.quantity_metadata: dict = quantity_metadata
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
-        self.need_call_solve_nonlinear = False
 
     def __call__(
         self,
@@ -87,10 +93,6 @@ class InnerProblemComputeJacvecFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
-        if self.need_call_solve_nonlinear:
-            self.inner_problem.model.run_solve_nonlinear()
-            self.need_call_solve_nonlinear = False
-
         self.inner_problem.model.run_linearize()
         seed = {}
         self.fill_seed(old_state_perturbation, accumulated_stage_perturbation, seed)
@@ -126,45 +128,15 @@ class InnerProblemComputeJacvecFunctor:
             end = start + np.prod(metadata["shape"])
             stage_perturbation[start:end] = jvp[metadata["stage_output_var"]].flatten()
 
-    def linearize(
-        self,
-        inner_input_vec: om.DefaultVector = None,
-        inner_output_vec: om.DefaultVector = None,
-        numpy_old_state_vec: np.ndarray = None,
-        numpy_acc_stage_vec: np.ndarray = None,
-    ):
+    def linearize(self, inputs=None, outputs=None):
         # linearize always needs to be called, this checks whether we need to solve the nonlinear
         # system beforehand (e.g. due to manually changed inputs/outputs)
-        if inner_input_vec is not None:
-            self.inner_problem.model._inputs.set_vec(inner_input_vec)
-            if inner_output_vec is not None:
-                self.inner_problem.model._outputs.set_vec(inner_output_vec)
-            else:
-                self.need_call_solve_nonlinear = True
-        elif numpy_old_state_vec is not None or numpy_acc_stage_vec is not None:
-            self.need_call_solve_nonlinear = True
-            if numpy_old_state_vec is not None:
-                for quantity, metadata in self.quantity_metadata.items():
-                    start = metadata["numpy_start_index"]
-                    end = start + np.prod(metadata["shape"])
-                    self.inner_problem.set_val(
-                        metadata["step_input_var"],
-                        numpy_old_state_vec[start:end].reshape(metadata["shape"]),
-                    )
-                    # self.inner_problem.model._inputs[
-                    #     metadata["step_input_var"]
-                    # ] = numpy_old_state_vec[start:end].reshape(metadata["shape"])
-            if numpy_acc_stage_vec is not None:
-                for quantity, metadata in self.quantity_metadata.items():
-                    start = metadata["numpy_start_index"]
-                    end = start + np.prod(metadata["shape"])
-                    self.inner_problem.set_val(
-                        metadata["accumulated_stage_var"],
-                        numpy_acc_stage_vec[start:end].reshape(metadata["shape"]),
-                    )
-                    # self.inner_problem.model._inputs[
-                    #     metadata["accumulated_stage_var"]
-                    # ] = numpy_acc_stage_vec[start:end].reshape(metadata["shape"])
+        if inputs is not None and outputs is not None:
+            self.inner_problem.model._inputs = inputs
+            self.inner_problem.model._outputs = outputs
+        elif inputs is not None or outputs is not None:
+            # TODO: raise actual error
+            print("Error")
 
 
 class InnerProblemComputeTransposeJacvecFunctor:
@@ -181,7 +153,6 @@ class InnerProblemComputeTransposeJacvecFunctor:
         self.quantity_metadata: dict = quantity_metadata
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
-        self.need_call_solve_nonlinear = False
 
     def __call__(
         self,
@@ -190,10 +161,6 @@ class InnerProblemComputeTransposeJacvecFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        if self.need_call_solve_nonlinear:
-            self.inner_problem.model.run_solve_nonlinear()
-            self.need_call_solve_nonlinear = False
-
         self.inner_problem.model.run_linearize()
         seed = {}
         self.fill_seed(stage_perturbation, seed)
@@ -231,39 +198,12 @@ class InnerProblemComputeTransposeJacvecFunctor:
                 metadata["accumulated_stage_var"]
             ].flatten()
 
-    def linearize(
-        self,
-        inner_input_vec: om.DefaultVector = None,
-        inner_output_vec: om.DefaultVector = None,
-        numpy_old_state_vec: np.ndarray = None,
-        numpy_acc_stage_vec: np.ndarray = None,
-    ):
+    def linearize(self, inputs=None, outputs=None):
         # linearize always needs to be called, this checks whether we need to solve the nonlinear
         # system beforehand (e.g. due to manually changed inputs/outputs)
-        if inner_input_vec is not None:
-            self.inner_problem.model._inputs.set_vec(inner_input_vec)
-            if inner_output_vec is not None:
-                self.inner_problem.model._outputs.set_vec(inner_output_vec)
-            else:
-                self.need_call_solve_nonlinear = True
-        elif numpy_old_state_vec is not None or numpy_acc_stage_vec is not None:
-            self.need_call_solve_nonlinear = True
-            if numpy_old_state_vec is not None:
-                for quantity, metadata in self.quantity_metadata.items():
-                    start = metadata["numpy_start_index"]
-                    end = start + np.prod(metadata["shape"])
-                    self.inner_problem.set_val(
-                        metadata["step_input_var"],
-                        numpy_old_state_vec[start:end].reshape(metadata["shape"]),
-                    )
-                    # self.inner_problem.model._inputs[
-                    #     metadata["step_input_var"]
-                    # ] = numpy_old_state_vec[start:end].reshape(metadata["shape"])
-            if numpy_acc_stage_vec is not None:
-                for quantity, metadata in self.quantity_metadata.items():
-                    start = metadata["numpy_start_index"]
-                    end = start + np.prod(metadata["shape"])
-                    self.inner_problem.set_val(
-                        metadata["accumulated_stage_var"],
-                        numpy_acc_stage_vec[start:end].reshape(metadata["shape"]),
-                    )
+        if inputs is not None and outputs is not None:
+            self.inner_problem.model._inputs = inputs
+            self.inner_problem.model._outputs = outputs
+        elif inputs is not None or outputs is not None:
+            # TODO: raise actual error
+            print("Error")

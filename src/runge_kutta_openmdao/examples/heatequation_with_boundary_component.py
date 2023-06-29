@@ -32,17 +32,19 @@ if __name__ == "__main__":
         upper=lambda t, x, y: 0.0, lower=lambda t, x, y: 0.0, right=lambda t, x, y: 0.0
     )
 
-    gamma = (2.0 - np.sqrt(2.0)) / 2.0
-    butcher_tableau = ButcherTableau(
-        np.array(
-            [
-                [gamma, 0.0],
-                [1 - gamma, gamma],
-            ]
-        ),
-        np.array([1 - gamma, gamma]),
-        np.array([gamma, 1.0]),
-    )
+    # gamma = (2.0 - np.sqrt(2.0)) / 2.0
+    # butcher_tableau = ButcherTableau(
+    #     np.array(
+    #         [
+    #             [gamma, 0.0],
+    #             [1 - gamma, gamma],
+    #         ]
+    #     ),
+    #     np.array([1 - gamma, gamma]),
+    #     np.array([gamma, 1.0]),
+    # )
+
+    butcher_tableau = ButcherTableau(np.array([[1.0]]), np.array([1.0]), np.array([1.0]))
 
     heat_equation = HeatEquation(
         domain,
@@ -90,13 +92,12 @@ if __name__ == "__main__":
         promotes_outputs=[("boundary_value", "boundary_segment_left")],
     )
     inner_prob.model.nonlinear_solver = om.NewtonSolver(
-        atol=1e-7,
-        rtol=1e-7,
+        atol=1e-8,
+        rtol=1e-8,
         maxiter=10,
         solve_subsystems=True,
         err_on_non_converge=True,
         iprint=2,
-        max_sub_solves=1,
     )
     inner_prob.model.linear_solver = om.PETScKrylov(restart=20, iprint=2)
     inner_prob.model.linear_solver.precon = om.LinearRunOnce()
@@ -112,10 +113,11 @@ if __name__ == "__main__":
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             quantity_tags=["heat_0"],
+            resets=True,
         ),
     )
 
     outer_prob.setup()
-    # outer_prob.run_model()
-
+    outer_prob.run_model()
+    # inner_prob.check_partials()
     outer_prob.check_partials()

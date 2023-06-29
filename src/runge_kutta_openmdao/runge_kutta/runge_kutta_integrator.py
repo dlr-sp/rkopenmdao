@@ -114,6 +114,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             If there is no quadrature rule while integrated_quantities isn't empty, an error gets thrown.""",
         )
 
+        self.options.declare(
+            "resets",
+            types=(bool, list),
+            default=False,
+            desc="""If True, sets outputs of inner problem to zero before
+        any call to run_solve_nonlinear. If a list, then it only sets the variables in the list to zero. This can be useful due to the way
+        the rtol option of nonlinear solvers in OpenMDAO works. After each time stage, the remaining values can cause the initial
+        residual in the next stage to already be quite close to zero. While good in principle, this causes problems with the relative tolerance
+        in OpenMDAO, since this compares to this initial residual.""",
+        )
+
     def setup(self):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         assert set(self.options["integrated_quantities"]).issubset(
@@ -356,6 +367,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         time = initial_time + step * delta_t
         self.options["integration_control"].step_time_old = time
         self.options["integration_control"].step_time_new = time + delta_t
+        inputs_cache = {}
+        outputs_cache = {}
         for stage in range(butcher_tableau.number_of_stages()):
             self.options["integration_control"].stage = stage
             if stage != 0:
@@ -367,15 +380,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             stage_cache[stage, :] = self.runge_kutta_scheme.compute_stage(
                 stage, delta_t, time, serialized_state, accumulated_stages
             )
+            inputs_cache[stage] = self.options["inner_problem"].model._inputs
+            outputs_cache[stage] = self.options["inner_problem"].model._outputs
         new_serialized_state_perturbations = serialized_state_perturbations.copy()
         if self.options["integrated_quantities"]:
             new_functional_perturbations = functional_perturbations.copy()
         for stage in range(butcher_tableau.number_of_stages() - 1, -1, -1):
-            linearization_args = {}
-            if stage != butcher_tableau.number_of_stages() - 1:
-                linearization_args[
-                    "numpy_acc_stage_vec"
-                ] = self.runge_kutta_scheme.compute_accumulated_stages(stage, stage_cache)
+            linearization_args = {"inputs": inputs_cache[stage], "outputs": outputs_cache[stage]}
             joined_perturbations = (
                 self.runge_kutta_scheme.join_new_state_and_accumulated_stages_perturbations(
                     stage, serialized_state_perturbations, stage_perturbations_cache
@@ -605,6 +616,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.options["inner_problem"],
                 self.options["integration_control"],
                 self.quantity_metadata,
+                self.options["resets"],
             ),
             InnerProblemComputeJacvecFunctor(
                 self.options["inner_problem"],
