@@ -6,15 +6,15 @@ import openmdao.api as om
 from .integration_control import IntegrationControl
 
 
-class InnerProblemComputeFunctor:
+class TimeStageProblemComputeFunctor:
     def __init__(
         self,
-        inner_problem: om.Problem,
+        time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
         resets: Union[bool, list],
     ):
-        self.inner_problem: om.Problem = inner_problem
+        self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
         self.resets = resets
@@ -34,7 +34,7 @@ class InnerProblemComputeFunctor:
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
 
-        self.inner_problem.model.run_solve_nonlinear()
+        self.time_stage_problem.model.run_solve_nonlinear()
 
         stage_state = np.zeros_like(old_state)
         self.get_outputs(stage_state)
@@ -42,21 +42,22 @@ class InnerProblemComputeFunctor:
 
     def reset_values(self):
         if isinstance(self.resets, bool):
-            self.inner_problem.model._outputs.imul(0.0)
-            self.inner_problem.model._inputs.imul(0.0)
+            self.time_stage_problem.model._outputs.imul(0.0)
+            self.time_stage_problem.model._inputs.imul(0.0)
         else:
             for var in self.resets:
-                self.inner_problem[var] *= 0.0
+                self.time_stage_problem[var] *= 0.0
 
     def fill_inputs(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
         for quantity, metadata in self.quantity_metadata.items():
             start = metadata["numpy_start_index"]
             end = start + np.prod(metadata["shape"])
-            self.inner_problem.set_val(
-                metadata["step_input_var"], old_state[start:end].reshape(metadata["shape"])
+            self.time_stage_problem.set_val(
+                metadata["step_input_var"],
+                old_state[start:end].reshape(metadata["shape"]),
             )
 
-            self.inner_problem.model.set_val(
+            self.time_stage_problem.model.set_val(
                 metadata["accumulated_stage_var"],
                 accumulated_stage[start:end].reshape(metadata["shape"]),
             )
@@ -65,21 +66,21 @@ class InnerProblemComputeFunctor:
         for quantity, metadata in self.quantity_metadata.items():
             start = metadata["numpy_start_index"]
             end = start + np.prod(metadata["shape"])
-            stage_state[start:end] = self.inner_problem.get_val(
+            stage_state[start:end] = self.time_stage_problem.get_val(
                 metadata["stage_output_var"], get_remote=False
             ).flatten()
 
 
-class InnerProblemComputeJacvecFunctor:
+class TimeStageProblemComputeJacvecFunctor:
     def __init__(
         self,
-        inner_problem: om.Problem,
+        time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
         of_vars: list,
         wrt_vars: list,
     ):
-        self.inner_problem: om.Problem = inner_problem
+        self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
         self.of_vars = of_vars
@@ -93,12 +94,12 @@ class InnerProblemComputeJacvecFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
-        self.inner_problem.model.run_linearize()
+        self.time_stage_problem.model.run_linearize()
         seed = {}
         self.fill_seed(old_state_perturbation, accumulated_stage_perturbation, seed)
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
-        jvp = self.inner_problem.compute_jacvec_product(
+        jvp = self.time_stage_problem.compute_jacvec_product(
             of=self.of_vars, wrt=self.wrt_vars, mode="fwd", seed=seed
         )
 
@@ -110,14 +111,17 @@ class InnerProblemComputeJacvecFunctor:
         return stage_perturbation
 
     def fill_seed(
-        self, old_state_perturbation: np.ndarray, accumulated_stage_perturbation: np.ndarray, seed
+        self,
+        old_state_perturbation: np.ndarray,
+        accumulated_stage_perturbation: np.ndarray,
+        seed,
     ):
         for quantity, metadata in self.quantity_metadata.items():
             start = metadata["numpy_start_index"]
             end = start + np.prod(metadata["shape"])
-            seed[metadata["step_input_var"]] = old_state_perturbation[start:end].reshape(
-                metadata["shape"]
-            )
+            seed[metadata["step_input_var"]] = old_state_perturbation[
+                start:end
+            ].reshape(metadata["shape"])
             seed[metadata["accumulated_stage_var"]] = accumulated_stage_perturbation[
                 start:end
             ].reshape(metadata["shape"])
@@ -132,23 +136,23 @@ class InnerProblemComputeJacvecFunctor:
         # linearize always needs to be called, this checks whether we need to solve the nonlinear
         # system beforehand (e.g. due to manually changed inputs/outputs)
         if inputs is not None and outputs is not None:
-            self.inner_problem.model._inputs = inputs
-            self.inner_problem.model._outputs = outputs
+            self.time_stage_problem.model._inputs = inputs
+            self.time_stage_problem.model._outputs = outputs
         elif inputs is not None or outputs is not None:
             # TODO: raise actual error
             print("Error")
 
 
-class InnerProblemComputeTransposeJacvecFunctor:
+class TimeStageProblemComputeTransposeJacvecFunctor:
     def __init__(
         self,
-        inner_problem: om.Problem,
+        time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
         of_vars: list,
         wrt_vars: list,
     ):
-        self.inner_problem: om.Problem = inner_problem
+        self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
         self.of_vars = of_vars
@@ -161,13 +165,13 @@ class InnerProblemComputeTransposeJacvecFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        self.inner_problem.model.run_linearize()
+        self.time_stage_problem.model.run_linearize()
         seed = {}
         self.fill_seed(stage_perturbation, seed)
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
 
-        jvp = self.inner_problem.compute_jacvec_product(
+        jvp = self.time_stage_problem.compute_jacvec_product(
             of=self.of_vars, wrt=self.wrt_vars, mode="rev", seed=seed
         )
 
@@ -193,7 +197,9 @@ class InnerProblemComputeTransposeJacvecFunctor:
         for quantity, metadata in self.quantity_metadata.items():
             start = metadata["numpy_start_index"]
             end = start + np.prod(metadata["shape"])
-            old_state_perturbation[start:end] = jvp[metadata["step_input_var"]].flatten()
+            old_state_perturbation[start:end] = jvp[
+                metadata["step_input_var"]
+            ].flatten()
             accumulated_stage_perturbation[start:end] = jvp[
                 metadata["accumulated_stage_var"]
             ].flatten()
@@ -202,8 +208,8 @@ class InnerProblemComputeTransposeJacvecFunctor:
         # linearize always needs to be called, this checks whether we need to solve the nonlinear
         # system beforehand (e.g. due to manually changed inputs/outputs)
         if inputs is not None and outputs is not None:
-            self.inner_problem.model._inputs = inputs
-            self.inner_problem.model._outputs = outputs
+            self.time_stage_problem.model._inputs = inputs
+            self.time_stage_problem.model._outputs = outputs
         elif inputs is not None or outputs is not None:
             # TODO: raise actual error
             print("Error")

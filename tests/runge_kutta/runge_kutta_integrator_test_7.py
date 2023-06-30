@@ -19,7 +19,9 @@ class TestComp7(om.ExplicitComponent):
 
     def compute(self, inputs, outputs):
         delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
+        butcher_diagonal_element = self.options[
+            "integration_control"
+        ].butcher_diagonal_element
         outputs["x_stage"] = 0.5 * delta_t * butcher_diagonal_element + np.sqrt(
             0.25 * delta_t**2 * butcher_diagonal_element**2
             + inputs["x"]
@@ -28,7 +30,9 @@ class TestComp7(om.ExplicitComponent):
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
+        butcher_diagonal_element = self.options[
+            "integration_control"
+        ].butcher_diagonal_element
         divisor = 2 * np.sqrt(
             0.25 * delta_t**2 * butcher_diagonal_element**2
             + inputs["x"]
@@ -112,9 +116,13 @@ trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem("x_comp", TestComp6(integration_control=integration_control))
+inner_prob.model.add_subsystem(
+    "x_comp", TestComp6(integration_control=integration_control)
+)
 
-newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
+newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
+    iprint=0, solve_subsystems=True
+)
 
 inner_prob.model.linear_solver = om.ScipyKrylov(maxiter=20, iprint=0)
 
@@ -122,7 +130,7 @@ outer_prob = om.Problem()
 outer_prob.model.add_subsystem(
     "RK_Integrator",
     RungeKuttaIntegrator(
-        inner_problem=inner_prob,
+        time_stage_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
         integrated_quantities=["x"],

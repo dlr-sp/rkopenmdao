@@ -238,7 +238,7 @@ if __name__ == "__main__":
     outer_prob.model.add_subsystem(
         "RK_Integrator",
         RungeKuttaIntegrator(
-            inner_problem=inner_prob,
+            time_stage_problem=inner_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             write_file="dummy.h5",

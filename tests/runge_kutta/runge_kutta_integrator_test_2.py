@@ -86,9 +86,13 @@ trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem("x_comp", TestComp2(integration_control=integration_control))
+inner_prob.model.add_subsystem(
+    "x_comp", TestComp2(integration_control=integration_control)
+)
 
-newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
+newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
+    iprint=0, solve_subsystems=True
+)
 
 inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
 
@@ -96,7 +100,7 @@ outer_prob = om.Problem()
 outer_prob.model.add_subsystem(
     "RK_Integrator",
     RungeKuttaIntegrator(
-        inner_problem=inner_prob,
+        time_stage_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
         integrated_quantities=["x"],

@@ -36,14 +36,21 @@ class TestComp3(om.ExplicitComponent):
         stage_time = self.options["integration_control"].stage_time
 
         divisor = (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element * stage_time
+            1
+            - delta_t
+            * self.options["integration_control"].butcher_diagonal_element
+            * stage_time
         )
         if mode == "fwd":
             d_outputs["x_stage"] += stage_time * d_inputs["x"] / divisor
-            d_outputs["x_stage"] += delta_t * stage_time * d_inputs["acc_stages"] / divisor
+            d_outputs["x_stage"] += (
+                delta_t * stage_time * d_inputs["acc_stages"] / divisor
+            )
         elif mode == "rev":
             d_inputs["x"] += stage_time * d_outputs["x_stage"] / divisor
-            d_inputs["acc_stages"] += delta_t * stage_time * d_outputs["x_stage"] / divisor
+            d_inputs["acc_stages"] += (
+                delta_t * stage_time * d_outputs["x_stage"] / divisor
+            )
 
 
 # butcher_tableau = ButcherTableau(
@@ -103,9 +110,13 @@ trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem("x_comp", TestComp3(integration_control=integration_control))
+inner_prob.model.add_subsystem(
+    "x_comp", TestComp3(integration_control=integration_control)
+)
 
-newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
+newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
+    iprint=0, solve_subsystems=True
+)
 
 inner_prob.model.linear_solver = om.LinearBlockGS(iprint=0, maxiter=20)
 
@@ -113,7 +124,7 @@ outer_prob = om.Problem()
 outer_prob.model.add_subsystem(
     "RK_Integrator",
     RungeKuttaIntegrator(
-        inner_problem=inner_prob,
+        time_stage_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
         integrated_quantities=["x"],

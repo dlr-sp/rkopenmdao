@@ -468,7 +468,7 @@ if __name__ == "__main__":
     outer_prob.model.add_subsystem(
         "RK",
         RungeKuttaIntegrator(
-            inner_problem=cannon_prob,
+            time_stage_problem=cannon_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             quantity_tags=["velocity", "flight_path_angle", "altitude", "range"],

@@ -6,10 +6,10 @@ import pyrevolve as pr
 from .butcher_tableau import ButcherTableau
 from .integration_control import IntegrationControl
 from .runge_kutta_scheme import RungeKuttaScheme
-from .inner_problem_computation_functors import (
-    InnerProblemComputeFunctor,
-    InnerProblemComputeJacvecFunctor,
-    InnerProblemComputeTransposeJacvecFunctor,
+from .time_stage_problem_computation_functors import (
+    TimeStageProblemComputeFunctor,
+    TimeStageProblemComputeJacvecFunctor,
+    TimeStageProblemComputeTransposeJacvecFunctor,
 )
 
 from .runge_kutta_integrator_pyrevolve_classes import (
@@ -74,7 +74,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._disable_write_out = False
 
     def initialize(self):
-        self.options.declare("inner_problem", types=om.Problem, desc="The inner problem")
+        self.options.declare(
+            "time_stage_problem", types=om.Problem, desc="The inner problem"
+        )
 
         # self.options.declare(
         #     "postprocessing_problem",
@@ -179,8 +181,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         assert set(self.options["integrated_quantities"]).issubset(
             set(self.options["quantity_tags"])
         )
-        self.options["inner_problem"].setup()
-        self.options["inner_problem"].final_setup()
+        self.options["time_stage_problem"].setup()
+        self.options["time_stage_problem"].final_setup()
 
         self._setup_variable_information()
 
@@ -194,8 +196,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._check_num_checkpoints_in_revolver_options()
 
-        self.serialized_old_state_symbol = RungeKuttaIntegratorSymbol(self.numpy_array_size)
-        self.serialized_new_state_symbol = RungeKuttaIntegratorSymbol(self.numpy_array_size)
+        self.serialized_old_state_symbol = RungeKuttaIntegratorSymbol(
+            self.numpy_array_size
+        )
+        self.serialized_new_state_symbol = RungeKuttaIntegratorSymbol(
+            self.numpy_array_size
+        )
 
         self.forward_operator = RungeKuttaForwardOperator(
             self.serialized_old_state_symbol,
@@ -238,7 +244,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             functional_part.data += (
                 delta_t
                 * quadrature_rule_weights[0]
-                * self.get_functional_contribution(self.serialized_new_state_symbol.data)
+                * self.get_functional_contribution(
+                    self.serialized_new_state_symbol.data
+                )
             )
 
         checkpoint = RungeKuttaCheckpoint(checkpoint_dict)
@@ -260,7 +268,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.options["integrated_quantities"]:
             self.add_functional_part_to_om_vec(functional_part, outputs)
 
-    def _run_step(self, step, serialized_state, functional_part, stage_cache, accumulated_stages):
+    def _run_step(
+        self, step, serialized_state, functional_part, stage_cache, accumulated_stages
+    ):
         initial_time = self.options["integration_control"].initial_time
         delta_t = self.options["integration_control"].delta_t
         quadrature_rule_weights = self.options["quadrature_rule_weights"]
@@ -298,7 +308,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         return serialized_state, functional_part
 
-    def write_out(self, step: int, time: float, serialized_state: np.ndarray, open_mode: str):
+    def write_out(
+        self, step: int, time: float, serialized_state: np.ndarray, open_mode: str
+    ):
         with h5py.File(self.options["write_file"], mode=open_mode) as f:
             for quantity, metadata in self.quantity_metadata.items():
                 start = metadata["numpy_start_index"]
@@ -341,7 +353,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 * self.get_functional_contribution(serialized_state_perturbations)
             )
 
-        stage_cache = np.zeros((butcher_tableau.number_of_stages(), serialized_state.size))
+        stage_cache = np.zeros(
+            (butcher_tableau.number_of_stages(), serialized_state.size)
+        )
         stage_perturbations_cache = np.zeros(
             (butcher_tableau.number_of_stages(), serialized_state.size)
         )
@@ -352,8 +366,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             time = initial_time + step * delta_t
             for stage in range(butcher_tableau.number_of_stages()):
                 if stage != 0:
-                    accumulated_stages = self.runge_kutta_scheme.compute_accumulated_stages(
-                        stage, stage_cache
+                    accumulated_stages = (
+                        self.runge_kutta_scheme.compute_accumulated_stages(
+                            stage, stage_cache
+                        )
                     )
                     accumulated_stage_perturbations = (
                         self.runge_kutta_scheme.compute_accumulated_stage_perturbations(
@@ -366,7 +382,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 stage_cache[stage, :] = self.runge_kutta_scheme.compute_stage(
                     stage, delta_t, time, serialized_state, accumulated_stages
                 )
-                stage_perturbations_cache[stage, :] = self.runge_kutta_scheme.compute_stage_jacvec(
+                stage_perturbations_cache[
+                    stage, :
+                ] = self.runge_kutta_scheme.compute_stage_jacvec(
                     stage,
                     delta_t,
                     time,
@@ -376,8 +394,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             serialized_state = self.runge_kutta_scheme.compute_step(
                 delta_t, serialized_state, stage_cache
             )
-            serialized_state_perturbations = self.runge_kutta_scheme.compute_step_jacvec(
-                delta_t, serialized_state_perturbations, stage_perturbations_cache
+            serialized_state_perturbations = (
+                self.runge_kutta_scheme.compute_step_jacvec(
+                    delta_t, serialized_state_perturbations, stage_perturbations_cache
+                )
             )
             if self.options["integrated_quantities"]:
                 functional_part_perturbations += (
@@ -396,25 +416,36 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         delta_t = self.options["integration_control"].delta_t
         serialized_state = np.zeros(self.numpy_array_size)
         self.to_numpy_array(inputs, serialized_state)
-        if not np.array_equal(self.cached_input, serialized_state) or self.revolver is None:
+        if (
+            not np.array_equal(self.cached_input, serialized_state)
+            or self.revolver is None
+        ):
             outputs = self._vector_class("nonlinear", "output", self)
             self.compute(inputs, outputs)
 
         serialized_state_perturbations = np.zeros(self.numpy_array_size)
         self.to_numpy_array(d_outputs, serialized_state_perturbations)
 
-        self.reverse_operator.serialized_state_perturbations = serialized_state_perturbations
+        self.reverse_operator.serialized_state_perturbations = (
+            serialized_state_perturbations
+        )
         if self.options["integrated_quantities"]:
             functional_perturbations = np.zeros(self.numpy_array_size)
-            self.functional_contribution_from_om_output_vec(d_outputs, functional_perturbations)
+            self.functional_contribution_from_om_output_vec(
+                d_outputs, functional_perturbations
+            )
             self.reverse_operator.functional_perturbations = (
                 quadrature_rule_weights[-1] * functional_perturbations
             )
-            self.reverse_operator.original_functional_perturbations = functional_perturbations
+            self.reverse_operator.original_functional_perturbations = (
+                functional_perturbations
+            )
 
         self.revolver.apply_reverse()
 
-        self.from_numpy_array(self.reverse_operator.serialized_state_perturbations, d_inputs)
+        self.from_numpy_array(
+            self.reverse_operator.serialized_state_perturbations, d_inputs
+        )
         if self.options["integrated_quantities"]:
             d_inputs_functional = self._vector_class("linear", "input", self)
             self.from_numpy_array(
@@ -423,7 +454,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             d_inputs.add_scal_vec(delta_t, d_inputs_functional)
 
         self.revolver = None
-        self._disable_write_out = self._configure_write_out()
+        self._configure_write_out()
 
     def _run_step_jacvec_rev(
         self,
@@ -458,17 +489,18 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             stage_cache[stage, :] = self.runge_kutta_scheme.compute_stage(
                 stage, delta_t, time, serialized_state, accumulated_stages
             )
-            inputs_cache[stage] = self.options["inner_problem"].model._inputs
-            outputs_cache[stage] = self.options["inner_problem"].model._outputs
+            inputs_cache[stage] = self.options["time_stage_problem"].model._inputs
+            outputs_cache[stage] = self.options["time_stage_problem"].model._outputs
         new_serialized_state_perturbations = serialized_state_perturbations.copy()
         if self.options["integrated_quantities"]:
             new_functional_perturbations = functional_perturbations.copy()
         for stage in range(butcher_tableau.number_of_stages() - 1, -1, -1):
-            linearization_args = {"inputs": inputs_cache[stage], "outputs": outputs_cache[stage]}
-            joined_perturbations = (
-                self.runge_kutta_scheme.join_new_state_and_accumulated_stages_perturbations(
-                    stage, serialized_state_perturbations, stage_perturbations_cache
-                )
+            linearization_args = {
+                "inputs": inputs_cache[stage],
+                "outputs": outputs_cache[stage],
+            }
+            joined_perturbations = self.runge_kutta_scheme.join_new_state_and_accumulated_stages_perturbations(
+                stage, serialized_state_perturbations, stage_perturbations_cache
             )
             (
                 wrt_old_state,
@@ -479,10 +511,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
             new_serialized_state_perturbations += delta_t * wrt_old_state
             if self.options["integrated_quantities"]:
-                functional_joined_perturbations = (
-                    self.runge_kutta_scheme.join_new_state_and_accumulated_stages_perturbations(
-                        stage, functional_perturbations, functional_stage_perturbations_cache
-                    )
+                functional_joined_perturbations = self.runge_kutta_scheme.join_new_state_and_accumulated_stages_perturbations(
+                    stage,
+                    functional_perturbations,
+                    functional_stage_perturbations_cache,
                 )
                 (
                     functional_wrt_old_state,
@@ -504,23 +536,23 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
     def _setup_variable_information(self):
-        inner_problem: om.Problem = self.options["inner_problem"]
+        time_stage_problem: om.Problem = self.options["time_stage_problem"]
         self.numpy_array_size = 0
-        old_step_input_vars = inner_problem.model.get_io_metadata(
+        old_step_input_vars = time_stage_problem.model.get_io_metadata(
             iotypes="input",
             metadata_keys=["tags"],
             tags=["step_input_var"],
             get_remote=False,
         )
 
-        acc_stage_input_vars = inner_problem.model.get_io_metadata(
+        acc_stage_input_vars = time_stage_problem.model.get_io_metadata(
             iotypes="input",
             metadata_keys=["tags"],
             tags=["accumulated_stage_var"],
             get_remote=False,
         )
 
-        stage_output_vars = inner_problem.model.get_io_metadata(
+        stage_output_vars = time_stage_problem.model.get_io_metadata(
             iotypes="output",
             metadata_keys=["tags"],
             tags=["stage_output_var"],
@@ -528,7 +560,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
         for quantity in self.options["quantity_tags"]:
-            self._extract_quantity_metadata_from_inner_problem(
+            self._extract_quantity_metadata_from_time_stage_problem(
                 quantity, old_step_input_vars, acc_stage_input_vars, stage_output_vars
             )
             if (
@@ -538,28 +570,34 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ):
                 del self.quantity_metadata[quantity]
             else:
-                self.quantity_metadata[quantity]["numpy_start_index"] = self.numpy_array_size
-                self.numpy_array_size += np.prod(self.quantity_metadata[quantity]["shape"])
+                self.quantity_metadata[quantity][
+                    "numpy_start_index"
+                ] = self.numpy_array_size
+                self.numpy_array_size += np.prod(
+                    self.quantity_metadata[quantity]["shape"]
+                )
                 if quantity in self.options["integrated_quantities"]:
                     self.quantity_metadata[quantity][
                         "numpy_functional_start_index"
                     ] = self.numpy_functional_size
-                    self.numpy_functional_size += np.prod(self.quantity_metadata[quantity]["shape"])
+                    self.numpy_functional_size += np.prod(
+                        self.quantity_metadata[quantity]["shape"]
+                    )
                 self._add_inputs_and_outputs(quantity)
 
-    def _extract_quantity_metadata_from_inner_problem(
+    def _extract_quantity_metadata_from_time_stage_problem(
         self, quantity, old_step_input_vars, acc_stage_input_vars, stage_output_vars
     ):
-        inner_problem: om.Problem = self.options["inner_problem"]
+        time_stage_problem: om.Problem = self.options["time_stage_problem"]
 
-        quantity_inputs = inner_problem.model.get_io_metadata(
+        quantity_inputs = time_stage_problem.model.get_io_metadata(
             iotypes="input",
             metadata_keys=["tags", "shape", "global_shape"],
             tags=[quantity],
             get_remote=False,
         )
 
-        quantity_outputs = inner_problem.model.get_io_metadata(
+        quantity_outputs = time_stage_problem.model.get_io_metadata(
             iotypes="output",
             metadata_keys=["tags", "shape", "global_shape"],
             tags=[quantity],
@@ -583,12 +621,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 if self.quantity_metadata[quantity]["shape"] is None:
                     self.quantity_metadata[quantity]["shape"] = metadata["shape"]
                 else:
-                    assert metadata["shape"] == self.quantity_metadata[quantity]["shape"]
+                    assert (
+                        metadata["shape"] == self.quantity_metadata[quantity]["shape"]
+                    )
                 if self.quantity_metadata[quantity]["global_shape"] is None:
-                    self.quantity_metadata[quantity]["global_shape"] = metadata["global_shape"]
+                    self.quantity_metadata[quantity]["global_shape"] = metadata[
+                        "global_shape"
+                    ]
                 else:
                     assert (
-                        metadata["global_shape"] == self.quantity_metadata[quantity]["global_shape"]
+                        metadata["global_shape"]
+                        == self.quantity_metadata[quantity]["global_shape"]
                     )
 
             elif var in acc_stage_input_vars:
@@ -596,12 +639,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 if self.quantity_metadata[quantity]["shape"] is None:
                     self.quantity_metadata[quantity]["shape"] = metadata["shape"]
                 else:
-                    assert metadata["shape"] == self.quantity_metadata[quantity]["shape"]
+                    assert (
+                        metadata["shape"] == self.quantity_metadata[quantity]["shape"]
+                    )
                 if self.quantity_metadata[quantity]["global_shape"] is None:
-                    self.quantity_metadata[quantity]["global_shape"] = metadata["global_shape"]
+                    self.quantity_metadata[quantity]["global_shape"] = metadata[
+                        "global_shape"
+                    ]
                 else:
                     assert (
-                        metadata["global_shape"] == self.quantity_metadata[quantity]["global_shape"]
+                        metadata["global_shape"]
+                        == self.quantity_metadata[quantity]["global_shape"]
                     )
 
         for var, metadata in quantity_outputs.items():
@@ -612,19 +660,24 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             else:
                 assert metadata["shape"] == self.quantity_metadata[quantity]["shape"]
             if self.quantity_metadata[quantity]["global_shape"] is None:
-                self.quantity_metadata[quantity]["global_shape"] = metadata["global_shape"]
+                self.quantity_metadata[quantity]["global_shape"] = metadata[
+                    "global_shape"
+                ]
             else:
-                assert metadata["global_shape"] == self.quantity_metadata[quantity]["global_shape"]
+                assert (
+                    metadata["global_shape"]
+                    == self.quantity_metadata[quantity]["global_shape"]
+                )
             if (
                 self.quantity_metadata[quantity]["shape"]
                 != self.quantity_metadata[quantity]["global_shape"]
             ):
-                sizes = inner_problem.model._var_sizes["output"][
-                    :, inner_problem.model._var_allprocs_abs2idx[var]
+                sizes = time_stage_problem.model._var_sizes["output"][
+                    :, time_stage_problem.model._var_allprocs_abs2idx[var]
                 ]
-                self.quantity_metadata[quantity]["local_indices_start"] = start = np.sum(
-                    sizes[: self.comm.rank]
-                )
+                self.quantity_metadata[quantity][
+                    "local_indices_start"
+                ] = start = np.sum(sizes[: self.comm.rank])
                 self.quantity_metadata[quantity]["local_indices_end"] = (
                     start + sizes[self.comm.rank]
                 )
@@ -635,11 +688,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 )
 
     def _add_inputs_and_outputs(self, quantity):
-        inner_problem: om.Problem = self.options["inner_problem"]
+        time_stage_problem: om.Problem = self.options["time_stage_problem"]
         self.add_input(
             quantity + "_initial",
             shape=self.quantity_metadata[quantity]["shape"],
-            val=inner_problem.get_val(self.quantity_metadata[quantity]["step_input_var"]),
+            val=time_stage_problem.get_val(
+                self.quantity_metadata[quantity]["step_input_var"]
+            ),
             distributed=self.quantity_metadata[quantity]["shape"]
             != self.quantity_metadata[quantity]["global_shape"],
         )
@@ -683,28 +738,30 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for quantity, metadata in self.quantity_metadata.items():
             start = metadata["numpy_start_index"]
             end = start + np.prod(metadata["shape"])
-            om_vector[quantity + name_suffix] = np_array[start:end].reshape(metadata["shape"])
+            om_vector[quantity + name_suffix] = np_array[start:end].reshape(
+                metadata["shape"]
+            )
 
     def setup_runge_kutta_scheme(self):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
 
         self.runge_kutta_scheme = RungeKuttaScheme(
             butcher_tableau,
-            InnerProblemComputeFunctor(
-                self.options["inner_problem"],
+            TimeStageProblemComputeFunctor(
+                self.options["time_stage_problem"],
                 self.options["integration_control"],
                 self.quantity_metadata,
                 self.options["resets"],
             ),
-            InnerProblemComputeJacvecFunctor(
-                self.options["inner_problem"],
+            TimeStageProblemComputeJacvecFunctor(
+                self.options["time_stage_problem"],
                 self.options["integration_control"],
                 self.quantity_metadata,
                 self.of_vars,
                 self.wrt_vars,
             ),
-            InnerProblemComputeTransposeJacvecFunctor(
-                self.options["inner_problem"],
+            TimeStageProblemComputeTransposeJacvecFunctor(
+                self.options["time_stage_problem"],
                 self.options["integration_control"],
                 self.quantity_metadata,
                 self.of_vars,
@@ -716,11 +773,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         contribution = np.zeros(self.numpy_functional_size)
         for quantity in self.options["integrated_quantities"]:
             start_time_stepping = self.quantity_metadata[quantity]["numpy_start_index"]
-            start_functional = self.quantity_metadata[quantity]["numpy_functional_start_index"]
-            length = np.prod(self.quantity_metadata[quantity]["shape"])
-            contribution[start_functional : start_functional + length] = serialized_state[
-                start_time_stepping : start_time_stepping + length
+            start_functional = self.quantity_metadata[quantity][
+                "numpy_functional_start_index"
             ]
+            length = np.prod(self.quantity_metadata[quantity]["shape"])
+            contribution[
+                start_functional : start_functional + length
+            ] = serialized_state[start_time_stepping : start_time_stepping + length]
         return contribution
 
     def functional_contribution_from_om_output_vec(
@@ -737,6 +796,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for quantity in self.options["integrated_quantities"]:
             start = self.quantity_metadata[quantity]["numpy_functional_start_index"]
             end = start + np.prod(self.quantity_metadata[quantity]["shape"])
-            om_vector[quantity + "_integrated"] += functional_numpy_array[start:end].reshape(
-                self.quantity_metadata[quantity]["shape"]
-            )
+            om_vector[quantity + "_integrated"] += functional_numpy_array[
+                start:end
+            ].reshape(self.quantity_metadata[quantity]["shape"])

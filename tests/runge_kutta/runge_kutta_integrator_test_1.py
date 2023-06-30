@@ -25,7 +25,9 @@ class TestComp1(om.ExplicitComponent):
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         delta_t = self.options["integration_control"].delta_t
-        divisor = 1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+        divisor = (
+            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+        )
         if mode == "fwd":
             d_outputs["x_stage"] += d_inputs["x"] / divisor
             d_outputs["x_stage"] += delta_t * d_inputs["acc_stages"] / divisor
@@ -95,9 +97,13 @@ trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5
 
 inner_prob = om.Problem()
 
-inner_prob.model.add_subsystem("x_comp", TestComp1(integration_control=integration_control))
+inner_prob.model.add_subsystem(
+    "x_comp", TestComp1(integration_control=integration_control)
+)
 
-newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(iprint=0, solve_subsystems=True)
+newton = inner_prob.model.nonlinear_solver = om.NewtonSolver(
+    iprint=0, solve_subsystems=True
+)
 
 inner_prob.model.linear_solver = om.LinearBlockGS(maxiter=20)
 
@@ -105,7 +111,7 @@ outer_prob = om.Problem()
 outer_prob.model.add_subsystem(
     "RK_Integrator",
     RungeKuttaIntegrator(
-        inner_problem=inner_prob,
+        time_stage_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
         integrated_quantities=["x"],
