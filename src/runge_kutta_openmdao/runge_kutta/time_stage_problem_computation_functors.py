@@ -50,25 +50,27 @@ class TimeStageProblemComputeFunctor:
 
     def fill_inputs(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
         for quantity, metadata in self.quantity_metadata.items():
-            start = metadata["numpy_start_index"]
-            end = start + np.prod(metadata["shape"])
-            self.time_stage_problem.set_val(
-                metadata["step_input_var"],
-                old_state[start:end].reshape(metadata["shape"]),
-            )
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                self.time_stage_problem.set_val(
+                    metadata["step_input_var"],
+                    old_state[start:end].reshape(metadata["shape"]),
+                )
 
-            self.time_stage_problem.model.set_val(
-                metadata["accumulated_stage_var"],
-                accumulated_stage[start:end].reshape(metadata["shape"]),
-            )
+                self.time_stage_problem.model.set_val(
+                    metadata["accumulated_stage_var"],
+                    accumulated_stage[start:end].reshape(metadata["shape"]),
+                )
 
     def get_outputs(self, stage_state: np.ndarray):
         for quantity, metadata in self.quantity_metadata.items():
-            start = metadata["numpy_start_index"]
-            end = start + np.prod(metadata["shape"])
-            stage_state[start:end] = self.time_stage_problem.get_val(
-                metadata["stage_output_var"], get_remote=False
-            ).flatten()
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                stage_state[start:end] = self.time_stage_problem.get_val(
+                    metadata["stage_output_var"], get_remote=False
+                ).flatten()
 
 
 class TimeStageProblemComputeJacvecFunctor:
@@ -117,24 +119,26 @@ class TimeStageProblemComputeJacvecFunctor:
         seed,
     ):
         for quantity, metadata in self.quantity_metadata.items():
-            start = metadata["numpy_start_index"]
-            end = start + np.prod(metadata["shape"])
-            seed[metadata["step_input_var"]] = old_state_perturbation[
-                start:end
-            ].reshape(metadata["shape"])
-            seed[metadata["accumulated_stage_var"]] = accumulated_stage_perturbation[
-                start:end
-            ].reshape(metadata["shape"])
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                seed[metadata["step_input_var"]] = old_state_perturbation[
+                    start:end
+                ].reshape(metadata["shape"])
+                seed[
+                    metadata["accumulated_stage_var"]
+                ] = accumulated_stage_perturbation[start:end].reshape(metadata["shape"])
 
     def extract_jvp(self, jvp: dict, stage_perturbation: np.ndarray):
         for quantity, metadata in self.quantity_metadata.items():
-            start = metadata["numpy_start_index"]
-            end = start + np.prod(metadata["shape"])
-            stage_perturbation[start:end] = jvp[metadata["stage_output_var"]].flatten()
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                stage_perturbation[start:end] = jvp[
+                    metadata["stage_output_var"]
+                ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
-        # linearize always needs to be called, this checks whether we need to solve the nonlinear
-        # system beforehand (e.g. due to manually changed inputs/outputs)
         if inputs is not None and outputs is not None:
             self.time_stage_problem.model._inputs = inputs
             self.time_stage_problem.model._outputs = outputs
@@ -182,11 +186,12 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
 
     def fill_seed(self, stage_perturbation: np.ndarray, seed: dict):
         for quantity, metadata in self.quantity_metadata.items():
-            start = metadata["numpy_start_index"]
-            end = start + np.prod(metadata["shape"])
-            seed[metadata["stage_output_var"]] = stage_perturbation[start:end].reshape(
-                metadata["shape"]
-            )
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                seed[metadata["stage_output_var"]] = stage_perturbation[
+                    start:end
+                ].reshape(metadata["shape"])
 
     def extract_jvp(
         self,
@@ -195,14 +200,15 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         accumulated_stage_perturbation: np.ndarray,
     ):
         for quantity, metadata in self.quantity_metadata.items():
-            start = metadata["numpy_start_index"]
-            end = start + np.prod(metadata["shape"])
-            old_state_perturbation[start:end] = jvp[
-                metadata["step_input_var"]
-            ].flatten()
-            accumulated_stage_perturbation[start:end] = jvp[
-                metadata["accumulated_stage_var"]
-            ].flatten()
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                old_state_perturbation[start:end] = jvp[
+                    metadata["step_input_var"]
+                ].flatten()
+                accumulated_stage_perturbation[start:end] = jvp[
+                    metadata["accumulated_stage_var"]
+                ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
         # linearize always needs to be called, this checks whether we need to solve the nonlinear

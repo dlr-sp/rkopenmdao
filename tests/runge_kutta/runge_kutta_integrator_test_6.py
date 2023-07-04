@@ -47,18 +47,18 @@ class TestComp6(om.ExplicitComponent):
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
 
 
-# butcher_tableau = ButcherTableau(
-#     np.array(
-#         [
-#             [0.0, 0.0, 0.0, 0.0],
-#             [0.5, 0.0, 0.0, 0.0],
-#             [0.0, 0.5, 0.0, 0.0],
-#             [0.0, 0.0, 1.0, 0.0],
-#         ]
-#     ),
-#     np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
-#     np.array([0.0, 0.5, 0.5, 1.0]),
-# )
+butcher_tableau = ButcherTableau(
+    np.array(
+        [
+            [0.0, 0.0, 0.0, 0.0],
+            [0.5, 0.0, 0.0, 0.0],
+            [0.0, 0.5, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+        ]
+    ),
+    np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
+    np.array([0.0, 0.5, 0.5, 1.0]),
+)
 
 # alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
 #
@@ -74,17 +74,17 @@ class TestComp6(om.ExplicitComponent):
 #     np.array([0.5 * (1 + alpha), 0.5, 0.5 * (1 - alpha)]),
 # )
 
-gamma = (2.0 - np.sqrt(2.0)) / 2.0
-butcher_tableau = ButcherTableau(
-    np.array(
-        [
-            [gamma, 0.0],
-            [1 - gamma, gamma],
-        ]
-    ),
-    np.array([1 - gamma, gamma]),
-    np.array([gamma, 1.0]),
-)
+# gamma = (2.0 - np.sqrt(2.0)) / 2.0
+# butcher_tableau = ButcherTableau(
+#     np.array(
+#         [
+#             [gamma, 0.0],
+#             [1 - gamma, gamma],
+#         ]
+#     ),
+#     np.array([1 - gamma, gamma]),
+#     np.array([gamma, 1.0]),
+# )
 
 # butcher_tableau = ButcherTableau(
 #     np.array(
@@ -101,11 +101,11 @@ butcher_tableau = ButcherTableau(
 # butcher_tableau = ButcherTableau(
 #     np.array(
 #         [
-#             [0.5],
+#             [1.0],
 #         ]
 #     ),
 #     np.array([1.0]),
-#     np.array([0.5]),
+#     np.array([1.0]),
 # )
 
 num_steps = 1
@@ -133,9 +133,9 @@ outer_prob.model.add_subsystem(
         time_stage_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
-        integrated_quantities=["x"],
-        quadrature_rule_weights=trapezoidal_rule,
-        quantity_tags=["x"],
+        # integrated_quantities=["x"],
+        # quadrature_rule_weights=trapezoidal_rule,
+        time_integration_quantities=["x"],
     ),
     promotes=["*"],
 )

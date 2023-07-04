@@ -15,5 +15,6 @@ setup(
         "h5py",
         "pytest",
         "numba",
+        "pyrevolve",
     ],
 )

@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from .butcher_tableau import ButcherTableau
 
 
 @dataclass
@@ -20,3 +19,12 @@ class IntegrationControl:
     stage: int = 0
     stage_time: float = 0.0
     butcher_diagonal_element: float = 0.0
+
+    def reset(self):
+        self.step = 0
+        self.step_time_old = self.initial_time
+        self.step_time_new = self.initial_time
+
+        self.stage = 0
+        self.stage_time = self.initial_time
+        self.butcher_diagonal_element = 0.0
