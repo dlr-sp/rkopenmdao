@@ -167,9 +167,9 @@ outer_prob.model.add_subsystem(
         time_stage_problem=inner_prob,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
-        integrated_quantities=["x"],
-        quadrature_rule_weights=trapezoidal_rule,
-        quantity_tags=["x", "y"],
+        # integrated_quantities=["x"],
+        # quadrature_rule_weights=trapezoidal_rule,
+        time_integration_quantities=["x", "y"],
     ),
     promotes_inputs=["x_initial", "y_initial"],
 )

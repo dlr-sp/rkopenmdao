@@ -47,18 +47,18 @@ class TestComp6(om.ExplicitComponent):
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
 
 
-butcher_tableau = ButcherTableau(
-    np.array(
-        [
-            [0.0, 0.0, 0.0, 0.0],
-            [0.5, 0.0, 0.0, 0.0],
-            [0.0, 0.5, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-        ]
-    ),
-    np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
-    np.array([0.0, 0.5, 0.5, 1.0]),
-)
+# butcher_tableau = ButcherTableau(
+#     np.array(
+#         [
+#             [0.0, 0.0, 0.0, 0.0],
+#             [0.5, 0.0, 0.0, 0.0],
+#             [0.0, 0.5, 0.0, 0.0],
+#             [0.0, 0.0, 1.0, 0.0],
+#         ]
+#     ),
+#     np.array([1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0]),
+#     np.array([0.0, 0.5, 0.5, 1.0]),
+# )
 
 # alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
 #
@@ -74,42 +74,42 @@ butcher_tableau = ButcherTableau(
 #     np.array([0.5 * (1 + alpha), 0.5, 0.5 * (1 - alpha)]),
 # )
 
-# gamma = (2.0 - np.sqrt(2.0)) / 2.0
-# butcher_tableau = ButcherTableau(
-#     np.array(
-#         [
-#             [gamma, 0.0],
-#             [1 - gamma, gamma],
-#         ]
-#     ),
-#     np.array([1 - gamma, gamma]),
-#     np.array([gamma, 1.0]),
-# )
+gamma = (2.0 - np.sqrt(2.0)) / 2.0
+butcher_tableau = ButcherTableau(
+    np.array(
+        [
+            [gamma, 0.0],
+            [1 - gamma, gamma],
+        ]
+    ),
+    np.array([1 - gamma, gamma]),
+    np.array([gamma, 1.0]),
+)
 
 # butcher_tableau = ButcherTableau(
 #     np.array(
 #         [
-#             [0.0, 0.0],
 #             [0.5, 0.0],
+#             [0.0, 0.5],
 #         ]
 #     ),
-#     np.array([0.0, 1.0]),
-#     np.array([0.0, 0.5]),
+#     np.array([0.5, 0.5]),
+#     np.array([0.5, 0.5]),
 # )
 
 
 # butcher_tableau = ButcherTableau(
 #     np.array(
 #         [
-#             [1.0],
+#             [0.5],
 #         ]
 #     ),
 #     np.array([1.0]),
-#     np.array([1.0]),
+#     np.array([0.5]),
 # )
 
 num_steps = 1
-integration_control = IntegrationControl(0.0, num_steps, 1e-2)
+integration_control = IntegrationControl(0.0, num_steps, 1e-1)
 
 trapezoidal_rule = np.ones(num_steps + 1)
 trapezoidal_rule[0] = trapezoidal_rule[num_steps] = 0.5

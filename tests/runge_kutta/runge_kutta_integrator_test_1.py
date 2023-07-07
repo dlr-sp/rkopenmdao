@@ -49,31 +49,31 @@ class TestComp1(om.ExplicitComponent):
 #     np.array([0.0, 0.5, 0.5, 1.0]),
 # )
 
-# alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
+alpha = 2.0 * np.cos(np.pi / 18.0) / np.sqrt(3.0)
 
-# butcher_tableau = ButcherTableau(
-#     np.array(
-#         [
-#             [0.5 * (1 + alpha), 0.0, 0.0],
-#             [-0.5 * alpha, 0.5 * (1 + alpha), 0.0],
-#             [1 + alpha, -(1 + 2 * alpha), 0.5 * (1 + alpha)],
-#         ]
-#     ),
-#     np.array([1 / (6 * alpha**2), 1 - 1 / (3 * alpha**2), 1 / (6 * alpha**2)]),
-#     np.array([0.5 * (1 + alpha), 0.5, 0.5 * (1 - alpha)]),
-# )
-
-gamma = (2.0 - np.sqrt(2.0)) / 2.0
 butcher_tableau = ButcherTableau(
     np.array(
         [
-            [gamma, 0.0],
-            [1 - gamma, gamma],
+            [0.5 * (1 + alpha), 0.0, 0.0],
+            [-0.5 * alpha, 0.5 * (1 + alpha), 0.0],
+            [1 + alpha, -(1 + 2 * alpha), 0.5 * (1 + alpha)],
         ]
     ),
-    np.array([1 - gamma, gamma]),
-    np.array([gamma, 1.0]),
+    np.array([1 / (6 * alpha**2), 1 - 1 / (3 * alpha**2), 1 / (6 * alpha**2)]),
+    np.array([0.5 * (1 + alpha), 0.5, 0.5 * (1 - alpha)]),
 )
+
+# gamma = (2.0 - np.sqrt(2.0)) / 2.0
+# butcher_tableau = ButcherTableau(
+#     np.array(
+#         [
+#             [gamma, 0.0],
+#             [1 - gamma, gamma],
+#         ]
+#     ),
+#     np.array([1 - gamma, gamma]),
+#     np.array([gamma, 1.0]),
+# )
 
 # butcher_tableau = ButcherTableau(
 #     np.array([[0.0, 0.0], [1.0, 0.0]]), np.array([0.5, 0.5]), np.array([0.0, 1.0])

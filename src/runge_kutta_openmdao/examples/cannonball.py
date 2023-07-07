@@ -21,7 +21,9 @@ class VelocityComponent(om.ExplicitComponent):
     def compute(self, inputs, outputs):
         outputs["velocity_slope"] = (
             inputs["thrust"] * np.cos(inputs["angle_of_attack"]) - inputs["drag"]
-        ) / inputs["aircraft_mass"] - gravity_accel * np.sin(inputs["flight_path_angle"])
+        ) / inputs["aircraft_mass"] - gravity_accel * np.sin(
+            inputs["flight_path_angle"]
+        )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         if mode == "fwd":
@@ -31,7 +33,9 @@ class VelocityComponent(om.ExplicitComponent):
                 * d_inputs["aircraft_mass"]
             )
             d_outputs["velocity_slope"] += (
-                d_inputs["thrust"] * np.cos(inputs["angle_of_attack"]) / inputs["aircraft_mass"]
+                d_inputs["thrust"]
+                * np.cos(inputs["angle_of_attack"])
+                / inputs["aircraft_mass"]
             )
             d_outputs["velocity_slope"] -= (
                 inputs["thrust"]
@@ -41,7 +45,9 @@ class VelocityComponent(om.ExplicitComponent):
             )
             d_outputs["velocity_slope"] -= d_inputs["drag"] / inputs["aircraft_mass"]
             d_outputs["velocity_slope"] -= (
-                gravity_accel * np.cos(inputs["flight_path_angle"]) * d_inputs["flight_path_angle"]
+                gravity_accel
+                * np.cos(inputs["flight_path_angle"])
+                * d_inputs["flight_path_angle"]
             )
         elif mode == "rev":
             d_inputs["aircraft_mass"] -= (
@@ -62,7 +68,9 @@ class VelocityComponent(om.ExplicitComponent):
             )
             d_inputs["drag"] -= d_outputs["velocity_slope"] / inputs["aircraft_mass"]
             d_inputs["flight_path_angle"] -= (
-                gravity_accel * np.cos(inputs["flight_path_angle"]) * d_outputs["velocity_slope"]
+                gravity_accel
+                * np.cos(inputs["flight_path_angle"])
+                * d_outputs["velocity_slope"]
             )
 
 
@@ -73,7 +81,9 @@ class VelocityAssembler(om.ExplicitComponent):
     def setup(self):
         self.add_input("velocity_old", val=1.0, tags=["step_input_var", "velocity"])
         self.add_input(
-            "velocity_accumulated_stages", val=0.0, tags=["accumulated_stage_var", "velocity"]
+            "velocity_accumulated_stages",
+            val=0.0,
+            tags=["accumulated_stage_var", "velocity"],
         )
         self.add_input("velocity_slope", val=0.0)
 
@@ -90,15 +100,21 @@ class VelocityAssembler(om.ExplicitComponent):
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
+        butcher_diagonal_element = self.options[
+            "integration_control"
+        ].butcher_diagonal_element
         if mode == "fwd":
             d_outputs["velocity"] += d_inputs["velocity_old"]
             d_outputs["velocity"] += delta_t * d_inputs["velocity_accumulated_stages"]
-            d_outputs["velocity"] += delta_t * butcher_diagonal_element * d_inputs["velocity_slope"]
+            d_outputs["velocity"] += (
+                delta_t * butcher_diagonal_element * d_inputs["velocity_slope"]
+            )
         elif mode == "rev":
             d_inputs["velocity_old"] += d_outputs["velocity"]
             d_inputs["velocity_accumulated_stages"] += delta_t * d_outputs["velocity"]
-            d_inputs["velocity_slope"] += delta_t * butcher_diagonal_element * d_outputs["velocity"]
+            d_inputs["velocity_slope"] += (
+                delta_t * butcher_diagonal_element * d_outputs["velocity"]
+            )
 
 
 class FlightPathAngleComponent(om.ExplicitComponent):
@@ -110,7 +126,9 @@ class FlightPathAngleComponent(om.ExplicitComponent):
         self.add_input("lift", val=0.0)
         self.add_input("flight_path_angle")
 
-        self.add_output("flight_path_angle_slope", tags=["stage_output_var", "flight_path_angle"])
+        self.add_output(
+            "flight_path_angle_slope", tags=["stage_output_var", "flight_path_angle"]
+        )
 
     def compute(self, inputs, outputs):
         outputs["flight_path_angle_slope"] = (
@@ -131,7 +149,10 @@ class FlightPathAngleComponent(om.ExplicitComponent):
                 d_inputs["velocity"]
                 * (
                     (
-                        (inputs["thrust"] * np.sin(inputs["angle_of_attack"]) + inputs["lift"])
+                        (
+                            inputs["thrust"] * np.sin(inputs["angle_of_attack"])
+                            + inputs["lift"]
+                        )
                         / inputs["aircraft_mass"]
                     )
                     - gravity_accel * np.cos(inputs["flight_path_angle"])
@@ -143,7 +164,9 @@ class FlightPathAngleComponent(om.ExplicitComponent):
             ) / (inputs["aircraft_mass"] * inputs["velocity"])
 
             d_outputs["flight_path_angle_slope"] += (
-                inputs["thrust"] * np.cos(inputs["angle_of_attack"]) * d_inputs["angle_of_attack"]
+                inputs["thrust"]
+                * np.cos(inputs["angle_of_attack"])
+                * d_inputs["angle_of_attack"]
             ) / (inputs["aircraft_mass"] * inputs["velocity"])
 
             d_outputs["flight_path_angle_slope"] += d_inputs["lift"] / (
@@ -151,7 +174,9 @@ class FlightPathAngleComponent(om.ExplicitComponent):
             )
 
             d_outputs["flight_path_angle_slope"] += (
-                gravity_accel * np.sin(inputs["flight_path_angle"]) * d_inputs["flight_path_angle"]
+                gravity_accel
+                * np.sin(inputs["flight_path_angle"])
+                * d_inputs["flight_path_angle"]
             ) / inputs["velocity"]
         elif mode == "rev":
             d_inputs["aircraft_mass"] -= d_outputs["flight_path_angle_slope"] * (
@@ -162,7 +187,10 @@ class FlightPathAngleComponent(om.ExplicitComponent):
                 d_outputs["flight_path_angle_slope"]
                 * (
                     (
-                        (inputs["thrust"] * np.sin(inputs["angle_of_attack"]) + inputs["lift"])
+                        (
+                            inputs["thrust"] * np.sin(inputs["angle_of_attack"])
+                            + inputs["lift"]
+                        )
                         / inputs["aircraft_mass"]
                     )
                     - gravity_accel * np.cos(inputs["flight_path_angle"])
@@ -196,7 +224,9 @@ class FlightPathAngleAssembler(om.ExplicitComponent):
 
     def setup(self):
         self.add_input(
-            "flight_path_angle_old", val=0.0, tags=["step_input_var", "flight_path_angle"]
+            "flight_path_angle_old",
+            val=0.0,
+            tags=["step_input_var", "flight_path_angle"],
         )
         self.add_input(
             "flight_path_angle_accumulated_stages",
@@ -218,7 +248,9 @@ class FlightPathAngleAssembler(om.ExplicitComponent):
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options["integration_control"].butcher_diagonal_element
+        butcher_diagonal_element = self.options[
+            "integration_control"
+        ].butcher_diagonal_element
         if mode == "fwd":
             d_outputs["flight_path_angle"] += d_inputs["flight_path_angle_old"]
             d_outputs["flight_path_angle"] += (
@@ -242,13 +274,19 @@ class AltitudeComponent(om.ExplicitComponent):
         self.add_input("velocity", val=1.0)
         self.add_input("flight_path_angle", val=0.0)
         # The next two do nothing, but are required for the RK-Integrator
-        self.add_input("altitude_old", tags=["step_input_var", "altitude"])
-        self.add_input("altitude_accumulated_stages", tags=["accumulated_stage_var", "altitude"])
+        # self.add_input("altitude_old", tags=["step_input_var", "altitude"])
+        # self.add_input(
+        #     "altitude_accumulated_stages", tags=["accumulated_stage_var", "altitude"]
+        # )
 
-        self.add_output("altitude_slope", val=0.0, tags=["stage_output_var", "altitude"])
+        self.add_output(
+            "altitude_slope", val=0.0, tags=["stage_output_var", "altitude"]
+        )
 
     def compute(self, inputs, outputs):
-        outputs["altitude_slope"] = inputs["velocity"] * np.sin(inputs["flight_path_angle"])
+        outputs["altitude_slope"] = inputs["velocity"] * np.sin(
+            inputs["flight_path_angle"]
+        )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         if mode == "fwd":
@@ -276,26 +314,36 @@ class RangeComponent(om.ExplicitComponent):
         self.add_input("velocity", val=1.0)
         self.add_input("flight_path_angle", val=0.0)
         # The next two do nothing, but are required for the RK-Integrator
-        self.add_input("range_old", tags=["step_input_var", "range"])
-        self.add_input("range_accumulated_stages", tags=["accumulated_stage_var", "range"])
+        # self.add_input("range_old", tags=["step_input_var", "range"])
+        # self.add_input(
+        #     "range_accumulated_stages", tags=["accumulated_stage_var", "range"]
+        # )
 
         self.add_output("range_slope", val=0.0, tags=["stage_output_var", "range"])
 
     def compute(self, inputs, outputs):
-        outputs["range_slope"] = inputs["velocity"] * np.cos(inputs["flight_path_angle"])
+        outputs["range_slope"] = inputs["velocity"] * np.cos(
+            inputs["flight_path_angle"]
+        )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
         if mode == "fwd":
-            d_outputs["range_slope"] += d_inputs["velocity"] * np.cos(inputs["flight_path_angle"])
+            d_outputs["range_slope"] += d_inputs["velocity"] * np.cos(
+                inputs["flight_path_angle"]
+            )
             d_outputs["range_slope"] -= (
                 inputs["velocity"]
                 * np.sin(inputs["flight_path_angle"])
                 * d_inputs["flight_path_angle"]
             )
         elif mode == "rev":
-            d_inputs["velocity"] += d_outputs["range_slope"] * np.cos(inputs["flight_path_angle"])
+            d_inputs["velocity"] += d_outputs["range_slope"] * np.cos(
+                inputs["flight_path_angle"]
+            )
             d_inputs["flight_path_angle"] -= (
-                inputs["velocity"] * np.sin(inputs["flight_path_angle"]) * d_outputs["range_slope"]
+                inputs["velocity"]
+                * np.sin(inputs["flight_path_angle"])
+                * d_outputs["range_slope"]
             )
 
 
@@ -336,10 +384,16 @@ class LiftDragForceComp(om.ExplicitComponent):
         self.add_input(name="CL", val=0.0, desc="lift coefficient")
         self.add_input(name="CD", val=0.0, desc="drag coefficient")
         self.add_input(name="q", val=0.0, units="N/m**2", desc="dynamic pressure")
-        self.add_input(name="S", val=0.0, units="m**2", desc="aerodynamic reference area")
+        self.add_input(
+            name="S", val=0.0, units="m**2", desc="aerodynamic reference area"
+        )
 
-        self.add_output(name="f_lift", shape=(1,), units="N", desc="aerodynamic lift force")
-        self.add_output(name="f_drag", shape=(1,), units="N", desc="aerodynamic drag force")
+        self.add_output(
+            name="f_lift", shape=(1,), units="N", desc="aerodynamic lift force"
+        )
+        self.add_output(
+            name="f_drag", shape=(1,), units="N", desc="aerodynamic drag force"
+        )
 
     def compute(self, inputs, outputs):
         q = inputs["q"]
@@ -372,7 +426,7 @@ class LiftDragForceComp(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    integration_control = IntegrationControl(0.0, 100, 1e-5)
+    integration_control = IntegrationControl(0.0, 100, 1e-1)
     cannon_prob = om.Problem()
 
     velocity_angle_group = om.Group()
@@ -388,7 +442,9 @@ if __name__ == "__main__":
     )
     pressure_velocity_group.NonlinearSolver = om.NewtonSolver(solve_subsystems=False)
 
-    velocity_angle_group.add_subsystem("pressure_velocity", pressure_velocity_group, promotes=["*"])
+    velocity_angle_group.add_subsystem(
+        "pressure_velocity", pressure_velocity_group, promotes=["*"]
+    )
 
     flight_angle_group = om.Group()
     flight_angle_group.add_subsystem(
@@ -400,10 +456,14 @@ if __name__ == "__main__":
     )
     flight_angle_group.NonlinearSolver = om.NewtonSolver(solve_subsystems=False)
 
-    velocity_angle_group.add_subsystem("flight_angle", flight_angle_group, promotes=["*"])
+    velocity_angle_group.add_subsystem(
+        "flight_angle", flight_angle_group, promotes=["*"]
+    )
     velocity_angle_group.NonlinearSolver = om.NewtonSolver(solve_subsystems=True)
 
-    cannon_prob.model.add_subsystem("velocity_angle", velocity_angle_group, promotes=["*"])
+    cannon_prob.model.add_subsystem(
+        "velocity_angle", velocity_angle_group, promotes=["*"]
+    )
 
     cannon_prob.model.add_subsystem("altitude", AltitudeComponent())
     cannon_prob.model.add_subsystem("range", RangeComponent())
@@ -413,10 +473,14 @@ if __name__ == "__main__":
     cannon_prob.model.connect("LiftDragForce.f_lift", "flight_path_angle.lift")
     cannon_prob.model.connect("LiftDragForce.f_drag", "velocity.drag")
 
-    cannon_prob.model.connect("velocity.velocity_slope", "velocity_assembler.velocity_slope")
+    cannon_prob.model.connect(
+        "velocity.velocity_slope", "velocity_assembler.velocity_slope"
+    )
 
     cannon_prob.model.connect("velocity_assembler.velocity", "DynamicPressure.v")
-    cannon_prob.model.connect("velocity_assembler.velocity", "flight_path_angle.velocity")
+    cannon_prob.model.connect(
+        "velocity_assembler.velocity", "flight_path_angle.velocity"
+    )
     cannon_prob.model.connect("velocity_assembler.velocity", "altitude.velocity")
     cannon_prob.model.connect("velocity_assembler.velocity", "range.velocity")
 
@@ -429,7 +493,8 @@ if __name__ == "__main__":
         "flight_path_angle_assembler.flight_path_angle", "velocity.flight_path_angle"
     )
     cannon_prob.model.connect(
-        "flight_path_angle_assembler.flight_path_angle", "flight_path_angle.flight_path_angle"
+        "flight_path_angle_assembler.flight_path_angle",
+        "flight_path_angle.flight_path_angle",
     )
 
     cannon_prob.model.connect(
@@ -471,14 +536,28 @@ if __name__ == "__main__":
             time_stage_problem=cannon_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
-            quantity_tags=["velocity", "flight_path_angle", "altitude", "range"],
+            time_integration_quantities=[
+                "velocity",
+                "flight_path_angle",
+                "altitude",
+                "range",
+            ],
             write_out_distance=10,
             write_file="cannonball.h5",
         ),
     )
 
+    # outer_prob.driver = om.ScipyOptimizeDriver()
+    # outer_prob.driver.options["optimizer"] = "SLSQP"
+    # outer_prob.model.add_objective("RK.range_final", ref=-1.0)
+    # outer_prob.model.add_design_var("RK.flight_path_angle_initial")
+    #
     outer_prob.setup()
-
     outer_prob.run_model()
 
+    cannon_prob.check_partials()
+    #
+    # outer_prob.run_driver()
+
+    # TODO: investigate why finite differences are not good. Are they even applicable to RK methods
     # outer_prob.check_partials()

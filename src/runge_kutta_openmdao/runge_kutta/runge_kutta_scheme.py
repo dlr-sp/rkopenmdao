@@ -40,13 +40,17 @@ class RungeKuttaScheme:
         old_state: np.ndarray,
         accumulated_stages: np.ndarray,
     ) -> np.ndarray:
-        stage_time = old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
+        stage_time = (
+            old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
+        )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         return self.stage_computation_functor(
             old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element
         )
 
-    def compute_accumulated_stages(self, stage: int, stage_field: np.ndarray) -> np.ndarray:
+    def compute_accumulated_stages(
+        self, stage: int, stage_field: np.ndarray
+    ) -> np.ndarray:
         # accumulated_stages = self.butcher_tableau.butcher_matrix[stage, 0] * stage_field[0, :]
         # for prev_stage in range(1, stage):
         #     accumulated_stages += (
@@ -55,7 +59,9 @@ class RungeKuttaScheme:
         #     print(accumulated_stages)
         # return accumulated_stages
         return np.tensordot(
-            stage_field[:stage, :], self.butcher_tableau.butcher_matrix[stage, :stage], ((0,), (0,))
+            stage_field[:stage, :],
+            self.butcher_tableau.butcher_matrix[stage, :stage],
+            ((0,), (0,)),
         )
 
     def compute_step(
@@ -63,7 +69,9 @@ class RungeKuttaScheme:
     ) -> np.ndarray:
         new_state = old_state.copy()
         new_state += np.tensordot(
-            stage_field, delta_t * self.butcher_tableau.butcher_weight_vector, ((0,), (0,))
+            stage_field,
+            delta_t * self.butcher_tableau.butcher_weight_vector,
+            ((0,), (0,)),
         )
 
         return new_state
@@ -80,7 +88,9 @@ class RungeKuttaScheme:
         if hasattr(self.stage_computation_functor_jacvec, "linearize"):
             self.stage_computation_functor_jacvec.linearize(**linearization_args)
 
-        stage_time = old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
+        stage_time = (
+            old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
+        )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         return self.stage_computation_functor_jacvec(
             old_state_perturbation,
@@ -93,13 +103,20 @@ class RungeKuttaScheme:
     def compute_accumulated_stage_perturbations(
         self, stage: int, stage_perturbation_field: np.ndarray
     ) -> np.ndarray:
-        return self.compute_accumulated_stages(stage=stage, stage_field=stage_perturbation_field)
+        return self.compute_accumulated_stages(
+            stage=stage, stage_field=stage_perturbation_field
+        )
 
     def compute_step_jacvec(
-        self, delta_t: float, old_state_perturbation: np.ndarray, stage_perturbation_field
+        self,
+        delta_t: float,
+        old_state_perturbation: np.ndarray,
+        stage_perturbation_field,
     ) -> np.ndarray:
         return self.compute_step(
-            delta_t=delta_t, old_state=old_state_perturbation, stage_field=stage_perturbation_field
+            delta_t=delta_t,
+            old_state=old_state_perturbation,
+            stage_field=stage_perturbation_field,
         )
 
     def compute_stage_transposed_jacvec(
@@ -111,9 +128,13 @@ class RungeKuttaScheme:
         **linearization_args
     ) -> Tuple[np.ndarray, np.ndarray]:
         if hasattr(self.stage_computation_functor_transposed_jacvec, "linearize"):
-            self.stage_computation_functor_transposed_jacvec.linearize(**linearization_args)
+            self.stage_computation_functor_transposed_jacvec.linearize(
+                **linearization_args
+            )
 
-        stage_time = old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
+        stage_time = (
+            old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
+        )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         result = self.stage_computation_functor_transposed_jacvec(
             joined_perturbation, stage_time, delta_t, butcher_diagonal_element

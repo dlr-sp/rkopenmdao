@@ -66,8 +66,8 @@ class RungeKuttaForwardOperator(pr.Operator):
         functional_size: int,
         stage_number: int,
         fwd_operation: Callable[
-            [int, np.ndarray, np.ndarray, np.ndarray, np.ndarray],
-            Tuple[np.ndarray, np.ndarray, np.ndarray],
+            [int, np.ndarray],
+            np.ndarray,
         ],
     ):
         self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = (
@@ -76,13 +76,9 @@ class RungeKuttaForwardOperator(pr.Operator):
         self.serialized_new_state_symbol: RungeKuttaIntegratorSymbol = (
             serialized_new_state_symbol
         )
-        self.postproc_state: np.ndarray = np.zeros(postproc_size)
-        self.functional_part: np.ndarray = np.zeros(functional_size)
-        self.stage_cache: np.ndarray = np.zeros((stage_number, state_size))
-        self.accumulated_stages: np.ndarray = np.zeros(state_size)
         self.fwd_operation: Callable[
-            [int, np.ndarray, np.ndarray, np.ndarray, np.ndarray],
-            Tuple[np.ndarray, np.ndarray, np.ndarray],
+            [int, np.ndarray],
+            np.ndarray,
         ] = fwd_operation
 
     def apply(self, t_start: int, t_end: int):
@@ -90,16 +86,9 @@ class RungeKuttaForwardOperator(pr.Operator):
             self.serialized_old_state_symbol.data = (
                 self.serialized_new_state_symbol.data
             )
-            (
-                self.serialized_new_state_symbol.data,
-                self.postproc_state,
-                self.functional_part,
-            ) = self.fwd_operation(
+            self.serialized_new_state_symbol.data = self.fwd_operation(
                 step,
                 self.serialized_old_state_symbol.data,
-                self.functional_part,
-                self.stage_cache,
-                self.accumulated_stages,
             )
 
 
@@ -109,73 +98,24 @@ class RungeKuttaReverseOperator(pr.Operator):
         self,
         serialized_old_state_symbol: RungeKuttaIntegratorSymbol,
         state_size: int,
-        postproc_size: int,
-        stage_number: int,
         rev_operation: Callable[
-            [
-                int,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-            ],
-            Tuple[np.ndarray, np.ndarray],
+            [int, np.ndarray, np.ndarray],
+            np.ndarray,
         ],
     ):
         self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = (
             serialized_old_state_symbol
         )
-        self.stage_cache: np.ndarray = np.zeros((stage_number, state_size))
-        self.accumulated_stages: np.ndarray = np.zeros(state_size)
         self.serialized_state_perturbations: np.ndarray = np.zeros(state_size)
-        self.stage_perturbations_cache: np.ndarray = np.zeros(
-            (stage_number, state_size)
-        )
-        self.functional_perturbations: np.ndarray = np.zeros(state_size)
-        self.functional_stage_perturbations_cache: np.ndarray = np.zeros(
-            (stage_number, state_size)
-        )
-        self.original_time_integration_functional_perturbations: np.ndarray = np.zeros(
-            state_size
-        )
-        self.original_postprocessing_functional_perturbations: np.ndarray = np.zeros(
-            postproc_size
-        )
         self.rev_operation: Callable[
-            [
-                int,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-                np.ndarray,
-            ],
-            Tuple[np.ndarray, np.ndarray],
+            [int, np.ndarray, np.ndarray],
+            np.ndarray,
         ] = rev_operation
 
     def apply(self, t_start: int, t_end: int):
         for step in range(t_end, t_start, -1):
-            (
-                self.serialized_state_perturbations,
-                self.functional_perturbations,
-            ) = self.rev_operation(
+            self.serialized_state_perturbations = self.rev_operation(
                 step,
                 self.serialized_old_state_symbol.data,
-                self.stage_cache,
-                self.accumulated_stages,
                 self.serialized_state_perturbations,
-                self.stage_perturbations_cache,
-                self.functional_perturbations,
-                self.functional_stage_perturbations_cache,
-                self.original_time_integration_functional_perturbations,
-                self.original_postprocessing_functional_perturbations,
             )
