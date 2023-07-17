@@ -138,66 +138,12 @@ if __name__ == "__main__":
             time_stage_problem=inner_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
-            write_file="inner_problem_stage.h5",
             # integrated_quantities=["heat_integral"],
             # quadrature_rule_weights=trapezoidal_rule,
-            quantity_tags=["heat_1", "heat_2", "heat_integral"],
+            time_integration_quantities=["heat_1", "heat_2", "heat_integral"],
         ),
         promotes_inputs=["*"],
     )
 
     outer_prob.setup()
     outer_prob.run_model()
-
-    # jvp_rev = outer_prob.compute_jacvec_product(
-    #     of=["RK_Integrator.heat_integral_final"],
-    #     wrt=[
-    #         "RK_Integrator.heat_1_initial",
-    #         "RK_Integrator.heat_2_initial",
-    #         "RK_Integrator.heat_integral_initial",
-    #     ],
-    #     mode="rev",
-    #     seed={"RK_Integrator.heat_integral_final": 1.0},
-    # )
-    # print(jvp_rev)
-    #
-    # jvp_fwd = outer_prob.compute_jacvec_product(
-    #     of=["RK_Integrator.heat_integral_final"],
-    #     wrt=[
-    #         "RK_Integrator.heat_1_initial",
-    #         "RK_Integrator.heat_2_initial",
-    #         "RK_Integrator.heat_integral_initial",
-    #     ],
-    #     mode="fwd",
-    #     seed={
-    #         "RK_Integrator.heat_integral_initial": 1.0,
-    #         "RK_Integrator.heat_1_initial": np.ones(66),
-    #         "RK_Integrator.heat_2_initial": np.ones(66),
-    #     },
-    # )
-    # print(jvp_fwd)
-
-    # print("done running model, starting checking partials")
-
-    # outer_prob.check_partials(step=1e-1)
-    # inner_prob.check_partials(step=1e-1)
-    # inner_prob.check_totals(
-    #     of=[
-    #         "heat_group.heat_component_1.result_stage_slope",
-    #         "heat_group.heat_component_2.result_stage_slope",
-    #         "flux_int_comp.integrated_flux_stage",
-    #     ],
-    #     wrt=[
-    #         "heat_1",
-    #         "accumulated_stages_1",
-    #         "heat_2",
-    #         "accumulated_stages_2",
-    #         "flux_int_comp.initial_flux",
-    #         "flux_int_comp.flux_acc_stage",
-    #     ],
-    #     step=1e-1
-    #     # directional=True,
-    # )
-
-    # in_mod = inner_prob.model
-    # pprint(in_mod._var_offsets)

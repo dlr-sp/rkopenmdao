@@ -14,17 +14,14 @@ from runge_kutta_openmdao.heatequation.split_heat_group import create_split_heat
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
-
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 
 from scipy.sparse.linalg import LinearOperator
 
-
 if __name__ == "__main__":
-    points_per_direction = 21
+    points_per_direction = 51
+    delta_x = (points_per_direction - 1) ** -1
     points_x = points_per_direction // 2 + 1
-    delta_x = 1.0 / (points_per_direction - 1)
-    delta_t = delta_x**2 / 10
 
     def f(t: float):
         return np.exp(-8 * np.pi**2 * t)
@@ -44,32 +41,37 @@ if __name__ == "__main__":
     boundary_condition_1 = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
         lower=lambda t, x, y: 0.0,
-        left=lambda t, x, y: 0.0,
+        left=lambda t, x, y: -np.sin(np.pi * t) - 1,
     )
     boundary_condition_2 = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
         lower=lambda t, x, y: 0.0,
-        right=lambda t, x, y: 0.0,
+        right=lambda t, x, y: -np.cos(np.pi * t) - 1,
     )
 
-    # gamma = (2.0 - np.sqrt(2.0)) / 2.0
-    # butcher_tableau = ButcherTableau(
-    #     np.array(
-    #         [
-    #             [gamma, 0.0],
-    #             [1 - gamma, gamma],
-    #         ]
-    #     ),
-    #     np.array([1 - gamma, gamma]),
-    #     np.array([gamma, 1.0]),
-    # )
+    gamma = (2.0 - np.sqrt(2.0)) / 2.0
+    butcher_tableau = ButcherTableau(
+        np.array(
+            [
+                [gamma, 0.0],
+                [1 - gamma, gamma],
+            ]
+        ),
+        np.array([1 - gamma, gamma]),
+        np.array([gamma, 1.0]),
+    )
+    atol = 1e-5
+    rtol = 1e-4
+    scipytol = 1e-4
 
     # butcher_tableau = ButcherTableau(
     #     np.array([[0.293, 0.0], [0.414, 0.293]]),
     #     np.array([0.5, 0.5]),
     #     np.array([0.293, 0.707]),
     # )
-    butcher_tableau = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]))
+    # butcher_tableau = ButcherTableau(
+    #     np.array([[0.5]]), np.array([1.0]), np.array([0.5])
+    # )
     # butcher_tableau = ButcherTableau(
     #     np.array(
     #         [
@@ -88,35 +90,25 @@ if __name__ == "__main__":
             (points_per_direction * points_x),
             (points_per_direction * points_x),
         ),
-        matvec=lambda x: delta_x**2 / (delta_x**2 + 4 * delta_t) * x,
+        matvec=lambda x: delta_x**2 / -4 * x,
     )
 
-    integration_control = IntegrationControl(0.0, 1, delta_t)
-    # heat_lin_solver = om.LinearBlockGS(atol=1e-12, rtol=1e-12, iprint=2)
-    heat_lin_solver = om.PETScKrylov(restart=20, iprint=2, err_on_non_converge=True)
-    heat_lin_solver.precon = om.LinearRunOnce()
+    integration_control = IntegrationControl(0.0, 1000, 1e-5)
+
     inner_prob = om.Problem()
+
     heat_group = create_split_heat_group(
         points_per_direction,
         boundary_condition_1,
         boundary_condition_2,
         lambda t, x, y: 0.0,
-        lambda t, x, y: 0.0,
+        lambda t, x, y: 0,
         1.0,
         1.0,
-        lambda x, y: g(x) * g(y),
-        lambda x, y: g(x) * g(y),
+        lambda x, y: 0.0,
+        lambda x, y: 0.0,
         integration_control,
-        {"tol": 1e-10, "atol": 1e-10},  # "M": heat_precon},
-        om.NewtonSolver(
-            rtol=1e-10,
-            solve_subsystems=True,
-            maxiter=30,
-            max_sub_solves=3,
-            err_on_non_converge=True,
-            iprint=2,
-        ),
-        heat_lin_solver,
+        {"tol": 1e-15, "atol": "legacy", "M": heat_precon},
     )
 
     inner_prob.model.add_subsystem("heat_group", heat_group)
@@ -128,33 +120,18 @@ if __name__ == "__main__":
             time_stage_problem=inner_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
-            quantity_tags=["heat_1", "heat_2"],
+            time_integration_quantities=["heat_1", "heat_2"],
         ),
         promotes_inputs=["heat_1_initial", "heat_2_initial"],
     )
 
+    var_comp = om.IndepVarComp("indep")
+    var_comp.add_output("heat_1_initial", shape_by_conn=True, distributed=True)
+    var_comp.add_output("heat_2_initial", shape_by_conn=True, distributed=True)
+
+    outer_prob.model.add_subsystem("indep", var_comp, promotes=["*"])
+
     outer_prob.setup()
-
+    # outer_prob.set_val("heat_1_initial", heat_equation_1.initial_vector)
+    # outer_prob.set_val("heat_2_initial", heat_equation_2.initial_vector)
     outer_prob.run_model()
-
-    print("done running model, starting checking partials")
-    # for key, value in inner_prob.model._outputs.items():
-    #     print(key, value)
-    outer_prob.check_partials(step=1e-1)
-
-    # inner_prob.check_partials(step=1e-1)
-    # inner_prob.check_totals(
-    #     of=[
-    #         "heat_group.stage_heat_1",
-    #         "heat_group.heat_slope_1",
-    #         "heat_group.stage_heat_2",
-    #         "heat_group.heat_slope_2",
-    #     ],
-    #     wrt=[
-    #         "heat_group.heat_1",
-    #         "heat_group.accumulated_stages_1",
-    #         "heat_group.heat_2",
-    #         "heat_group.accumulated_stages_2",
-    #     ],
-    #     step=1e-1,
-    # )
