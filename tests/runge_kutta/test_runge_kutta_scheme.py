@@ -51,7 +51,10 @@ time_ode_provider = RkFunctionProvider(
     lambda old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element: np.zeros(
         1
     ),
-    lambda stage_perturb, stage_time, delta_t, butcher_diagonal_element: (np.zeros(1), np.zeros(1)),
+    lambda stage_perturb, stage_time, delta_t, butcher_diagonal_element: (
+        np.zeros(1),
+        np.zeros(1),
+    ),
 )
 
 time_scaled_identity_ode_provider = RkFunctionProvider(
@@ -62,7 +65,9 @@ time_scaled_identity_ode_provider = RkFunctionProvider(
     * (old_state_perturb + delta_t * acc_stage_perturb)
     / (1 - stage_time * delta_t * butcher_diagonal_element),
     lambda stage_perturb, stage_time, delta_t, butcher_diagonal_element: (
-        stage_time * stage_perturb / (1 - stage_time * delta_t * butcher_diagonal_element),
+        stage_time
+        * stage_perturb
+        / (1 - stage_time * delta_t * butcher_diagonal_element),
         stage_time
         * delta_t
         * stage_perturb
@@ -77,7 +82,12 @@ class RootOdeJacvec:
         self.acc_stages = 0.0
 
     def __call__(
-        self, old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element
+        self,
+        old_state_perturb,
+        acc_stage_perturb,
+        stage_time,
+        delta_t,
+        butcher_diagonal_element,
     ):
         return (old_state_perturb + delta_t * acc_stage_perturb) / (
             2
@@ -132,7 +142,11 @@ root_ode_provider = RkFunctionProvider(
     lambda old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element: delta_t
     * butcher_diagonal_element
     / 2
-    + np.sqrt(delta_t**2 * butcher_diagonal_element**2 / 4 + old_state + delta_t * acc_stages),
+    + np.sqrt(
+        delta_t**2 * butcher_diagonal_element**2 / 4
+        + old_state
+        + delta_t * acc_stages
+    ),
     root_ode_jacvec,
     root_ode_jacvec_transposed,
 )
@@ -174,7 +188,15 @@ root_ode_two_stage_dirk_scheme = RungeKuttaScheme(
         [identity_ode_rk4_scheme, 3, 0.01, 0.0, 2.0, 10.0, 2.1],
         [time_ode_implicit_euler_scheme, 0, 0.1, 1.0, 1.0, 1.0, 1.1],
         [time_ode_implicit_euler_scheme, 0, 0.01, 10, 20.0, 111.1, 10.01],
-        [time_scaled_identity_ode_implicit_euler_scheme, 0, 0.1, 1.0, 1.0, 1.0, 1.21 / 0.89],
+        [
+            time_scaled_identity_ode_implicit_euler_scheme,
+            0,
+            0.1,
+            1.0,
+            1.0,
+            1.0,
+            1.21 / 0.89,
+        ],
         [
             time_scaled_identity_ode_implicit_euler_scheme,
             0,
@@ -224,7 +246,12 @@ def test_compute_stage(
 @pytest.mark.parametrize(
     "rk_scheme, stage, stage_field, expected_accumulated_stages",
     (
-        [identity_ode_rk4_scheme, 1, np.array([[1.0], [0.0], [0.0], [0.0]]), np.array([0.5])],
+        [
+            identity_ode_rk4_scheme,
+            1,
+            np.array([[1.0], [0.0], [0.0], [0.0]]),
+            np.array([0.5]),
+        ],
         [
             identity_ode_rk4_scheme,
             2,
@@ -293,7 +320,16 @@ def test_compute_step(
         [identity_ode_rk4_scheme, 3, 0.01, 0.0, 2.0, 10.0, {}, 2.1],
         [time_ode_implicit_euler_scheme, 0, 0.1, 1.0, 1.0, 1.0, {}, 0.0],
         [time_ode_implicit_euler_scheme, 0, 0.01, 10, 20.0, 111.1, {}, 0.0],
-        [time_scaled_identity_ode_implicit_euler_scheme, 0, 0.1, 1.0, 1.0, 1.0, {}, 1.21 / 0.89],
+        [
+            time_scaled_identity_ode_implicit_euler_scheme,
+            0,
+            0.1,
+            1.0,
+            1.0,
+            1.0,
+            {},
+            1.21 / 0.89,
+        ],
         [
             time_scaled_identity_ode_implicit_euler_scheme,
             0,
@@ -414,7 +450,7 @@ def test_compute_stage_transposed_jacvec(
     linearization_args: dict,
     expected_jacvec_product: Tuple[np.ndarray, np.ndarray],
 ):
-    assert rk_scheme.compute_stage_tranposed_jacvec(
+    assert rk_scheme.compute_stage_transposed_jacvec(
         stage, delta_t, old_time, joined_perturbation, **linearization_args
     ) == pytest.approx(expected_jacvec_product)
 

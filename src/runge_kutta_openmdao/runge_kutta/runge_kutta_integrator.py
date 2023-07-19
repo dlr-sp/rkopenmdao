@@ -146,7 +146,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare(
             "post_processing_quantities",
             types=list,
-            desc="""List of tags thar are used to find outputs in the postprocessing_problem""",
+            default=[],
+            desc="""List of tags that are used to find outputs in the postprocessing_problem""",
         )
 
         self.options.declare(
