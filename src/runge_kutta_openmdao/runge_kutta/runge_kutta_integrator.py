@@ -144,7 +144,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
         self.options.declare(
-            "post_processing_quantities",
+            "postprocessing_quantities",
             types=list,
             default=[],
             desc="""List of tags that are used to find outputs in the postprocessing_problem""",
@@ -1068,8 +1068,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
             postproc_output_vars = postprocessing_problem.model.get_io_metadata(
                 iotypes="output",
-                mtadata_keys=["tags"],
-                tags=["postproc_outputs_var"],
+                metadata_keys=["tags"],
+                tags=["postproc_output_var"],
                 get_remote=False,
             )
 
@@ -1146,7 +1146,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     self.quantity_metadata[quantity][
                         "numpy_functional_end_index"
                     ] = self.numpy_functional_size
-
                 self._add_postprocessing_outputs(quantity)
 
     def _add_postprocessing_outputs(self, quantity):
@@ -1174,9 +1173,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             tags=[quantity],
             get_remote=False,
         )
-
         for var, metadata in quantity_outputs.items():
             if var in postproc_output_vars:
+                self.quantity_metadata[quantity] = {}
                 self.quantity_metadata[quantity]["integrated"] = False
                 self.quantity_metadata[quantity]["postproc_output_var"] = var
                 self.quantity_metadata[quantity]["type"] = "postprocessing"
@@ -1184,13 +1183,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.quantity_metadata[quantity]["global_shape"] = metadata[
                     "global_shape"
                 ]
-                self.quantity_metadata[
+                self.quantity_metadata[quantity][
                     "numpy_postproc_start_index"
                 ] = self.numpy_postproc_size
                 self.numpy_postproc_size += np.prod(
                     self.quantity_metadata[quantity]["shape"]
                 )
-                self.quantity_metadata[
+                self.quantity_metadata[quantity][
                     "numpy_postproc_end_index"
                 ] = self.numpy_postproc_size
 
@@ -1350,7 +1349,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     self.wrt_vars.append(metadata["step_input_var"])
                     self.wrt_vars.append(metadata["accumulated_stage_var"])
                 if "postproc_input_var" in metadata:
-                    self.wrt_vars_postproc.append("postproc_input_var")
+                    self.wrt_vars_postproc.append(metadata["postproc_input_var"])
             elif metadata["type"] == "postprocessing":
                 self.of_vars_postproc.append(metadata["postproc_output_var"])
 
@@ -1375,7 +1374,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if metadata["type"] == "postprocessing":
                 start = metadata["numpy_postproc_start_index"]
                 end = metadata["numpy_postproc_end_index"]
-                np_postproc_array[start:end] = om_vector[quantity + name_suffix].flatten
+                np_postproc_array[start:end] = om_vector[
+                    quantity + name_suffix
+                ].flatten()
 
     def from_numpy_array(self, np_array: np.ndarray, om_vector: om_vector):
         if om_vector._kind == "input":
