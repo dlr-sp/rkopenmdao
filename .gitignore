@@ -1,5 +1,6 @@
 **/.pytest_cache
 **/.venv
+**/.venv_3.9.1
 **/.vscode
 **/__pycache__
 **.mp4
@@ -12,3 +13,7 @@
 **.egg-info
 **.prof
 **/.idea
+**/build
+**/rk_specs
+rk_xdsm.tex
+rk_xdsm.tikz

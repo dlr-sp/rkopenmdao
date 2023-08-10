@@ -59,7 +59,7 @@ class TimeStageProblemComputeFunctor:
                         old_state[start:end].reshape(metadata["shape"]),
                     )
 
-                    self.time_stage_problem.model.set_val(
+                    self.time_stage_problem.set_val(
                         metadata["accumulated_stage_var"],
                         accumulated_stage[start:end].reshape(metadata["shape"]),
                     )
