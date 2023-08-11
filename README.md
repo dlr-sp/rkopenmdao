@@ -42,6 +42,8 @@ In the directory
     src/runge_kutta_openmdao/examples
 
 of this repository are files for the solution of a heat equation, once the analytical solution, once via a monolithic Runge-Kutta time integration, and once via a nested approach in OpenMDAO where additionally the domain is split into two halves.
+
+THE FOLLOWING LINES ARE NOT UP TO DATE.
 When you are in a virtual environment as described above,
 
     python /path/to/src/runge_kutta_openmdao/examples/example.py

@@ -359,7 +359,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_functional_phase(self):
         if self.functional_quantities:
-            self._functional_part += self.get_functional_contribution(
+            self._functional_part = self.get_functional_contribution(
                 self.serialized_new_state_symbol.data, self._postprocessing_state, 0
             )
 
@@ -525,7 +525,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_jacvec_fwd_functional_phase(self):
         if self.functional_quantities:
-            self._functional_part_perturbations += self.get_functional_contribution(
+            self._functional_part_perturbations = self.get_functional_contribution(
                 self._serialized_state_perturbations,
                 self._postprocessing_state_perturbations,
                 0,
@@ -649,7 +649,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         if self.functional_quantities:
             self._get_functional_contribution_from_om_output_vec(d_outputs)
-            self._add_functional_perturbations_to_state_perturbations()
+            self._add_functional_perturbations_to_state_perturbations(
+                self.options["integration_control"].num_steps
+            )
 
         self.reverse_operator.serialized_state_perturbations = (
             self._serialized_state_perturbations
@@ -736,14 +738,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.options["postprocessing_problem"] is not None:
             self.postprocessor.postprocess(self._serialized_state)
 
-        self._add_functional_perturbations_to_state_perturbations()
+        self._add_functional_perturbations_to_state_perturbations(step - 1)
 
         return self._serialized_state_perturbations
 
     def _add_functional_perturbations_to_state_perturbations(
-        self, postprocessor_linearization_args={}
+        self, step, postprocessor_linearization_args={}
     ):
-        step = self.options["integration_control"].step
         functional_coefficients: FunctionalCoefficients = self.options[
             "functional_coefficients"
         ]
@@ -752,7 +753,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             start_functional = self.quantity_metadata[quantity][
                 "numpy_functional_start_index"
             ]
-            end_functional = self.quantity_metadata[quantity]["numpy_end_index"]
+            end_functional = self.quantity_metadata[quantity][
+                "numpy_functional_end_index"
+            ]
             if self.quantity_metadata[quantity]["type"] == "time_integration":
                 start = self.quantity_metadata[quantity]["numpy_start_index"]
                 end = self.quantity_metadata[quantity]["numpy_end_index"]
@@ -761,7 +764,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 ) * self._functional_part_perturbations[start_functional:end_functional]
             elif self.quantity_metadata[quantity]["type"] == "postprocessing":
                 start = self.quantity_metadata[quantity]["numpy_postproc_start_index"]
-                end = self.quantity_metadata[quantity]["numpcy_postproc_end_index"]
+                end = self.quantity_metadata[quantity]["numpy_postproc_end_index"]
                 postprocessing_functional_perturbations[start:end] += (
                     functional_coefficients.get_coefficient(step, quantity)
                     * self._functional_part_perturbations[
@@ -779,7 +782,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _get_functional_contribution_from_om_output_vec(self, d_outputs: om_vector):
         for quantity in self.functional_quantities:
             start = self.quantity_metadata[quantity]["numpy_functional_start_index"]
-            end = self.quantity_metadata[quantity]["numpy_end_index"]
+            end = self.quantity_metadata[quantity]["numpy_functional_end_index"]
             self._functional_part_perturbations[start:end] = d_outputs[
                 quantity + "_functional"
             ]
@@ -1497,6 +1500,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         ]
         result = np.zeros(self.numpy_array_size)
         postproc_copy = postprocessing.copy()
+
         for quantity in self.functional_quantities:
             if self.quantity_metadata[quantity]["type"] == "time_integration":
                 start = self.quantity_metadata[quantity]["numpy_start_index"]
@@ -1518,13 +1522,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
         return result
 
-    # TODO: change since integrated quantities is no more
     def add_functional_part_to_om_vec(
         self, functional_numpy_array: np.ndarray, om_vector: om_vector
     ):
-        for quantity in self.functional_numpy_array:
+        for quantity in self.functional_quantities:
             start = self.quantity_metadata[quantity]["numpy_functional_start_index"]
             end = self.quantity_metadata[quantity]["numpy_functional_end_index"]
-            om_vector[quantity + "_functional"] += functional_numpy_array[
+            om_vector[quantity + "_functional"] = functional_numpy_array[
                 start:end
             ].reshape(self.quantity_metadata[quantity]["shape"])

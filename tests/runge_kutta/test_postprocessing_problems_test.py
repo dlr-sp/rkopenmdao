@@ -66,7 +66,7 @@ def test_postprocessing_problem_partials(problem_creator, quantity_list):
     assert_check_partials(data)
 
 
-@pytest.mark.postporc
+@pytest.mark.postproc
 @pytest.mark.parametrize(
     """postprocessing_problem_creator, postproc_functor, quantity_size, test_class,
     test_functor, initial_time, initial_values, postprocessing_quantity, butcher_tableau""",
