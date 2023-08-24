@@ -7,9 +7,9 @@ from openmdao.utils.assert_utils import assert_check_partials
 
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import RungeKuttaIntegrator
-from runge_kutta_openmdao.runge_kutta.butcher_tableaus import (
+from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
     implicit_euler,
-    two_stage_dirk,
+    second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
 

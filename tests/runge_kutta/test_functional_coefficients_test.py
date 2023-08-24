@@ -11,9 +11,9 @@ from .test_components import TestComp6
 
 from .test_components import Test6Solution
 
-from runge_kutta_openmdao.runge_kutta.butcher_tableaus import (
+from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
     implicit_euler,
-    two_stage_dirk,
+    second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
 

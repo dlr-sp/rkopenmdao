@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from runge_kutta_openmdao.runge_kutta.runge_kutta_scheme import RungeKuttaScheme
-from runge_kutta_openmdao.runge_kutta.butcher_tableaus import (
+from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
     implicit_euler,
     two_stage_dirk,
     runge_kutta_four,

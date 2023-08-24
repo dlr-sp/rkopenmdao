@@ -15,5 +15,6 @@
 **/.idea
 **/build
 **/rk_specs
+convergence_test/**
 rk_xdsm.tex
 rk_xdsm.tikz
