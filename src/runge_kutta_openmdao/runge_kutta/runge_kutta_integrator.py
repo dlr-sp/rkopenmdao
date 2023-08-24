@@ -1,3 +1,4 @@
+import warnings
 from typing import Tuple
 
 import h5py
@@ -175,7 +176,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             values=["SingleLevel", "MultiLevel", "Memory", "Disk", "Base"],
             default="Memory",
             desc="""Chooses the type of revolver from pyrevolve. The default is the MemoryRevolver using numpy arrays as
-            storage""",
+            storage. 
+            Warning: MultiLevelRevolver currently has problems where certain numbers of checkpoints work and others don't 
+            (without an obvious reason why). Use with care.""",
         )
 
         self.options.declare(
@@ -191,6 +194,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._revolver_class = pr.SingleLevelRevolver
         elif revolver_type == "MultiLevel":
             self._revolver_class = pr.MultiLevelRevolver
+            warnings.warn(
+                """MultiLevelRevolver currently has problems where certain numbers of checkpoints work and others don't 
+                (without an obvious reason why). Use with care."""
+            )
         elif revolver_type == "Disk":
             self._revolver_class = pr.DiskRevolver
         elif revolver_type == "Base":
@@ -199,7 +206,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._revolver_class = pr.MemoryRevolver
 
     def _check_num_checkpoints_in_revolver_options(self):
-        if "n_checkpoints" not in self.options["revolver_options"].keys():
+        if "n_checkpoints" not in self.options[
+            "revolver_options"
+        ].keys() and self.options["revolver_type"] not in ["MultiLevel", "Base"]:
             self.options["revolver_options"]["n_checkpoints"] = (
                 1 if self.options["integration_control"].num_steps == 1 else None
             )
@@ -372,12 +381,28 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         checkpoint = RungeKuttaCheckpoint(checkpoint_dict)
 
+        revolver_options = {}
+
+        for key, value in self.options["revolver_options"].items():
+            if self.options["revolver_type"] == "MultiLevel" and key == "storage_list":
+                storage_list = []
+                for storage_type, options in value.items():
+                    if storage_type == "Numpy":
+                        storage_list.append(pr.NumpyStorage(checkpoint.size, **options))
+                    elif storage_type == "Disk":
+                        storage_list.append(pr.DiskStorage(checkpoint.size, **options))
+                    elif storage_type == "Bytes":
+                        storage_list.append(pr.BytesStorage(checkpoint.size, **options))
+                revolver_options[key] = storage_list
+            else:
+                revolver_options[key] = value
+        revolver_options["checkpoint"] = checkpoint
+        revolver_options["fwd_operator"] = self.forward_operator
+        revolver_options["rev_operator"] = self.reverse_operator
+        revolver_options["n_timesteps"] = num_steps
+
         self.revolver = self._revolver_class(
-            checkpoint=checkpoint,
-            fwd_operator=self.forward_operator,
-            rev_operator=self.reverse_operator,
-            n_timesteps=num_steps,
-            **self.options["revolver_options"],
+            **revolver_options,
         )
 
     def _compute_translate_to_om_vector_phase(self, outputs: om_vector):
@@ -682,7 +707,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         inputs_cache = {}
         outputs_cache = {}
-
         # forward iteration
         for stage in range(butcher_tableau.number_of_stages()):
             self.options["integration_control"].stage = stage
@@ -713,7 +737,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             outputs_cache[stage].set_vec(
                 self.options["time_stage_problem"].model._outputs
             )
-
         # backward iteration
 
         for stage in range(butcher_tableau.number_of_stages() - 1, -1, -1):

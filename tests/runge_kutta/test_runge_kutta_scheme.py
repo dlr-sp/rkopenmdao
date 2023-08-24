@@ -6,7 +6,7 @@ import pytest
 from runge_kutta_openmdao.runge_kutta.runge_kutta_scheme import RungeKuttaScheme
 from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
     implicit_euler,
-    two_stage_dirk,
+    second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
 
