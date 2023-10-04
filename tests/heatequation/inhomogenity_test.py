@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 
-from runge_kutta_openmdao.heatequation import domain, boundary, inhomogenity
+from runge_kutta_openmdao.heatequation import domain, boundary, inhomogeneity
 
 
 test_domain = domain.Domain([0.0, 1.0], [0.0, 1.0], 11, 11)
@@ -10,17 +10,17 @@ test_domain = domain.Domain([0.0, 1.0], [0.0, 1.0], 11, 11)
 @pytest.mark.heatequ
 @pytest.mark.heatequ_inhom
 @pytest.mark.parametrize(
-    "test_inhomogenity, time, pde_inhom",
+    "test_inhomogeneity, time, pde_inhom",
     [
         (
-            inhomogenity.InhomogenityVector(
+            inhomogeneity.InhomogeneityVector(
                 test_domain, 1.0, lambda t, x, y: 2.0, boundary.BoundaryCondition()
             ),
             1.0,
             np.full(121, 2.0),
         ),
         (
-            inhomogenity.InhomogenityVector(
+            inhomogeneity.InhomogeneityVector(
                 test_domain,
                 1.0,
                 lambda t, x, y: 2.0,
@@ -31,18 +31,18 @@ test_domain = domain.Domain([0.0, 1.0], [0.0, 1.0], 11, 11)
         ),
     ],
 )
-def test_inhom_update_pde(test_inhomogenity, time, pde_inhom):
-    test_inhomogenity.update_pde_inhomogenity(time)
-    assert np.array_equal(test_inhomogenity.pde_inhomogenity, pde_inhom)
+def test_inhom_update_pde(test_inhomogeneity, time, pde_inhom):
+    test_inhomogeneity.update_pde_inhomogeneity(time)
+    assert np.array_equal(test_inhomogeneity.pde_inhomogeneity, pde_inhom)
 
 
 @pytest.mark.heatequ
 @pytest.mark.heatequ_inhom
 @pytest.mark.parametrize(
-    "test_inhomogenity, time, upper, lower, left, right, bound_inhom",
+    "test_inhomogeneity, time, upper, lower, left, right, bound_inhom",
     [
         (
-            inhomogenity.InhomogenityVector(
+            inhomogeneity.InhomogeneityVector(
                 test_domain, 1.0, lambda t, x, y: 2.0, boundary.BoundaryCondition()
             ),
             1.0,
@@ -53,7 +53,7 @@ def test_inhom_update_pde(test_inhomogenity, time, pde_inhom):
             np.full(121, 0.0),
         ),
         (
-            inhomogenity.InhomogenityVector(
+            inhomogeneity.InhomogeneityVector(
                 test_domain,
                 1.0,
                 lambda t, x, y: 2.0,
@@ -70,7 +70,7 @@ def test_inhom_update_pde(test_inhomogenity, time, pde_inhom):
             ),
         ),
         (
-            inhomogenity.InhomogenityVector(
+            inhomogeneity.InhomogeneityVector(
                 test_domain,
                 1.0,
                 lambda t, x, y: 2.0,
@@ -89,11 +89,11 @@ def test_inhom_update_pde(test_inhomogenity, time, pde_inhom):
     ],
 )
 def test_inhom_update_boundary(
-    test_inhomogenity, time, upper, lower, left, right, bound_inhom
+    test_inhomogeneity, time, upper, lower, left, right, bound_inhom
 ):
-    test_inhomogenity.update_boundary_inhomogenity(time, upper, lower, left, right)
+    test_inhomogeneity.update_boundary_inhomogeneity(time, upper, lower, left, right)
     assert np.array_equal(
         bound_inhom,
-        test_inhomogenity.self_updating_boundary_inhomogenity
-        + np.sum(test_inhomogenity.user_updating_boundary_inhomogenity, axis=1),
+        test_inhomogeneity.self_updating_boundary_inhomogeneity
+        + np.sum(test_inhomogeneity.user_updating_boundary_inhomogeneity, axis=1),
     )

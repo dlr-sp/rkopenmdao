@@ -1,8 +1,13 @@
+"""
+A collection of butcher tableaux. Most of them are given by Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
+Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016).
+Exceptions are either from well known methods (like explicit/implicit Euler), or their source is given at the tableau.
+"""
+
 import numpy as np
 
 from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
 
-# TODO: add more tableaux
 # one stage methods
 explicit_euler = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]))
 
@@ -125,7 +130,8 @@ third_order_four_stage_sdirk = ButcherTableau(
     np.array([gamma, c2, c3, 1]),
 )
 
-# see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.” Lecture Notes in Computational Science and Engineering (2018): p. 5.
+# see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.”
+# Lecture Notes in Computational Science and Engineering (2018): p. 5.
 # https://arxiv.org/pdf/1811.01285.pdf
 third_order_second_weak_stage_order_four_stage_dirk = ButcherTableau(
     np.array(
@@ -140,7 +146,8 @@ third_order_second_weak_stage_order_four_stage_dirk = ButcherTableau(
     np.array([0.01900072890, 0.78870323114, 0.41643499339, 1.0]),
 )
 
-# see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.” Lecture Notes in Computational Science and Engineering (2018): p. 6.
+# see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.”
+# Lecture Notes in Computational Science and Engineering (2018): p. 6.
 # https://arxiv.org/pdf/1811.01285.pdf
 third_order_third_weak_stage_order_four_stage_dirk = ButcherTableau(
     np.array(
@@ -461,7 +468,8 @@ fifth_order_six_stage_esdirk = ButcherTableau(
 )
 
 
-# see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.” Lecture Notes in Computational Science and Engineering (2018): p. 6.
+# see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.”
+# Lecture Notes in Computational Science and Engineering (2018): p. 6.
 # https://arxiv.org/pdf/1811.01285.pdf
 fourth_order_third_weak_stage_order_six_stage_dirk = ButcherTableau(
     np.array(

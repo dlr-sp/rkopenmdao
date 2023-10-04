@@ -1,11 +1,21 @@
+"""
+Cannonball example from openMDAO docs
+(https://openmdao.org/newdocs/versions/latest/advanced_user_guide/example/euler_integration_example.html)
+partially remade with the Runge-Kutta-integrator. Can't remake it completely right now since the integrator currently
+only supports a fixed number of time steps (opposed to iterating until a certain value is reached).
+"""
+
 import numpy as np
 import openmdao.api as om
 
 from scipy.constants import g as gravity_accel
 
-from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
+from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
+    third_order_four_stage_esdirk,
+)
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import RungeKuttaIntegrator
+from runge_kutta_openmdao.runge_kutta.stage_value_component import StageValueComponent
 
 
 class VelocityComponent(om.ExplicitComponent):
@@ -273,11 +283,6 @@ class AltitudeComponent(om.ExplicitComponent):
     def setup(self):
         self.add_input("velocity", val=1.0)
         self.add_input("flight_path_angle", val=0.0)
-        # The next two do nothing, but are required for the RK-Integrator
-        # self.add_input("altitude_old", tags=["step_input_var", "altitude"])
-        # self.add_input(
-        #     "altitude_accumulated_stages", tags=["accumulated_stage_var", "altitude"]
-        # )
 
         self.add_output(
             "altitude_slope", val=0.0, tags=["stage_output_var", "altitude"]
@@ -313,11 +318,6 @@ class RangeComponent(om.ExplicitComponent):
     def setup(self):
         self.add_input("velocity", val=1.0)
         self.add_input("flight_path_angle", val=0.0)
-        # The next two do nothing, but are required for the RK-Integrator
-        # self.add_input("range_old", tags=["step_input_var", "range"])
-        # self.add_input(
-        #     "range_accumulated_stages", tags=["accumulated_stage_var", "range"]
-        # )
 
         self.add_output("range_slope", val=0.0, tags=["stage_output_var", "range"])
 
@@ -426,7 +426,7 @@ class LiftDragForceComp(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    integration_control = IntegrationControl(0.0, 100, 1e-1)
+    integration_control = IntegrationControl(0.0, 1000, 1e-2)
     cannon_prob = om.Problem()
 
     velocity_angle_group = om.Group()
@@ -435,12 +435,14 @@ if __name__ == "__main__":
     pressure_velocity_group.add_subsystem("DynamicPressure", DynamicPressureComp())
     pressure_velocity_group.add_subsystem("LiftDragForce", LiftDragForceComp())
     pressure_velocity_group.add_subsystem(
-        "velocity", VelocityComponent(), promotes=["aircraft_mass"]
+        "velocity",
+        VelocityComponent(),
+        promotes=["aircraft_mass", "angle_of_attack", "thrust"],
     )
     pressure_velocity_group.add_subsystem(
-        "velocity_assembler", VelocityAssembler(integration_control=integration_control)
+        "velocity_assembler",
+        StageValueComponent(integration_control=integration_control, tag="velocity"),
     )
-    pressure_velocity_group.NonlinearSolver = om.NewtonSolver(solve_subsystems=False)
 
     velocity_angle_group.add_subsystem(
         "pressure_velocity", pressure_velocity_group, promotes=["*"]
@@ -448,18 +450,21 @@ if __name__ == "__main__":
 
     flight_angle_group = om.Group()
     flight_angle_group.add_subsystem(
-        "flight_path_angle", FlightPathAngleComponent(), promotes=["aircraft_mass"]
+        "flight_path_angle",
+        FlightPathAngleComponent(),
+        promotes=["aircraft_mass", "angle_of_attack", "thrust"],
     )
+
     flight_angle_group.add_subsystem(
         "flight_path_angle_assembler",
-        FlightPathAngleAssembler(integration_control=integration_control),
+        StageValueComponent(
+            integration_control=integration_control, tag="flight_path_angle"
+        ),
     )
-    flight_angle_group.NonlinearSolver = om.NewtonSolver(solve_subsystems=False)
 
     velocity_angle_group.add_subsystem(
         "flight_angle", flight_angle_group, promotes=["*"]
     )
-    velocity_angle_group.NonlinearSolver = om.NewtonSolver(solve_subsystems=True)
 
     cannon_prob.model.add_subsystem(
         "velocity_angle", velocity_angle_group, promotes=["*"]
@@ -474,39 +479,39 @@ if __name__ == "__main__":
     cannon_prob.model.connect("LiftDragForce.f_drag", "velocity.drag")
 
     cannon_prob.model.connect(
-        "velocity.velocity_slope", "velocity_assembler.velocity_slope"
+        "velocity.velocity_slope", "velocity_assembler.stage_slope"
     )
 
-    cannon_prob.model.connect("velocity_assembler.velocity", "DynamicPressure.v")
+    cannon_prob.model.connect("velocity_assembler.stage_value", "DynamicPressure.v")
     cannon_prob.model.connect(
-        "velocity_assembler.velocity", "flight_path_angle.velocity"
+        "velocity_assembler.stage_value", "flight_path_angle.velocity"
     )
-    cannon_prob.model.connect("velocity_assembler.velocity", "altitude.velocity")
-    cannon_prob.model.connect("velocity_assembler.velocity", "range.velocity")
+    cannon_prob.model.connect("velocity_assembler.stage_value", "altitude.velocity")
+    cannon_prob.model.connect("velocity_assembler.stage_value", "range.velocity")
 
     cannon_prob.model.connect(
         "flight_path_angle.flight_path_angle_slope",
-        "flight_path_angle_assembler.flight_path_angle_slope",
+        "flight_path_angle_assembler.stage_slope",
     )
 
     cannon_prob.model.connect(
-        "flight_path_angle_assembler.flight_path_angle", "velocity.flight_path_angle"
+        "flight_path_angle_assembler.stage_value", "velocity.flight_path_angle"
     )
     cannon_prob.model.connect(
-        "flight_path_angle_assembler.flight_path_angle",
+        "flight_path_angle_assembler.stage_value",
         "flight_path_angle.flight_path_angle",
     )
 
     cannon_prob.model.connect(
-        "flight_path_angle_assembler.flight_path_angle", "altitude.flight_path_angle"
+        "flight_path_angle_assembler.stage_value", "altitude.flight_path_angle"
     )
     cannon_prob.model.connect(
-        "flight_path_angle_assembler.flight_path_angle", "range.flight_path_angle"
+        "flight_path_angle_assembler.stage_value", "range.flight_path_angle"
     )
 
-    cannon_prob.model.nonlinear_solver = om.NonlinearRunOnce()
+    cannon_prob.model.nonlinear_solver = om.NonlinearBlockGS(iprint=-2)
+    # cannon_prob.model.nonlinear_solver = om.NewtonSolver(solve_subsystems=False, iprint=2)
     cannon_prob.model.linear_solver = om.PETScKrylov()
-    # cannon_prob.model.linear_solver.precon = om.LinearRunOnce()
 
     cannon_prob.setup()
 
@@ -516,19 +521,12 @@ if __name__ == "__main__":
     cannon_prob.set_val("DynamicPressure.rho", 1.225)
     cannon_prob.set_val("aircraft_mass", 5.5)
 
+    cannon_prob.set_val("angle_of_attack", 0.0)
+    cannon_prob.set_val("thrust", 0.0)
+
     outer_prob = om.Problem()
 
-    gamma = (2.0 - np.sqrt(2.0)) / 2.0
-    butcher_tableau = ButcherTableau(
-        np.array(
-            [
-                [gamma, 0.0],
-                [1 - gamma, gamma],
-            ]
-        ),
-        np.array([1 - gamma, gamma]),
-        np.array([gamma, 1.0]),
-    )
+    butcher_tableau = third_order_four_stage_esdirk
 
     outer_prob.model.add_subsystem(
         "RK",
@@ -545,19 +543,29 @@ if __name__ == "__main__":
             write_out_distance=10,
             write_file="cannonball.h5",
         ),
+        promotes=["*"],
     )
 
-    # outer_prob.driver = om.ScipyOptimizeDriver()
-    # outer_prob.driver.options["optimizer"] = "SLSQP"
-    # outer_prob.model.add_objective("RK.range_final", ref=-1.0)
-    # outer_prob.model.add_design_var("RK.flight_path_angle_initial")
-    #
+    outer_prob.model.add_design_var(
+        "flight_path_angle_initial", lower=0.0, upper=np.pi / 2
+    )
+    outer_prob.model.add_constraint("altitude_final", lower=0.0)
+
+    outer_prob.model.add_objective("range_final", scaler=-1)
+
+    outer_prob.driver = om.ScipyOptimizeDriver(
+        optimizer="SLSQP", debug_print=["desvars", "objs", "nl_cons"]
+    )
+
     outer_prob.setup()
-    outer_prob.run_model()
+    outer_prob["velocity_initial"] = 100
+    outer_prob.run_driver()
 
-    cannon_prob.check_partials()
-    #
-    # outer_prob.run_driver()
+    print(outer_prob["flight_path_angle_initial"])
 
-    # TODO: investigate why finite differences are not good. Are they even applicable to RK methods
-    # outer_prob.check_partials()
+    print(
+        outer_prob["velocity_final"],
+        outer_prob["flight_path_angle_final"],
+        outer_prob["altitude_final"],
+        outer_prob["range_final"],
+    )

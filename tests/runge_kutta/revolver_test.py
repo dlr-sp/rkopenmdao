@@ -1,7 +1,6 @@
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
-import pyrevolve as pr
 import pytest
 
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import RungeKuttaIntegrator

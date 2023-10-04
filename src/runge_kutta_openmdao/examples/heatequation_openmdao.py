@@ -1,10 +1,9 @@
+"""Solving the heat equation in openMDAO via the Runge-Kutta-integrator."""
+
 import numpy as np
 import openmdao.api as om
 
-from runge_kutta_openmdao.runge_kutta.butcher_tableau import ButcherTableau
-
 from runge_kutta_openmdao.heatequation.boundary import BoundaryCondition
-from runge_kutta_openmdao.heatequation.boundary_comp import BoundaryComp
 from runge_kutta_openmdao.heatequation.domain import Domain
 from runge_kutta_openmdao.heatequation.heatequation import HeatEquation
 from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
@@ -14,13 +13,14 @@ from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
-
-from runge_kutta_openmdao.runge_kutta.stage_value_component import StageValueComponent
+from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
+    third_order_third_weak_stage_order_four_stage_dirk,
+)
 
 if __name__ == "__main__":
-    points_per_direction = 8
+    points_per_direction = 51
     delta_x = (points_per_direction - 1) ** -1
-    delta_t = delta_x**2 / 10
+    delta_t = 1e-3
 
     domain = Domain([0, 1], [0, 1], points_per_direction, points_per_direction)
 
@@ -31,32 +31,18 @@ if __name__ == "__main__":
         left=lambda t, x, y: 0.0,
     )
 
-    # gamma = (2.0 - np.sqrt(2.0)) / 2.0
-    # butcher_tableau = ButcherTableau(
-    #     np.array(
-    #         [
-    #             [gamma, 0.0],
-    #             [1 - gamma, gamma],
-    #         ]
-    #     ),
-    #     np.array([1 - gamma, gamma]),
-    #     np.array([gamma, 1.0]),
-    # )
-
-    butcher_tableau = ButcherTableau(
-        np.array([[1.0]]), np.array([1.0]), np.array([1.0])
-    )
+    butcher_tableau = third_order_third_weak_stage_order_four_stage_dirk
 
     heat_equation = HeatEquation(
         domain,
         lambda t, x, y: 0,
         boundary_condition,
         1.0,
-        lambda x, y: 1.0,
+        lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         {"tol": 1e-10, "atol": 1e-10},
     )
 
-    integration_control = IntegrationControl(0.0, 10, delta_t)
+    integration_control = IntegrationControl(0.0, 100, delta_t)
 
     inner_prob = om.Problem()
 
@@ -82,7 +68,7 @@ if __name__ == "__main__":
         iprint=2,
     )
     inner_prob.model.linear_solver = om.PETScKrylov(restart=20)
-    # inner_prob.model.linear_solver.precon = om.LinearBlockGS(maxiter=1, iprint=-1)
+    inner_prob.model.linear_solver.precon = om.LinearBlockJac(maxiter=1, iprint=-1)
 
     inner_prob.setup()
 
@@ -95,12 +81,10 @@ if __name__ == "__main__":
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             time_integration_quantities=["heat_0"],
-            resets=False,
+            write_out_distance=1,
+            write_file="heat_equ_om_single.h5",
         ),
     )
 
     outer_prob.setup()
     outer_prob.run_model()
-
-    # inner_prob.check_partials()
-    outer_prob.check_partials()

@@ -5,71 +5,79 @@ from .domain import Domain
 from .boundary import BoundaryCondition
 
 
-class InhomogenityVector:
+class InhomogeneityVector:
+    """Class to present the discretized inhomogeneity of a heat equation (including inhomogeneity from boundary)."""
+
     def __init__(
         self,
         domain: Domain,
         diffusivity: float,
-        inhomogenity_func: Callable[[float, float, float], float],
+        inhomogeneity_func: Callable[[float, float, float], float],
         boundary_condition: BoundaryCondition,
     ) -> None:
         self.domain = domain
         self.diffusivity = diffusivity
-        self.pde_inhomogenity = np.zeros(self.domain.n_x * self.domain.n_y)
-        self.self_updating_boundary_inhomogenity = np.zeros(
+        self.pde_inhomogeneity = np.zeros(self.domain.n_x * self.domain.n_y)
+        self.self_updating_boundary_inhomogeneity = np.zeros(
             self.domain.n_x * self.domain.n_y
         )
-        self.user_updating_boundary_inhomogenity = np.zeros(
+        self.user_updating_boundary_inhomogeneity = np.zeros(
             (self.domain.n_x * self.domain.n_y, 4)
         )
-        self.inhomogenity_func = inhomogenity_func
+        self.inhomogeneity_func = inhomogeneity_func
         self.boundary_condition = boundary_condition
 
     def add_vector(self, vector: np.ndarray) -> np.ndarray:
-        if vector.size != self.pde_inhomogenity.size:
+        """Adds all the inhomogeneity to a vector."""
+        if vector.size != self.pde_inhomogeneity.size:
             raise AssertionError("Vector sizes don't")
         return (
             vector
-            + self.pde_inhomogenity
-            + self.self_updating_boundary_inhomogenity
-            + np.sum(self.user_updating_boundary_inhomogenity, axis=1)
+            + self.pde_inhomogeneity
+            + self.self_updating_boundary_inhomogeneity
+            + np.sum(self.user_updating_boundary_inhomogeneity, axis=1)
         )
 
     def return_vector(self) -> np.ndarray:
+        """Returns the combined inhomogeneity."""
         return (
-            self.pde_inhomogenity
-            + self.self_updating_boundary_inhomogenity
-            + np.sum(self.user_updating_boundary_inhomogenity, axis=1)
+            self.pde_inhomogeneity
+            + self.self_updating_boundary_inhomogeneity
+            + np.sum(self.user_updating_boundary_inhomogeneity, axis=1)
         )
 
-    def update_pde_inhomogenity(self, time: float) -> None:
+    def update_pde_inhomogeneity(self, time: float) -> None:
+        """Updates non-boundary inhomogeneity to the current time"""
         for j in range(self.domain.n_y):
             for i in range(self.domain.n_x):
                 index = self.domain.ij_to_index(i, j)
                 coordinates = self.domain.ij_coordinates(i, j)
-                self.pde_inhomogenity[index] = self.inhomogenity_func(
+                self.pde_inhomogeneity[index] = self.inhomogeneity_func(
                     time, coordinates[0], coordinates[1]
                 )
 
-    def update_boundary_inhomogenity(
+    def update_boundary_inhomogeneity(
         self, time=None, upper=None, lower=None, left=None, right=None
     ) -> None:
+        "Updates boundary inhomogeneity to the current time (or by user)"
         update_kinds = self.boundary_condition.boundary_update_kind()
         if time is not None:
-            self.self_updating_boundary_inhomogenity = np.zeros_like(
-                self.self_updating_boundary_inhomogenity
+            self.self_updating_boundary_inhomogeneity = np.zeros_like(
+                self.self_updating_boundary_inhomogeneity
             )
             for segment, kind in update_kinds.items():
                 if kind == "self_updating":
                     boundary_coordinates = self.domain.boundary_coordinates(segment)
-                    segment_boundary_inhomogenity = self.boundary_condition.self_update(
-                        segment, time, boundary_coordinates
+                    segment_boundary_inhomogeneity = (
+                        self.boundary_condition.self_update(
+                            segment, time, boundary_coordinates
+                        )
                     )
                     boundary_indices = self.domain.boundary_indices(segment)
-                    self.self_updating_boundary_inhomogenity[boundary_indices] += (
+                    self.self_updating_boundary_inhomogeneity[boundary_indices] += (
                         2
                         * self.diffusivity
-                        * segment_boundary_inhomogenity
+                        * segment_boundary_inhomogeneity
                         / (
                             self.domain.delta_x
                             if segment in ("right", "left")
@@ -80,31 +88,31 @@ class InhomogenityVector:
         for segment, kind in update_kinds.items():
             boundary_slice_index = -1
             boundary_indices = self.domain.boundary_indices(segment)
-            segment_boundary_inhomogenity = np.zeros(0)
+            segment_boundary_inhomogeneity = np.zeros(0)
             update = False
             if segment == "upper" and upper is not None:
-                segment_boundary_inhomogenity = upper
+                segment_boundary_inhomogeneity = upper
                 update = True
                 boundary_slice_index = 0
             elif segment == "lower" and lower is not None:
-                segment_boundary_inhomogenity = lower
+                segment_boundary_inhomogeneity = lower
                 update = True
                 boundary_slice_index = 1
             elif segment == "left" and left is not None:
-                segment_boundary_inhomogenity = left
+                segment_boundary_inhomogeneity = left
                 update = True
                 boundary_slice_index = 2
             elif segment == "right" and right is not None:
-                segment_boundary_inhomogenity = right
+                segment_boundary_inhomogeneity = right
                 update = True
                 boundary_slice_index = 3
             if update:
-                self.user_updating_boundary_inhomogenity[
+                self.user_updating_boundary_inhomogeneity[
                     boundary_indices, boundary_slice_index
                 ] = (
                     2
                     * self.diffusivity
-                    * segment_boundary_inhomogenity
+                    * segment_boundary_inhomogeneity
                     / (
                         self.domain.delta_x
                         if segment in ("right", "left")

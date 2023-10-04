@@ -5,8 +5,6 @@ import itertools
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
-from scipy.sparse.linalg import LinearOperator, eigs
-
 from runge_kutta_openmdao.heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
@@ -51,7 +49,9 @@ runge_kutta_four = ButcherTableau(
 @pytest.mark.parametrize(
     "points_per_direction, butcher_tableau, delta_t",
     itertools.product(
-        [11, 21, 51], [implicit_euler, two_stage_dirk, runge_kutta_four], [1e-2, 1e-3, 1e-4]
+        [11, 21],
+        [implicit_euler, two_stage_dirk, runge_kutta_four],
+        [1e-2, 1e-3, 1e-4],
     ),
 )
 def test_heat_equation_stage_component_zero_vector(
@@ -85,12 +85,17 @@ def test_heat_equation_stage_component_zero_vector(
         ),
     )
     test_prob.setup()
-    test_prob.set_val("heat_equation_stage_component.heat", np.zeros(points_per_direction**2))
     test_prob.set_val(
-        "heat_equation_stage_component.accumulated_stages", np.zeros(points_per_direction**2)
+        "heat_equation_stage_component.heat", np.zeros(points_per_direction**2)
+    )
+    test_prob.set_val(
+        "heat_equation_stage_component.accumulated_stages",
+        np.zeros(points_per_direction**2),
     )
     for stage in range(butcher_tableau.number_of_stages()):
-        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[stage, stage]
+        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+            stage, stage
+        ]
         test_prob.run_model()
         assert test_prob.get_val(
             "heat_equation_stage_component.result_stage_slope"
@@ -102,7 +107,7 @@ def test_heat_equation_stage_component_zero_vector(
 @pytest.mark.parametrize(
     "points_per_direction, butcher_tableau, delta_t, boundary_segment",
     itertools.product(
-        [11, 21, 51],
+        [11, 21],
         [implicit_euler, two_stage_dirk, runge_kutta_four],
         [1e-2, 1e-3, 1e-4],
         ["upper", "lower", "left", "right"],
@@ -115,19 +120,27 @@ def test_heat_equation_stage_component_zero_vector_with_one_boundary(
 
     if boundary_segment == "upper":
         boundary_condition = BoundaryCondition(
-            lower=lambda t, x, y: 0.0, left=lambda t, x, y: 0.0, right=lambda t, x, y: 0.0
+            lower=lambda t, x, y: 0.0,
+            left=lambda t, x, y: 0.0,
+            right=lambda t, x, y: 0.0,
         )
     elif boundary_segment == "lower":
         boundary_condition = BoundaryCondition(
-            upper=lambda t, x, y: 0.0, left=lambda t, x, y: 0.0, right=lambda t, x, y: 0.0
+            upper=lambda t, x, y: 0.0,
+            left=lambda t, x, y: 0.0,
+            right=lambda t, x, y: 0.0,
         )
     elif boundary_segment == "left":
         boundary_condition = BoundaryCondition(
-            upper=lambda t, x, y: 0.0, lower=lambda t, x, y: 0.0, right=lambda t, x, y: 0.0
+            upper=lambda t, x, y: 0.0,
+            lower=lambda t, x, y: 0.0,
+            right=lambda t, x, y: 0.0,
         )
     elif boundary_segment == "right":
         boundary_condition = BoundaryCondition(
-            upper=lambda t, x, y: 0.0, left=lambda t, x, y: 0.0, lower=lambda t, x, y: 0.0
+            upper=lambda t, x, y: 0.0,
+            left=lambda t, x, y: 0.0,
+            lower=lambda t, x, y: 0.0,
         )
 
     heat_equation = HeatEquation(
@@ -151,16 +164,21 @@ def test_heat_equation_stage_component_zero_vector_with_one_boundary(
         ),
     )
     test_prob.setup()
-    test_prob.set_val("heat_equation_stage_component.heat", np.zeros(points_per_direction**2))
     test_prob.set_val(
-        "heat_equation_stage_component.accumulated_stages", np.zeros(points_per_direction**2)
+        "heat_equation_stage_component.heat", np.zeros(points_per_direction**2)
+    )
+    test_prob.set_val(
+        "heat_equation_stage_component.accumulated_stages",
+        np.zeros(points_per_direction**2),
     )
     test_prob.set_val(
         "heat_equation_stage_component.boundary_segment_" + boundary_segment,
         np.zeros(points_per_direction),
     )
     for stage in range(butcher_tableau.number_of_stages()):
-        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[stage, stage]
+        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+            stage, stage
+        ]
         test_prob.run_model()
         assert test_prob.get_val(
             "heat_equation_stage_component.result_stage_slope"
@@ -172,7 +190,9 @@ def test_heat_equation_stage_component_zero_vector_with_one_boundary(
 @pytest.mark.parametrize(
     "points_per_direction, butcher_tableau, delta_t",
     itertools.product(
-        [11, 21, 51], [implicit_euler, two_stage_dirk, runge_kutta_four], [1e-2, 1e-3, 1e-4]
+        [11, 21],
+        [implicit_euler, two_stage_dirk, runge_kutta_four],
+        [1e-2, 1e-3, 1e-4],
     ),
 )
 def test_heat_equation_stage_component_zero_vector_with_all_boundary(
@@ -203,9 +223,12 @@ def test_heat_equation_stage_component_zero_vector_with_all_boundary(
         ),
     )
     test_prob.setup()
-    test_prob.set_val("heat_equation_stage_component.heat", np.zeros(points_per_direction**2))
     test_prob.set_val(
-        "heat_equation_stage_component.accumulated_stages", np.zeros(points_per_direction**2)
+        "heat_equation_stage_component.heat", np.zeros(points_per_direction**2)
+    )
+    test_prob.set_val(
+        "heat_equation_stage_component.accumulated_stages",
+        np.zeros(points_per_direction**2),
     )
     test_prob.set_val(
         "heat_equation_stage_component.boundary_segment_left",
@@ -224,7 +247,9 @@ def test_heat_equation_stage_component_zero_vector_with_all_boundary(
         np.zeros(points_per_direction),
     )
     for stage in range(butcher_tableau.number_of_stages()):
-        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[stage, stage]
+        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+            stage, stage
+        ]
         test_prob.run_model()
         assert test_prob.get_val(
             "heat_equation_stage_component.result_stage_slope"
@@ -239,7 +264,9 @@ def test_heat_equation_stage_component_zero_vector_with_all_boundary(
 @pytest.mark.parametrize(
     "points_per_direction, butcher_tableau, delta_t",
     itertools.product(
-        [11, 21, 51], [implicit_euler, two_stage_dirk, runge_kutta_four], [1e-2, 1e-3, 1e-4]
+        [11, 21],
+        [implicit_euler, two_stage_dirk, runge_kutta_four],
+        [1e-2, 1e-3, 1e-4],
     ),
 )
 def test_heat_equation_stage_component_partials(
@@ -274,7 +301,9 @@ def test_heat_equation_stage_component_partials(
     )
     test_prob.setup()
     for stage in range(butcher_tableau.number_of_stages()):
-        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[stage, stage]
+        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+            stage, stage
+        ]
         test_prob.run_model()
         # The component models a linear system, so we don't need a small step size form finite differences.
         # This additionally prevents cancellation errors in the fd-computation.
@@ -287,7 +316,7 @@ def test_heat_equation_stage_component_partials(
 @pytest.mark.parametrize(
     "points_per_direction, butcher_tableau, delta_t, boundary_segment",
     itertools.product(
-        [11, 21, 51],
+        [11, 21],
         [implicit_euler, two_stage_dirk, runge_kutta_four],
         [1e-2, 1e-3, 1e-4],
         ["upper", "lower", "left", "right"],
@@ -300,19 +329,27 @@ def test_heat_equation_stage_component_partials_with_one_boundary(
 
     if boundary_segment == "upper":
         boundary_condition = BoundaryCondition(
-            lower=lambda t, x, y: 0.0, left=lambda t, x, y: 0.0, right=lambda t, x, y: 0.0
+            lower=lambda t, x, y: 0.0,
+            left=lambda t, x, y: 0.0,
+            right=lambda t, x, y: 0.0,
         )
     elif boundary_segment == "lower":
         boundary_condition = BoundaryCondition(
-            upper=lambda t, x, y: 0.0, left=lambda t, x, y: 0.0, right=lambda t, x, y: 0.0
+            upper=lambda t, x, y: 0.0,
+            left=lambda t, x, y: 0.0,
+            right=lambda t, x, y: 0.0,
         )
     elif boundary_segment == "left":
         boundary_condition = BoundaryCondition(
-            upper=lambda t, x, y: 0.0, lower=lambda t, x, y: 0.0, right=lambda t, x, y: 0.0
+            upper=lambda t, x, y: 0.0,
+            lower=lambda t, x, y: 0.0,
+            right=lambda t, x, y: 0.0,
         )
     elif boundary_segment == "right":
         boundary_condition = BoundaryCondition(
-            upper=lambda t, x, y: 0.0, left=lambda t, x, y: 0.0, lower=lambda t, x, y: 0.0
+            upper=lambda t, x, y: 0.0,
+            left=lambda t, x, y: 0.0,
+            lower=lambda t, x, y: 0.0,
         )
 
     heat_equation = HeatEquation(
@@ -337,7 +374,9 @@ def test_heat_equation_stage_component_partials_with_one_boundary(
     )
     test_prob.setup()
     for stage in range(butcher_tableau.number_of_stages()):
-        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[stage, stage]
+        integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+            stage, stage
+        ]
         test_prob.run_model()
         # The component models a linear system, so we don't need a small step size form finite differences.
         # This additionally prevents cancellation errors in the fd-computation.

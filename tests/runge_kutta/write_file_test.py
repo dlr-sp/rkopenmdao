@@ -58,6 +58,7 @@ def test_monodisciplinary(write_out_distance, write_file):
         for i in range(1, write_out_distance):
             assert str(i) not in f["x"].keys()
         assert str(100) in f["x"].keys()
+        assert time_int_prob["rk_integration.x_final"] == f["x"][str(100)]
 
 
 @pytest.mark.rk
@@ -118,6 +119,8 @@ def test_multidisciplinary(write_out_distance, write_file):
             assert str(i) not in f["y"].keys()
         assert str(100) in f["x"].keys()
         assert str(100) in f["y"].keys()
+        assert time_int_prob["rk_integration.x_final"] == f["x"][str(100)]
+        assert time_int_prob["rk_integration.y_final"] == f["y"][str(100)]
 
 
 @pytest.mark.rk
@@ -178,3 +181,7 @@ def test_postprocessing(write_out_distance, write_file):
             assert str(i) not in f["squared_x"].keys()
         assert str(100) in f["x"].keys()
         assert str(100) in f["squared_x"].keys()
+        assert time_int_prob["rk_integration.x_final"] == f["x"][str(100)]
+        assert (
+            time_int_prob["rk_integration.squared_x_final"] == f["squared_x"][str(100)]
+        )

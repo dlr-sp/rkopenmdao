@@ -1,11 +1,17 @@
 import openmdao.api as om
 
 
-class FluxComponent(om.ExplicitComponent):
+class FluxComponent(om.ImplicitComponent):
+    """Component to bridge the gap between two split heat equations in openMDAO"""
+
     def initialize(self):
-        self.options.declare("delta")
-        self.options.declare("shape")
-        self.options.declare("orientation", values=["vertical", "horizontal"])
+        self.options.declare("delta", desc="step size")
+        self.options.declare("shape", desc="number of grid points")
+        self.options.declare(
+            "orientation",
+            values=["vertical", "horizontal"],
+            desc="in which direction the domain is split",
+        )
 
     def setup(self):
         delta = self.options["delta"]
@@ -18,38 +24,99 @@ class FluxComponent(om.ExplicitComponent):
         self.add_output(
             "flux",
             shape=self.options["shape"],
-            # res_ref=self.options["delta"],
         )
         self.add_output(
             "reverse_flux",
             shape=self.options["shape"],
-            # res_ref=self.options["delta"],
         )
 
-    def compute(self, inputs, outputs):  # pylint: disable=arguments-differ
-        positive_side = "right_side" if self.options["orientation"] == "vertical" else "upper_side"
-        negative_side = "left_side" if self.options["orientation"] == "vertical" else "lower_side"
+    def apply_nonlinear(self, inputs, outputs, residuals):
+        positive_side = (
+            "right_side" if self.options["orientation"] == "vertical" else "upper_side"
+        )
+        negative_side = (
+            "left_side" if self.options["orientation"] == "vertical" else "lower_side"
+        )
+        residuals["flux"] = (
+            0.5 * (inputs[positive_side] - inputs[negative_side])
+            - self.options["delta"] * outputs["flux"]
+        )
+        residuals["reverse_flux"] = (
+            0.5 * (inputs[positive_side] - inputs[negative_side])
+            + self.options["delta"] * outputs["reverse_flux"]
+        )
+
+    def solve_nonlinear(self, inputs, outputs):
+        positive_side = (
+            "right_side" if self.options["orientation"] == "vertical" else "upper_side"
+        )
+        negative_side = (
+            "left_side" if self.options["orientation"] == "vertical" else "lower_side"
+        )
         outputs["flux"] = (
-            0.5 * (inputs[positive_side] - inputs[negative_side]) / self.options["delta"]
+            0.5
+            * (inputs[positive_side] - inputs[negative_side])
+            / self.options["delta"]
         )
         outputs["reverse_flux"] = (
-            0.5 * (inputs[negative_side] - inputs[positive_side]) / self.options["delta"]
+            0.5
+            * (inputs[negative_side] - inputs[positive_side])
+            / self.options["delta"]
         )
 
-    def compute_jacvec_product(
-        self, inputs, d_inputs, d_outputs, mode
-    ):  # pylint: disable=arguments-differ
-        positive_side = "right_side" if self.options["orientation"] == "vertical" else "upper_side"
-        negative_side = "left_side" if self.options["orientation"] == "vertical" else "lower_side"
+    def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
+        positive_side = (
+            "right_side" if self.options["orientation"] == "vertical" else "upper_side"
+        )
+        negative_side = (
+            "left_side" if self.options["orientation"] == "vertical" else "lower_side"
+        )
         if mode == "fwd":
-            d_outputs["flux"] += (
-                0.5 * (d_inputs[positive_side] - d_inputs[negative_side]) / self.options["delta"]
-            )
-            d_outputs["reverse_flux"] -= (
-                0.5 * (d_inputs[positive_side] - d_inputs[negative_side]) / self.options["delta"]
+            if "flux" in d_residuals:
+                if positive_side in d_inputs:
+                    d_residuals["flux"] += 0.5 * d_inputs[positive_side]
+                if negative_side in d_inputs:
+                    d_residuals["flux"] -= 0.5 * d_inputs[negative_side]
+                if "flux" in d_outputs:
+                    d_residuals["flux"] -= self.options["delta"] * d_outputs["flux"]
+
+            if "reverse_flux":
+                if positive_side in d_inputs:
+                    d_residuals["reverse_flux"] += 0.5 * d_inputs[positive_side]
+                if negative_side in d_inputs:
+                    d_residuals["reverse_flux"] -= 0.5 * d_inputs[negative_side]
+                if "flux" in d_outputs:
+                    d_residuals["reverse_flux"] += (
+                        self.options["delta"] * d_outputs["reverse_flux"]
+                    )
+
+        elif mode == "rev":
+            if "flux" in d_residuals:
+                if positive_side in d_inputs:
+                    d_inputs[positive_side] += 0.5 * d_residuals["flux"]
+                if negative_side in d_inputs:
+                    d_inputs[negative_side] -= 0.5 * d_residuals["flux"]
+                if "flux" in d_outputs:
+                    d_outputs["flux"] -= self.options["delta"] * d_residuals["flux"]
+
+            if "reverse_flux":
+                if positive_side in d_inputs:
+                    d_inputs[positive_side] += 0.5 * d_residuals["reverse_flux"]
+                if negative_side in d_inputs:
+                    d_inputs[negative_side] -= 0.5 * d_residuals["reverse_flux"]
+                if "flux" in d_outputs:
+                    d_outputs["reverse_flux"] += (
+                        self.options["delta"] * d_residuals["reverse_flux"]
+                    )
+
+    def solve_linear(self, d_outputs, d_residuals, mode):
+        if mode == "fwd":
+            d_outputs["flux"] = -d_residuals["flux"] / self.options["delta"]
+            d_outputs["reverse_flux"] = (
+                d_residuals["reverse_flux"] / self.options["delta"]
             )
         elif mode == "rev":
-            d_inputs[positive_side] += 0.5 * d_outputs["flux"] / self.options["delta"]
-            d_inputs[negative_side] -= 0.5 * d_outputs["flux"] / self.options["delta"]
-            d_inputs[negative_side] += 0.5 * d_outputs["reverse_flux"] / self.options["delta"]
-            d_inputs[positive_side] -= 0.5 * d_outputs["reverse_flux"] / self.options["delta"]
+            d_residuals["flux"] = -d_outputs["flux"] / self.options["delta"]
+            d_residuals["reverse_flux"] = (
+                d_outputs["reverse_flux"] / self.options["delta"]
+            )

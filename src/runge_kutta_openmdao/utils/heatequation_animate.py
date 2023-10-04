@@ -9,8 +9,8 @@ if __name__ == "__main__":
 
     fig = plt.figure()
     axs = []
-    for i in range(1, 4):
-        axs.append(fig.add_subplot(2, 3, i + 3 * (i % 2 == 0), projection="3d"))
+    for i in range(1, 5):
+        axs.append(fig.add_subplot(2, 4, i + 4 * (i % 2 == 0), projection="3d"))
 
     x = np.linspace(0, 1.0, points_per_direction)
     y = np.linspace(0, 1.0, points_per_direction)
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     axs[2].set_title("OpenMDAO numerical solution")
     ims = []
 
-    checkpoint_distance = 100
+    checkpoint_distance = 1
     fig.suptitle(
         r"Newton solver, solve_subsystems=True, $\Delta t = 10^{-5}$, $\Delta x = \Delta y = 0.02$"
     )
@@ -50,14 +50,17 @@ if __name__ == "__main__":
         cax=cax,
         location="bottom",
     )
-    with h5py.File("inner_problem_stage.h5", mode="r") as f_1, h5py.File(
+    with h5py.File("heat_equ_om_single.h5", mode="r") as f_1, h5py.File(
         "analytic.h5", mode="r"
-    ) as f_2, h5py.File("monolithic.h5", mode="r") as f_3:
+    ) as f_2, h5py.File("monolithic.h5", mode="r") as f_3, h5py.File(
+        "heat_equ_om_split.h5", mode="r"
+    ) as f_4:
         for i in range(0, 101):
             heat_analytic = np.array(f_2["heat/" + str(i * checkpoint_distance)])
             heat_monolithic = np.array(f_3["heat/" + str(i * checkpoint_distance)])
-            heat_nested_1 = np.array(f_1["heat_1/" + str(i * checkpoint_distance)])
-            heat_nested_2 = np.array(f_1["heat_2/" + str(i * checkpoint_distance)])
+            heat_om = np.array(f_1["heat_0/" + str(i * checkpoint_distance)])
+            heat_nested_1 = np.array(f_4["heat_1/" + str(i * checkpoint_distance)])
+            heat_nested_2 = np.array(f_4["heat_2/" + str(i * checkpoint_distance)])
 
             im1 = axs[0].plot_surface(
                 x,
@@ -81,6 +84,17 @@ if __name__ == "__main__":
             )
 
             im3 = axs[2].plot_surface(
+                x,
+                y,
+                heat_om.reshape(points_per_direction, points_per_direction),
+                cmap=cm.coolwarm,
+                vmin=0.0,
+                vmax=+2.0,
+                linewidth=0,
+                antialiased=False,
+            )
+
+            im4 = axs[3].plot_surface(
                 x_1,
                 y_1,
                 heat_nested_1.reshape(points_per_direction, points_x),
@@ -90,7 +104,7 @@ if __name__ == "__main__":
                 linewidth=0,
                 antialiased=False,
             )
-            im4 = axs[2].plot_surface(
+            im5 = axs[3].plot_surface(
                 x_2,
                 y_2,
                 heat_nested_2.reshape(points_per_direction, points_x),
@@ -100,10 +114,11 @@ if __name__ == "__main__":
                 linewidth=0,
                 antialiased=False,
             )
-            im5 = tax.text(
+
+            im6 = tax.text(
                 x=0, y=0, s="time: " + str(i * checkpoint_distance * 1e-5)[:5]
             )
-            ims.append([im1, im2, im3, im4, im5])
+            ims.append([im1, im2, im3, im4, im5, im6])
 
-    ani = animation.ArtistAnimation(fig, ims, interval=200, blit=True, repeat=False)
+    ani = animation.ArtistAnimation(fig, ims, interval=500, blit=True, repeat=False)
     ani.save("HeatEquOpenMDAOAnimation.gif")

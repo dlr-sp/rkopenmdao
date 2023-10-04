@@ -16,6 +16,7 @@
 **/build
 **/rk_specs
 convergence_test/**
-rk_xdsm.tex
-rk_xdsm.tikz
+**.tex
+**.tikz
 **/tests/dat_**
+**.dat

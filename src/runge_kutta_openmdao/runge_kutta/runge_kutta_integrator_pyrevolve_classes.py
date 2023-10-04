@@ -1,12 +1,16 @@
+"""Classes for the usage of the modernized interface of pyrevolve in the Runge-Kutta-integrator."""
+
 from collections.abc import Mapping
-from typing import Callable, Tuple
+from typing import Callable
 
 import pyrevolve as pr
 import numpy as np
 
 
+# basically the same as the one from use_modernised.py in the pyrevolve exampless
 class RungeKuttaIntegratorSymbol:
-    # basically the same as the one from use_modernised.py in the pyrevolve examples
+    """One atomic part of the checkpointed data."""
+
     def __init__(self, data_dim):
         self._storage = np.zeros(data_dim)
         self._data_dim = data_dim
@@ -20,7 +24,7 @@ class RungeKuttaIntegratorSymbol:
         if isinstance(value, np.ndarray):
             self._storage = value
         else:
-            raise Exception("Symbol data must be a numpy array.")
+            raise TypeError("Symbol data must be a numpy array.")
 
     @property
     def size(self):
@@ -28,6 +32,8 @@ class RungeKuttaIntegratorSymbol:
 
 
 class RungeKuttaCheckpoint(pr.Checkpoint):
+    """Blueprint for one checkpoint."""
+
     def __init__(self, symbols: dict):
         if isinstance(symbols, Mapping):
             self.symbols: dict = symbols
@@ -57,29 +63,24 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
 
 
 class RungeKuttaForwardOperator(pr.Operator):
+    """Forward operator of the Runge-Kutta-integrator (i.e. the normal time integration)."""
+
+    serialized_old_state_symbol: RungeKuttaIntegratorSymbol
+    serialized_new_state_symbol: RungeKuttaIntegratorSymbol
+    fwd_operation: Callable[[int, np.ndarray], np.ndarray]
+
     def __init__(
         self,
         serialized_old_state_symbol: RungeKuttaIntegratorSymbol,
         serialized_new_state_symbol: RungeKuttaIntegratorSymbol,
-        state_size: int,
-        postproc_size: int,
-        functional_size: int,
-        stage_number: int,
         fwd_operation: Callable[
             [int, np.ndarray],
             np.ndarray,
         ],
     ):
-        self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = (
-            serialized_old_state_symbol
-        )
-        self.serialized_new_state_symbol: RungeKuttaIntegratorSymbol = (
-            serialized_new_state_symbol
-        )
-        self.fwd_operation: Callable[
-            [int, np.ndarray],
-            np.ndarray,
-        ] = fwd_operation
+        self.serialized_old_state_symbol = serialized_old_state_symbol
+        self.serialized_new_state_symbol = serialized_new_state_symbol
+        self.fwd_operation = fwd_operation
 
     def apply(self, t_start: int, t_end: int):
         for step in range(t_start + 1, t_end + 1):
@@ -92,8 +93,13 @@ class RungeKuttaForwardOperator(pr.Operator):
             )
 
 
-# TODO: the type hints are probably not necessary in both the signature and the init_body
 class RungeKuttaReverseOperator(pr.Operator):
+    """Backward operator of the Runge-Kutta-integrator (i.e. one reverse step)."""
+
+    serialized_old_state_symbol: RungeKuttaIntegratorSymbol
+    serialized_state_perturbations: np.ndarray
+    rev_operation: Callable[[int, np.ndarray, np.ndarray], np.ndarray]
+
     def __init__(
         self,
         serialized_old_state_symbol: RungeKuttaIntegratorSymbol,
@@ -103,14 +109,9 @@ class RungeKuttaReverseOperator(pr.Operator):
             np.ndarray,
         ],
     ):
-        self.serialized_old_state_symbol: RungeKuttaIntegratorSymbol = (
-            serialized_old_state_symbol
-        )
-        self.serialized_state_perturbations: np.ndarray = np.zeros(state_size)
-        self.rev_operation: Callable[
-            [int, np.ndarray, np.ndarray],
-            np.ndarray,
-        ] = rev_operation
+        self.serialized_old_state_symbol = serialized_old_state_symbol
+        self.serialized_state_perturbations = np.zeros(state_size)
+        self.rev_operation = rev_operation
 
     def apply(self, t_start: int, t_end: int):
         for step in range(t_end, t_start, -1):

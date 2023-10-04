@@ -29,6 +29,7 @@ def create_split_heat_group(
     nonlinear_solver: NonlinearSolver = om.NewtonSolver(solve_subsystems=True),
     linear_solver: LinearSolver = om.PETScKrylov(),
 ) -> om.Group:
+    """Creates openMDAO group that contains everything necessary to model two heat equations on a split domain."""
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
     domain_half_1 = Domain([0.0, 0.5], [0.0, 1.0], points_x, points_per_direction)
@@ -112,7 +113,7 @@ def create_split_heat_group(
         ],
         promotes_outputs=[("stage_value", "stage_heat_2")],
     )
-    heat_group_2.set_input_defaults("heat_2", val=heat_equation_1.initial_vector)
+    heat_group_2.set_input_defaults("heat_2", val=heat_equation_2.initial_vector)
     heat_group_2.nonlinear_solver = om.NonlinearRunOnce()
     heat_group_2.linear_solver = om.LinearRunOnce()
 
@@ -120,7 +121,9 @@ def create_split_heat_group(
 
     split_heat_group.add_subsystem(
         "flux_comp",
-        FluxComponent(delta=delta_x, shape=points_per_direction, orientation="vertical"),
+        FluxComponent(
+            delta=delta_x, shape=points_per_direction, orientation="vertical"
+        ),
     )
 
     left_boundary_indices_1 = domain_half_2.boundary_indices("left") + 1
@@ -138,8 +141,12 @@ def create_split_heat_group(
         src_indices=left_boundary_indices_1,
     )
 
-    split_heat_group.connect("flux_comp.flux", "heat_component_1.boundary_segment_right")
-    split_heat_group.connect("flux_comp.reverse_flux", "heat_component_2.boundary_segment_left")
+    split_heat_group.connect(
+        "flux_comp.flux", "heat_component_1.boundary_segment_right"
+    )
+    split_heat_group.connect(
+        "flux_comp.reverse_flux", "heat_component_2.boundary_segment_left"
+    )
 
     split_heat_group.nonlinear_solver = nonlinear_solver
     split_heat_group.linear_solver = linear_solver

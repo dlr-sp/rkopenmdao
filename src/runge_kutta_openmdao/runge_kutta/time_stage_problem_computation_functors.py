@@ -1,23 +1,32 @@
-from typing import Tuple, Union
+"""
+Wrapper classes to make a openMDAO problem modelling a time stage for the Runge-Kutta integrator usable with the
+RungeKuttaScheme class.
+"""
+
+from typing import Tuple
 
 import numpy as np
 import openmdao.api as om
 
 from .integration_control import IntegrationControl
+from .errors import TimeStageError
 
 
 class TimeStageProblemComputeFunctor:
+    """
+    Wraps an openMDAO problem (specifically its models run_solve_nonlinear method) to a functor usable in the
+    RungeKuttaScheme class.
+    """
+
     def __init__(
         self,
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
-        resets: Union[bool, list],
     ):
         self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
-        self.resets = resets
 
     def __call__(
         self,
@@ -27,8 +36,6 @@ class TimeStageProblemComputeFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
-        if self.resets:
-            self.reset_values()
         self.fill_inputs(old_state, accumulated_stages)
 
         self.integration_control.stage_time = stage_time
@@ -40,16 +47,9 @@ class TimeStageProblemComputeFunctor:
         self.get_outputs(stage_state)
         return stage_state
 
-    def reset_values(self):
-        if isinstance(self.resets, bool):
-            self.time_stage_problem.model._outputs.imul(0.0)
-            self.time_stage_problem.model._inputs.imul(0.0)
-        else:
-            for var in self.resets:
-                self.time_stage_problem[var] *= 0.0
-
     def fill_inputs(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Write data into the input vectors of the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
@@ -65,7 +65,8 @@ class TimeStageProblemComputeFunctor:
                     )
 
     def get_outputs(self, stage_state: np.ndarray):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Extract data from the output vectors of the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
@@ -75,6 +76,11 @@ class TimeStageProblemComputeFunctor:
 
 
 class TimeStageProblemComputeJacvecFunctor:
+    """
+    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
+    RungeKuttaScheme class. Uses the 'fwd'-mode of said function.
+    """
+
     def __init__(
         self,
         time_stage_problem: om.Problem,
@@ -119,7 +125,8 @@ class TimeStageProblemComputeJacvecFunctor:
         accumulated_stage_perturbation: np.ndarray,
         seed,
     ):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Write data into a seed to be used by the compute_jacvec_product function by the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
@@ -134,7 +141,8 @@ class TimeStageProblemComputeJacvecFunctor:
                     )
 
     def extract_jvp(self, jvp: dict, stage_perturbation: np.ndarray):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Extracts data from the result of the owned problems compute_jacvec_product functions."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
@@ -143,15 +151,22 @@ class TimeStageProblemComputeJacvecFunctor:
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
+        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
             self.time_stage_problem.model._inputs.set_vec(inputs)
             self.time_stage_problem.model._outputs.set_vec(outputs)
         elif inputs is not None or outputs is not None:
-            # TODO: raise actual error
-            print("Error")
+            raise TimeStageError(
+                "Either both or none of inputs and outputs must be given."
+            )
 
 
 class TimeStageProblemComputeTransposeJacvecFunctor:
+    """
+    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
+    RungeKuttaScheme class. Uses the 'rev'-mode of said function.
+    """
+
     def __init__(
         self,
         time_stage_problem: om.Problem,
@@ -189,7 +204,8 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         return old_state_perturbation, accumulated_stage_perturbation
 
     def fill_seed(self, stage_perturbation: np.ndarray, seed: dict):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Write data into a seed to be used by the compute_jacvec_product function by the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
@@ -203,7 +219,8 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         old_state_perturbation: np.ndarray,
         accumulated_stage_perturbation: np.ndarray,
     ):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Extracts data from the result of the owned problems compute_jacvec_product functions."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
@@ -216,11 +233,11 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
                     ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
-        # linearize always needs to be called, this checks whether we need to solve the nonlinear
-        # system beforehand (e.g. due to manually changed inputs/outputs)
+        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
             self.time_stage_problem.model._inputs.set_vec(inputs)
             self.time_stage_problem.model._outputs.set_vec(outputs)
         elif inputs is not None or outputs is not None:
-            # TODO: raise actual error
-            print("Error")
+            raise TimeStageError(
+                "Either both or none of inputs and outputs must be given."
+            )

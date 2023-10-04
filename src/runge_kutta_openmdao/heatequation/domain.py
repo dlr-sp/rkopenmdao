@@ -1,13 +1,9 @@
-"""
-Describes the domain of the heat equation, and its discretization
-"""
-
 import numpy as np
 
 
 class Domain:
     """
-    Class for the domain of the heat equation
+    Class for the description of the domain for the heatequation class.
     """
 
     def __init__(
@@ -83,4 +79,3 @@ class Domain:
         ij_arr[1] = index // self.n_x
         ij_arr[0] = index - ij_arr[1] * self.n_x
         return ij_arr
-

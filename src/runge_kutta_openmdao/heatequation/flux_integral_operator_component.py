@@ -1,6 +1,3 @@
-"""
-Simple integration via trapezoidal rule"""
-
 import numpy as np
 import openmdao.api as om
 
@@ -8,6 +5,10 @@ from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationCont
 
 
 class FluxIntegralOperatorComponent(om.ExplicitComponent):
+    """
+    Simple integration via trapezoidal rule
+    """
+
     def initialize(self):
         self.options.declare("delta")
         self.options.declare("shape")
@@ -17,9 +18,14 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
     def setup(self):
         delta_t = self.options["integration_control"].delta_t
         self.add_input("flux", shape=self.options["shape"])
-        self.add_input("initial_flux", val=0.0, shape=1, tags=["step_input_var", "heat_integral"])
         self.add_input(
-            "flux_acc_stage", val=0.0, shape=1, tags=["accumulated_stage_var", "heat_integral"]
+            "initial_flux", val=0.0, shape=1, tags=["step_input_var", "heat_integral"]
+        )
+        self.add_input(
+            "flux_acc_stage",
+            val=0.0,
+            shape=1,
+            tags=["accumulated_stage_var", "heat_integral"],
         )
         self.add_output(
             "integrated_flux_stage",
@@ -47,7 +53,10 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
             d_outputs["integrated_flux_stage"] += (
                 self.options["delta"]
                 * self.options["heat_coefficient"]
-                * (np.sum(d_inputs["flux"]) - 0.5 * (d_inputs["flux"][0] + d_inputs["flux"][-1]))
+                * (
+                    np.sum(d_inputs["flux"])
+                    - 0.5 * (d_inputs["flux"][0] + d_inputs["flux"][-1])
+                )
             )
             d_outputs["integrated_flux_stage"] -= d_inputs["initial_flux"]
             d_outputs["integrated_flux_stage"] -= delta_t * d_inputs["flux_acc_stage"]
@@ -74,4 +83,6 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
             d_inputs["flux"] /= divisor
 
             d_inputs["initial_flux"] -= d_outputs["integrated_flux_stage"] / divisor
-            d_inputs["flux_acc_stage"] -= delta_t * d_outputs["integrated_flux_stage"] / divisor
+            d_inputs["flux_acc_stage"] -= (
+                delta_t * d_outputs["integrated_flux_stage"] / divisor
+            )

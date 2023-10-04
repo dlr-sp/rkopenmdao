@@ -1,9 +1,6 @@
 [MASTER]
-init-hook="from pylint.config import find_pylintrc; import os, sys; sys.path.append(os.path.dirname(find_pylintrc()))"
-
 max-args = 7
-
-ignore-paths=**/.vscode-server/**/*.pyi,**/.vscode-server/**/*.py,ignore-paths=**/.vscode-server/**
+disable=C0103
 
 [BASIC]
 
@@ -12,4 +9,4 @@ good-names=ax, im, x, y, i, j, f, g, t
 
 [FORMAT]
 
-max-line-length=100
+max-line-length=120

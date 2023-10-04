@@ -1,8 +1,20 @@
+"""
+Wrapper classes to make a openMDAO problem used for postprocessing in the Runge-Kutta integrator usable with the
+Postprocessor class.
+"""
+
 import numpy as np
 import openmdao.api as om
 
+from .errors import PostprocessingError
+
 
 class PostprocessingProblemComputeFunctor:
+    """
+    Wraps an openMDAO problem (specifically its models run_solve_nonlinear method) to a functor usable in the
+    Postprocessor class.
+    """
+
     def __init__(
         self,
         postprocessing_problem: om.Problem,
@@ -23,7 +35,8 @@ class PostprocessingProblemComputeFunctor:
         return postproc_state
 
     def fill_inputs(self, input_vector):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Write data into the input vectors of the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if (
                 metadata["type"] == "time_integration"
                 and "postproc_input_var" in metadata
@@ -36,7 +49,8 @@ class PostprocessingProblemComputeFunctor:
                 )
 
     def get_outputs(self, postproc_state: np.ndarray):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Extract data from the output vectors of the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "postprocessing":
                 start = metadata["numpy_postproc_start_index"]
                 end = metadata["numpy_postproc_end_index"]
@@ -46,6 +60,11 @@ class PostprocessingProblemComputeFunctor:
 
 
 class PostprocessingProblemComputeJacvecFunctor:
+    """
+    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
+    Postprocessor class. Uses the 'fwd'-mode of said function.
+    """
+
     def __init__(
         self,
         postprocessing_problem: om.Problem,
@@ -74,7 +93,8 @@ class PostprocessingProblemComputeJacvecFunctor:
         return postproc_perturbations
 
     def fill_seed(self, input_vector, seed):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Write data into a seed to be used by the compute_jacvec_product function by the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if (
                 metadata["type"] == "time_integration"
                 and "postproc_input_var" in metadata
@@ -86,7 +106,8 @@ class PostprocessingProblemComputeJacvecFunctor:
                 )
 
     def extract_jvp(self, jvp: dict, postproc_perturbations: np.ndarray):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Extracts data from the result of the owned problems compute_jacvec_product functions."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "postprocessing":
                 start = metadata["numpy_postproc_start_index"]
                 end = metadata["numpy_postproc_end_index"]
@@ -95,15 +116,22 @@ class PostprocessingProblemComputeJacvecFunctor:
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
+        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
             self.postprocessing_problem.model._inputs = inputs
             self.postprocessing_problem.model._outputs = outputs
         elif inputs is not None or outputs is not None:
-            # TODO: raise actual error
-            print("Error")
+            raise PostprocessingError(
+                "Either both or none of inputs and outputs must be given."
+            )
 
 
 class PostprocessingProblemComputeTransposeJacvecFunctor:
+    """
+    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
+    Postprocessor class. Uses the 'rev'-mode of said function.
+    """
+
     def __init__(
         self,
         postprocessing_problem: om.Problem,
@@ -132,7 +160,8 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
         return input_perturbations
 
     def fill_seed(self, postproc_perturbations, seed):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Write data into a seed to be used by the compute_jacvec_product function by the owned problem."""
+        for metadata in self.quantity_metadata.values():
             if metadata["type"] == "postprocessing":
                 start = metadata["numpy_postproc_start_index"]
                 end = metadata["numpy_postproc_end_index"]
@@ -141,7 +170,8 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
                 ].reshape(metadata["shape"])
 
     def extract_jvp(self, jvp: dict, input_perturbations: np.ndarray):
-        for quantity, metadata in self.quantity_metadata.items():
+        """Extracts data from the result of the owned problems compute_jacvec_product functions."""
+        for metadata in self.quantity_metadata.values():
             if (
                 metadata["type"] == "time_integration"
                 and "postproc_input_var" in metadata
@@ -153,9 +183,11 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
+        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
             self.postprocessing_problem.model._inputs = inputs
             self.postprocessing_problem.model._outputs = outputs
         elif inputs is not None or outputs is not None:
-            # TODO: raise actual error
-            print("Error")
+            raise PostprocessingError(
+                "Either both or none of inputs and outputs must be given."
+            )

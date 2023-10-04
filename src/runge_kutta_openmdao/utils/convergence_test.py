@@ -1,6 +1,6 @@
 import numpy as np
 import openmdao.api as om
-import scipy.stats
+
 
 import matplotlib.pyplot as plt
 
@@ -15,7 +15,6 @@ from .convergence_test_components import (
 from runge_kutta_openmdao.runge_kutta.runge_kutta_integrator import RungeKuttaIntegrator
 from runge_kutta_openmdao.runge_kutta.integration_control import IntegrationControl
 from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
-    explicit_euler,
     implicit_euler,
     implicit_midpoint,
     second_order_two_stage_sdirk,
@@ -31,7 +30,6 @@ from runge_kutta_openmdao.runge_kutta.butcher_tableaux import (
     fifth_order_five_stage_sdirk,
     fourth_order_six_stage_esdirk,
     fifth_order_six_stage_esdirk,
-    runge_kutta_four,
     third_order_second_weak_stage_order_four_stage_dirk,
     third_order_third_weak_stage_order_four_stage_dirk,
     fourth_order_third_weak_stage_order_six_stage_dirk,

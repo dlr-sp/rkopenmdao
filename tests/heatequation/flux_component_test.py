@@ -30,10 +30,21 @@ def test_flux_component_computation(delta, vector_1, vector_2, orientation, expe
         test_vec["lower_side"] = vector_1
         test_vec["upper_side"] = vector_2
 
-    test_result = {"flux": np.zeros_like(vector_1), "reverse_flux": np.zeros_like(vector_2)}
-    flux_comp.compute(test_vec, test_result)
+    test_result = {
+        "flux": np.zeros_like(vector_1),
+        "reverse_flux": np.zeros_like(vector_2),
+    }
+
+    test_residual = {
+        "flux": np.zeros_like(vector_1),
+        "reverse_flux": np.zeros_like(vector_2),
+    }
+    flux_comp.solve_nonlinear(test_vec, test_result)
+    flux_comp.apply_nonlinear(test_vec, test_result, test_residual)
     assert test_result["flux"] == pytest.approx(expected)
     assert test_result["reverse_flux"] == pytest.approx(-expected)
+    assert test_residual["flux"] == pytest.approx(np.zeros_like(vector_1))
+    assert test_residual["reverse_flux"] == pytest.approx(np.zeros_like(vector_2))
 
 
 @pytest.mark.heatequ
@@ -48,7 +59,7 @@ def test_flux_component_partials(delta, shape, orientation):
     test_prob.model.add_subsystem("flux_comp", flux_comp)
     test_prob.setup()
     test_prob.run_model()
-    test_data = test_prob.check_partials(out_stream=None, step=1e-1)
+    test_data = test_prob.check_partials(step=1e-1)
     assert_check_partials(test_data)
 
 
@@ -64,7 +75,6 @@ def test_flux_component_partials(delta, shape, orientation):
     ),
 )
 def test_flux_component_compute_and_jacvec(delta, vector_1, vector_2, orientation):
-    test_prob = om.Problem()
     assert vector_1.size == vector_2.size
     flux_comp = FluxComponent(delta=delta, shape=vector_1.size, orientation=orientation)
     flux_comp.setup()
@@ -81,9 +91,22 @@ def test_flux_component_compute_and_jacvec(delta, vector_1, vector_2, orientatio
         test_vec["upper_side"] = vector_2
         test_d_inputs["upper_side"] = np.zeros_like(vector_2)
 
-    test_result = {"flux": np.zeros_like(vector_1), "reverse_flux": np.zeros_like(vector_2)}
-    test_d_result = {"flux": np.zeros_like(vector_1), "reverse_flux": np.zeros_like(vector_2)}
-    flux_comp.compute(test_vec, test_result)
-    flux_comp.compute_jacvec_product(None, test_vec, test_d_result, "fwd")
-    assert test_result["flux"] == pytest.approx(test_d_result["flux"])
-    assert test_result["reverse_flux"] == pytest.approx(test_d_result["reverse_flux"])
+    test_result = {
+        "flux": np.zeros_like(vector_1),
+        "reverse_flux": np.zeros_like(vector_2),
+    }
+    test_residual = {
+        "flux": np.zeros_like(vector_1),
+        "reverse_flux": np.zeros_like(vector_2),
+    }
+    test_d_residual = {
+        "flux": np.zeros_like(vector_1),
+        "reverse_flux": np.zeros_like(vector_2),
+    }
+    flux_comp.solve_nonlinear(test_vec, test_result)
+    flux_comp.apply_nonlinear(test_vec, test_result, test_residual)
+    flux_comp.apply_linear(None, None, test_vec, test_result, test_d_residual, "fwd")
+    assert test_residual["flux"] == pytest.approx(test_d_residual["flux"])
+    assert test_residual["reverse_flux"] == pytest.approx(
+        test_d_residual["reverse_flux"]
+    )

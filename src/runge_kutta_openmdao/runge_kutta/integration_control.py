@@ -3,6 +3,10 @@ from dataclasses import dataclass
 
 @dataclass
 class IntegrationControl:
+    """
+    Object for exchanging data between the Runge-Kutta integrator and the inner problems.
+    """
+
     # General information
     initial_time: float
     num_steps: int
@@ -21,6 +25,9 @@ class IntegrationControl:
     butcher_diagonal_element: float = 0.0
 
     def reset(self):
+        """
+        Returns the instance to its initial state.
+        """
         self.step = 0
         self.step_time_old = self.initial_time
         self.step_time_new = self.initial_time
