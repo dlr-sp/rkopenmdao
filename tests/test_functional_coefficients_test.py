@@ -21,10 +21,6 @@ from .test_postprocessing_problems import (
     create_negating_problem,
 )
 
-from .test_postprocessing_problems import (
-    negating_function,
-)
-
 from .test_functional_coefficients import (
     AverageCoefficients,
     CompositeTrapezoidalCoefficients,

@@ -7,7 +7,7 @@ import pyrevolve as pr
 import numpy as np
 
 
-# basically the same as the one from use_modernised.py in the pyrevolve exampless
+# basically the same as the one from use_modernised.py in the pyrevolve examples
 class RungeKuttaIntegratorSymbol:
     """One atomic part of the checkpointed data."""
 
@@ -114,7 +114,7 @@ class RungeKuttaReverseOperator(pr.Operator):
         self.rev_operation = rev_operation
 
     def apply(self, t_start: int, t_end: int):
-        for step in range(t_end, t_start, -1):
+        for step in reversed(range(t_start + 1, t_end + 1)):
             self.serialized_state_perturbations = self.rev_operation(
                 step,
                 self.serialized_old_state_symbol.data,

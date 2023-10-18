@@ -155,8 +155,7 @@ class RungeKuttaScheme:
         new_state_perturbation: np.ndarray,
         accumulated_stages_perturbation_field: np.ndarray,
     ) -> np.ndarray:
-        # TODO
-        """Joins perturbations of the new state of of the accumulated stages."""
+        """Joins perturbations of the new state of the accumulated stages."""
         joined_perturbation = (
             self.butcher_tableau.butcher_weight_vector[stage] * new_state_perturbation
         )

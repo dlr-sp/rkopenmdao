@@ -50,20 +50,20 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _wrt_vars_postproc: list
 
     _runge_kutta_scheme: Optional[RungeKuttaScheme]
-    _serialized_state: np.ndarray
-    _accumulated_stages: np.ndarray
-    _stage_cache: np.ndarray
-    _serialized_state_perturbations: np.ndarray
-    _serialized_state_perturbations_from_functional: np.ndarray
-    _accumulated_stage_perturbations: np.ndarray
-    _stage_perturbations_cache: np.ndarray
+    _serialized_state: Optional[np.ndarray]
+    _accumulated_stages: Optional[np.ndarray]
+    _stage_cache: Optional[np.ndarray]
+    _serialized_state_perturbations: Optional[np.ndarray]
+    _serialized_state_perturbations_from_functional: Optional[np.ndarray]
+    _accumulated_stage_perturbations: Optional[np.ndarray]
+    _stage_perturbations_cache: Optional[np.ndarray]
 
     _postprocessor: Optional[Postprocessor]
-    _postprocessing_state: np.ndarray
-    _postprocessing_state_perturbations: np.ndarray
+    _postprocessing_state: Optional[np.ndarray]
+    _postprocessing_state_perturbations: Optional[np.ndarray]
 
-    _functional_part: np.ndarray
-    _functional_part_perturbations: np.ndarray
+    _functional_part: Optional[np.ndarray]
+    _functional_part_perturbations: Optional[np.ndarray]
 
     _numpy_array_size: int
     _numpy_postproc_size: int
@@ -88,20 +88,20 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._wrt_vars_postproc = []
 
         self._runge_kutta_scheme = None
-        self._serialized_state = np.zeros(0)
-        self._accumulated_stages = np.zeros(0)
-        self._stage_cache = np.zeros(0)
-        self._serialized_state_perturbations = np.zeros(0)
-        self._serialized_state_perturbations_from_functional = np.zeros(0)
-        self._accumulated_stage_perturbations = np.zeros(0)
-        self._stage_perturbations_cache = np.zeros(0)
+        self._serialized_state = None
+        self._accumulated_stages = None
+        self._stage_cache = None
+        self._serialized_state_perturbations = None
+        self._serialized_state_perturbations_from_functional = None
+        self._accumulated_stage_perturbations = None
+        self._stage_perturbations_cache = None
 
         self._postprocessor = None
-        self._postprocessing_state = np.zeros(0)
-        self._postprocessing_state_perturbations = np.zeros(0)
+        self._postprocessing_state = None
+        self._postprocessing_state_perturbations = None
 
-        self._functional_part = np.zeros(0)
-        self._functional_part_perturbations = np.zeros(0)
+        self._functional_part = None
+        self._functional_part_perturbations = None
 
         self._numpy_array_size = 0
         self._numpy_postproc_size = 0
@@ -180,24 +180,40 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare(
             "time_integration_quantities",
             types=list,
-            desc="""List of tags that are used to find inputs and outputs in the time_stage_problem, and to find inputs
-                in the post_processing_problem.""",
+            desc="""List of tags used to describe the quantities that are time integrated by the RK integrator. These
+            tags fulfil multiple roles, and need to be set at different points in the inner problems:
+                1. Based on these tags, inputs and outputs are added to the RK integrator. Per tag there will be 
+                *tag*_initial as input and *tag*_final as output.
+                2. Inputs and outputs with these tags need to be present in the time_stage_problem. In detail, per tag
+                there need to be either both inputs tagged with [*tag*,"step_input_var", ...] and 
+                [*tag*, "accumulated_stage_var", ...] as well as an output with [*tag*, "stage_output_var", ...], or 
+                just an output with [*tag*, "stage_output_var"] (in case where there is no dependence on the previous 
+                state of the quantity in the ODE)
+                3. If you use postprocessing, and if the postprocessing should use the quantity, than there needs to be
+                an input with the tags [*tag*, "postproc_input_var", ...] somewhere in the postprocessing_problem.
+                """,
         )
 
         self.options.declare(
             "postprocessing_quantities",
             types=list,
             default=[],
-            desc="""List of tags that are used to find outputs in the postprocessing_problem.""",
+            desc="""List of tags used to describe the quantities computed by the postprocessing. These tags fulfil
+            multiple roles:
+                1. Based on these tags, outputs are added to the RK integrator. Per tag there will be *tag*_final as 
+                output, containing the postprocessing of the final state of the time integration.
+                2. Outputs with these tags need to be present in the postprocessing_problem. In detail, per tag there 
+                needs to be an output with the tags [*tag*, "postproc_output_var].""",
         )
 
         self.options.declare(
             "functional_coefficients",
             types=FunctionalCoefficients,
             default=EmptyFunctionalCoefficients(),  # By default, don't compute any linear combination.
-            desc="""A FunctionalCoefficients object that can return a list of quantities (both time integration and
-                postprocessing ones) over which a linear combination is evaluated, as well as a coefficient given a time
-                step and a quantity.""",
+            desc="""A FunctionalCoefficients object that can return a list of quantities (which needs to be a subset of
+            the time integration and postprocessing ones) over which linear combinations are evaluated, as well as a 
+            coefficient given a time step and a quantity. Per quantity returned by the object, an output is added, named
+            *quantity*_functional.""",
         )
 
         self.options.declare(
@@ -649,7 +665,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 1 if self.options["integration_control"].num_steps == 1 else None
             )
 
-    def compute(self, inputs, outputs):  # pylint: disable = arguments-differ
+    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         self._compute_preparation_phase(inputs)
         self._compute_postprocessing_phase()
         self._compute_initial_write_out_phase()
@@ -908,7 +924,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
 
     def compute_jacvec_product(
-        self, inputs, d_inputs, d_outputs, mode
+        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
     ):  # pylint: disable = arguments-differ
         if mode == "fwd":
             print("starting fwd_mode_jacvec")
@@ -1165,7 +1181,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
         # backward iteration
 
-        for stage in range(butcher_tableau.number_of_stages() - 1, -1, -1):
+        for stage in reversed(range(butcher_tableau.number_of_stages())):
             linearization_args = {
                 "inputs": inputs_cache[stage],
                 "outputs": outputs_cache[stage],

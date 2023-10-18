@@ -27,7 +27,7 @@ class FdmMatrix:
         new_vector -= 2 * old_vector_reshape / self.domain.delta_x**2
         new_vector -= 2 * old_vector_reshape / self.domain.delta_y**2
 
-        # direct sup/superdiagonal coming from the x-direction
+        # direct sub/superdiagonal coming from the x-direction
         new_vector[:, 0] += 2 * old_vector_reshape[:, 1] / self.domain.delta_x**2
         new_vector[:, self.domain.n_x - 1] += (
             2 * old_vector_reshape[:, self.domain.n_x - 2] / self.domain.delta_x**2
@@ -36,7 +36,7 @@ class FdmMatrix:
             old_vector_reshape[:, : self.domain.n_x - 2] + old_vector_reshape[:, 2:]
         ) / self.domain.delta_x**2
 
-        # sup/superdiagonal coming from the y-direction
+        # sub/superdiagonal coming from the y-direction
         new_vector[0, :] += 2 * old_vector_reshape[1, :] / self.domain.delta_y**2
         new_vector[self.domain.n_y - 1, :] += (
             2 * old_vector_reshape[self.domain.n_y - 2, :] / self.domain.delta_y**2

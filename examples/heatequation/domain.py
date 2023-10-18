@@ -57,7 +57,7 @@ class Domain:
 
     def ij_coordinates(self, i: int, j: int) -> np.ndarray:
         """
-        Return the coordinates of the i-th point in x-, and and j-th point in y-direction
+        Return the coordinates of the i-th point in x-, and j-th point in y-direction
         """
         coordinate = np.zeros(2)
         coordinate[0] = self.x_range[0] + i * self.delta_x

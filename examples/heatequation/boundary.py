@@ -2,7 +2,7 @@ from typing import Callable
 import numpy as np
 
 
-# TODO: either block non-None nonCallables, or create a constant lamba out of it
+# TODO: either block non-None nonCallables, or create a constant lambda out of it
 
 
 class BoundaryCondition:

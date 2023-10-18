@@ -59,7 +59,7 @@ class InhomogeneityVector:
     def update_boundary_inhomogeneity(
         self, time=None, upper=None, lower=None, left=None, right=None
     ) -> None:
-        "Updates boundary inhomogeneity to the current time (or by user)"
+        """Updates boundary inhomogeneity to the current time (or by user)"""
         update_kinds = self.boundary_condition.boundary_update_kind()
         if time is not None:
             self.self_updating_boundary_inhomogeneity = np.zeros_like(

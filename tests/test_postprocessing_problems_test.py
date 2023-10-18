@@ -14,7 +14,6 @@ from .test_components import Test4Solution, Test6Solution
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     second_order_two_stage_sdirk as two_stage_dirk,
-    runge_kutta_four,
 )
 
 

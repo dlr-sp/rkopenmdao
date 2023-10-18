@@ -11,8 +11,8 @@ from . import fdm_matrix, domain, boundary, inhomogeneity
 
 class HeatEquation:
     """
-    Class summarizing the necessary information about an Heat equation
-    and its FDM descretization
+    Class summarizing the necessary information about a Heat equation
+    and its FDM discretization
     """
 
     def __init__(
@@ -49,7 +49,7 @@ class HeatEquation:
         self.time = start_time
         self.solver_options = solver_options
 
-        # we use a 1d array instead of a 2d one because its a diagonal matrix and it can be
+        # we use a 1d array instead of a 2d one because it is a diagonal matrix and it can be
         # emulated via the hadamard product
         self.mass_matrix = np.ones_like(self.initial_vector)
         self.mass_matrix[0 : self.domain.n_x] /= 2
