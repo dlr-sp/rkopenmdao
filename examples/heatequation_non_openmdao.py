@@ -3,10 +3,10 @@
 import numpy as np
 
 
-from rkopenmdao.heatequation import heatequation
-from rkopenmdao.heatequation.domain import Domain
-from rkopenmdao.heatequation.boundary import BoundaryCondition
-from rkopenmdao.runge_kutta.butcher_tableaux import (
+from heatequation import heatequation
+from heatequation.domain import Domain
+from heatequation.boundary import BoundaryCondition
+from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
 
@@ -36,7 +36,7 @@ heatequation = heatequation.HeatEquation(
     example_boundary,
     1.0,
     lambda x, y: g(x) * g(y) + 1,
-    {"tol": 1e-15, "atol": "legacy"},
+    {"tol": 1e-10, "atol": 1e-10},
 )
 
 heatequation.solve_heat_equation(butcher_tableau, 1e-3, 100, "monolithic.h5", 1)

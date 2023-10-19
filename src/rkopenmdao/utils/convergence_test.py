@@ -4,7 +4,7 @@ import openmdao.api as om
 
 import matplotlib.pyplot as plt
 
-from .convergence_test_components import (
+from convergence_test_components import (
     KapsGroup,
     KapsSolution,
     SimpleLinearODE,

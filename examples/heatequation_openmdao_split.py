@@ -8,12 +8,12 @@ import openmdao.api as om
 
 from heatequation.boundary import BoundaryCondition
 from heatequation.split_heat_group import create_split_heat_group
-from rkopenmdao.runge_kutta.runge_kutta_integrator import (
+from rkopenmdao.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
-from rkopenmdao.runge_kutta.integration_control import IntegrationControl
+from rkopenmdao.integration_control import IntegrationControl
 
-from rkopenmdao.runge_kutta.butcher_tableaux import (
+from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
 

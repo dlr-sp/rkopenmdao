@@ -9,11 +9,11 @@ from heatequation.heatequation import HeatEquation
 from heatequation.heatequation_stage_component import (
     HeatEquationStageComponent,
 )
-from rkopenmdao.runge_kutta.runge_kutta_integrator import (
+from rkopenmdao.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
-from rkopenmdao.runge_kutta.integration_control import IntegrationControl
-from rkopenmdao.runge_kutta.butcher_tableaux import (
+from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
 

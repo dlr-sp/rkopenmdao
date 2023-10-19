@@ -10,12 +10,12 @@ import openmdao.api as om
 
 from scipy.constants import g as gravity_accel
 
-from rkopenmdao.runge_kutta.butcher_tableaux import (
+from rkopenmdao.butcher_tableaux import (
     third_order_four_stage_esdirk,
 )
-from rkopenmdao.runge_kutta.integration_control import IntegrationControl
-from rkopenmdao.runge_kutta.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.runge_kutta.stage_value_component import StageValueComponent
+from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.stage_value_component import StageValueComponent
 
 
 class VelocityComponent(om.ExplicitComponent):

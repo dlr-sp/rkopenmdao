@@ -16,119 +16,169 @@ implicit_euler = ButcherTableau(np.array([[1.0]]), np.array([1.0]), np.array([1.
 implicit_midpoint = ButcherTableau(np.array([[0.5]]), np.array([1.0]), np.array([0.5]))
 
 # two stage methods
-gamma = (2.0 - np.sqrt(2.0)) / 2.0
-second_order_two_stage_sdirk = ButcherTableau(
-    np.array([[gamma, 0.0], [1 - gamma, gamma]]),
-    np.array([1 - gamma, gamma]),
-    np.array([gamma, 1.0]),
-)
 
-gamma = 0.5 + np.sqrt(3.0) / 6
-c_2 = 0.5 - np.sqrt(3.0) / 6
-third_order_two_stage_sdirk = ButcherTableau(
-    np.array([[gamma, 0.0], [c_2 - gamma, gamma]]),
-    np.array([0.5, 0.5]),
-    np.array([gamma, c_2]),
-)
+
+def create_second_order_two_stage_sdirk():
+    gamma = (2.0 - np.sqrt(2.0)) / 2.0
+    tableau = ButcherTableau(
+        np.array([[gamma, 0.0], [1 - gamma, gamma]]),
+        np.array([1 - gamma, gamma]),
+        np.array([gamma, 1.0]),
+    )
+    return tableau
+
+
+second_order_two_stage_sdirk = create_second_order_two_stage_sdirk()
+
+
+def create_third_order_two_stage_sdirk():
+    gamma = 0.5 + np.sqrt(3.0) / 6
+    c2 = 0.5 - np.sqrt(3.0) / 6
+    tableau = ButcherTableau(
+        np.array([[gamma, 0.0], [c2 - gamma, gamma]]),
+        np.array([0.5, 0.5]),
+        np.array([gamma, c2]),
+    )
+    return tableau
+
+
+third_order_two_stage_sdirk = create_third_order_two_stage_sdirk()
+
 
 # three stage methods
-gamma = (2.0 - np.sqrt(2.0)) / 2.0
-b_2 = (1 - 2 * gamma) / (4 * gamma)
-second_order_three_stage_esdirk = ButcherTableau(
-    np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [gamma, gamma, 0.0],
-            [1 - b_2 - gamma, b_2, gamma],
-        ]
-    ),
-    np.array([1 - b_2 - gamma, b_2, gamma]),
-    np.array([0.0, 2 * gamma, 1.0]),
-)
+def create_second_order_three_stage_esdirk():
+    gamma = (2.0 - np.sqrt(2.0)) / 2.0
+    b2 = (1 - 2 * gamma) / (4 * gamma)
+    tableau = ButcherTableau(
+        np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [gamma, gamma, 0.0],
+                [1 - b2 - gamma, b2, gamma],
+            ]
+        ),
+        np.array([1 - b2 - gamma, b2, gamma]),
+        np.array([0.0, 2 * gamma, 1.0]),
+    )
+    return tableau
 
 
-gamma = (3.0 + np.sqrt(3.0)) / 6.0
-c_3 = 2 * gamma - np.sqrt((2 + np.sqrt(3.0)) / 3)
-a_32 = c_3 * (c_3 - 2 * gamma) / (4 * gamma)
-b_2 = (-2.0 + 3.0 * c_3) / (12.0 * (c_3 - 2 * gamma) * gamma)
-b_3 = (1 - 3.0 * gamma) / (3 * c_3 * (c_3 - 2 * gamma))
-third_order_three_stage_esdirk = ButcherTableau(
-    np.array(
-        [
-            [0.0, 0.0, 0.0],
-            [gamma, gamma, 0.0],
-            [c_3 - a_32 - gamma, a_32, gamma],
-        ]
-    ),
-    np.array([1 - b_2 - b_3, b_2, b_3]),
-    np.array([0.0, 2 * gamma, c_3]),
-)
+second_order_three_stage_esdirk = create_second_order_three_stage_esdirk()
 
 
-gamma = 0.43586652150845899941601945
-alpha = 1 - 4 * gamma + 2 * gamma**2
-beta = -1 + 6 * gamma - 9 * gamma**2 + 3 * gamma**3
-b_2 = -3 * alpha**2 / (4 * beta)
-c_2 = (2 - 9 * gamma + 6 * gamma**2) / (3 * alpha)
-third_order_three_stage_sdirk = ButcherTableau(
-    np.array(
-        [
-            [gamma, 0.0, 0.0],
-            [c_2 - gamma, gamma, 0.0],
-            [1 - b_2 - gamma, b_2, gamma],
-        ]
-    ),
-    np.array([1 - b_2 - gamma, b_2, gamma]),
-    np.array([gamma, c_2, 1]),
-)
+def create_third_order_three_stage_esdirk():
+    gamma = (3.0 + np.sqrt(3.0)) / 6.0
+    c3 = 2 * gamma - np.sqrt((2 + np.sqrt(3.0)) / 3)
+    a32 = c3 * (c3 - 2 * gamma) / (4 * gamma)
+    b2 = (-2.0 + 3.0 * c3) / (12.0 * (c3 - 2 * gamma) * gamma)
+    b3 = (1 - 3.0 * gamma) / (3 * c3 * (c3 - 2 * gamma))
+    tableau = ButcherTableau(
+        np.array(
+            [
+                [0.0, 0.0, 0.0],
+                [gamma, gamma, 0.0],
+                [c3 - a32 - gamma, a32, gamma],
+            ]
+        ),
+        np.array([1 - b2 - b3, b2, b3]),
+        np.array([0.0, 2 * gamma, c3]),
+    )
+    return tableau
+
+
+third_order_three_stage_esdirk = create_third_order_three_stage_esdirk()
+
+
+def create_third_order_three_stage_sdirk():
+    gamma = 0.43586652150845899941601945
+    alpha = 1 - 4 * gamma + 2 * gamma**2
+    beta = -1 + 6 * gamma - 9 * gamma**2 + 3 * gamma**3
+    b2 = -3 * alpha**2 / (4 * beta)
+    c2 = (2 - 9 * gamma + 6 * gamma**2) / (3 * alpha)
+    tableau = ButcherTableau(
+        np.array(
+            [
+                [gamma, 0.0, 0.0],
+                [c2 - gamma, gamma, 0.0],
+                [1 - b2 - gamma, b2, gamma],
+            ]
+        ),
+        np.array([1 - b2 - gamma, b2, gamma]),
+        np.array([gamma, c2, 1]),
+    )
+    return tableau
+
+
+third_order_three_stage_sdirk = create_third_order_three_stage_sdirk()
+
 # four stage methods
-gamma = 0.435866521508458999416019
-c3 = (3 - 20 * gamma + 24 * gamma**2) / (4 - 24 * gamma + 24 * gamma**2)
-a32 = c3 * (c3 - 2 * gamma) / (4 * gamma)
-b2 = (-2 + 3 * c3 + 6 * gamma * (1 - c3)) / (12 * gamma * (c3 - 2 * gamma))
-b3 = (1 - 6 * gamma + 6 * gamma**2) / (3 * c3 * (c3 - 2 * gamma))
 
-third_order_four_stage_esdirk = ButcherTableau(
-    np.array(
-        [
-            [0.0, 0.0, 0.0, 0.0],
-            [gamma, gamma, 0.0, 0.0],
-            [c3 - a32 - gamma, a32, gamma, 0.0],
-            [1 - b2 - b3 - gamma, b2, b3, gamma],
-        ]
-    ),
-    np.array([1 - b2 - b3 - gamma, b2, b3, gamma]),
-    np.array([0.0, 2 * gamma, c3, 1]),
-)
 
-gamma = 9 / 40
-c2 = 7 / 13
-c3 = 11 / 15
-a32 = -(
-    (c2 - c3) * (c3 - gamma) * (-1 + 9 * gamma - 18 * gamma**2 + 6 * gamma**3)
-) / (
-    (c2 - gamma)
-    * (-2 + 3 * c2 + 9 * gamma - 12 * c2 * gamma - 6 * gamma**2 + 6 * c2 * gamma**2)
-)
-b2 = -(
-    -2 + 3 * c3 + 9 * gamma - 12 * c3 * gamma - 6 * gamma**2 + 6 * c3 * gamma**2
-) / (6 * (c2 - c3) * (c2 - gamma))
-b3 = (
-    -2 + 3 * c2 + 9 * gamma - 12 * c2 * gamma - 6 * gamma**2 + 6 * c2 * gamma**2
-) / (6 * (c2 - c3) * (c3 - gamma))
+def create_third_order_four_stage_esdirk():
+    gamma = 0.435866521508458999416019
+    c3 = (3 - 20 * gamma + 24 * gamma**2) / (4 - 24 * gamma + 24 * gamma**2)
+    a32 = c3 * (c3 - 2 * gamma) / (4 * gamma)
+    b2 = (-2 + 3 * c3 + 6 * gamma * (1 - c3)) / (12 * gamma * (c3 - 2 * gamma))
+    b3 = (1 - 6 * gamma + 6 * gamma**2) / (3 * c3 * (c3 - 2 * gamma))
+    tableau = ButcherTableau(
+        np.array(
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [gamma, gamma, 0.0, 0.0],
+                [c3 - a32 - gamma, a32, gamma, 0.0],
+                [1 - b2 - b3 - gamma, b2, b3, gamma],
+            ]
+        ),
+        np.array([1 - b2 - b3 - gamma, b2, b3, gamma]),
+        np.array([0.0, 2 * gamma, c3, 1]),
+    )
+    return tableau
 
-third_order_four_stage_sdirk = ButcherTableau(
-    np.array(
-        [
-            [gamma, 0.0, 0.0, 0.0],
-            [c2 - gamma, gamma, 0.0, 0.0],
-            [c3 - a32 - gamma, a32, gamma, 0.0],
-            [1 - b2 - b3 - gamma, b2, b3, gamma],
-        ]
-    ),
-    np.array([1 - b2 - b3 - gamma, b2, b3, gamma]),
-    np.array([gamma, c2, c3, 1]),
-)
+
+third_order_four_stage_esdirk = create_third_order_four_stage_esdirk()
+
+
+def create_third_order_four_stage_sdirk():
+    gamma = 9 / 40
+    c2 = 7 / 13
+    c3 = 11 / 15
+    a32 = -(
+        (c2 - c3) * (c3 - gamma) * (-1 + 9 * gamma - 18 * gamma**2 + 6 * gamma**3)
+    ) / (
+        (c2 - gamma)
+        * (
+            -2
+            + 3 * c2
+            + 9 * gamma
+            - 12 * c2 * gamma
+            - 6 * gamma**2
+            + 6 * c2 * gamma**2
+        )
+    )
+    b2 = -(
+        -2 + 3 * c3 + 9 * gamma - 12 * c3 * gamma - 6 * gamma**2 + 6 * c3 * gamma**2
+    ) / (6 * (c2 - c3) * (c2 - gamma))
+    b3 = (
+        -2 + 3 * c2 + 9 * gamma - 12 * c2 * gamma - 6 * gamma**2 + 6 * c2 * gamma**2
+    ) / (6 * (c2 - c3) * (c3 - gamma))
+
+    tableau = ButcherTableau(
+        np.array(
+            [
+                [gamma, 0.0, 0.0, 0.0],
+                [c2 - gamma, gamma, 0.0, 0.0],
+                [c3 - a32 - gamma, a32, gamma, 0.0],
+                [1 - b2 - b3 - gamma, b2, b3, gamma],
+            ]
+        ),
+        np.array([1 - b2 - b3 - gamma, b2, b3, gamma]),
+        np.array([gamma, c2, c3, 1]),
+    )
+    return tableau
+
+
+third_order_four_stage_sdirk = create_third_order_four_stage_sdirk()
+
 
 # see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.”
 # Lecture Notes in Computational Science and Engineering (2018): p. 5.
@@ -211,44 +261,53 @@ third_order_five_stage_esdirk = ButcherTableau(
     np.array([0.0, 9 / 20, 9 * (2 + 2**0.5) / 40, 0.8, 1]),
 )
 
-gamma = 0.43586652150845899941601945
-c3 = (2 * gamma * (2 - 9 * gamma + 12 * gamma**2)) / (1 - 6 * gamma + 12 * gamma**2)
-c4 = 1.0
-phi_1 = 1 - 6 * gamma + 6 * gamma**2
-phi_2 = 3 - 20 * gamma + 24 * gamma**2
-phi_3 = 5 - 36 * gamma + 48 * gamma**2
-phi_4 = -1 + 12 * gamma - 36 * gamma**2 + 24 * gamma**3
-b2 = (
-    3
-    - 12 * gamma
-    + 4 * c4 * (-1 + 3 * gamma)
-    - 2 * c3 * (2 - 6 * gamma + c4 * (-3 + 6 * gamma))
-) / (24 * gamma * (2 * gamma - c3) * (2 * gamma - c4))
-b3 = (phi_2 - 4 * c4 * phi_1) / (12 * c3 * (c3 - c4) * (c3 - 2 * gamma))
-b4 = (phi_2 - 4 * c3 * phi_1) / (12 * c4 * (c4 - c3) * (c4 - 2 * gamma))
-a32 = (c3 * (c3 - 2 * gamma)) / (4 * gamma)
-a42 = (
-    c4
-    * (c4 - 2 * gamma)
-    * (-4 * c3**2 * phi_1 - 2 * gamma * phi_2 + c3 * phi_3 + 2 * c4 * phi_4)
-    / (4 * gamma * (2 * gamma - c3) * (4 * c3 * phi_1 - phi_2))
-)
-a43 = ((c4 - c3) * c4 * (c4 - 2 * gamma) * phi_4) / (
-    c3 * (c3 - 2 * gamma) * (4 * c3 * phi_1 - phi_2)
-)
-fourth_order_five_stage_esdirk = ButcherTableau(
-    np.array(
-        [
-            [0.0, 0.0, 0.0, 0.0, 0.0],
-            [gamma, gamma, 0.0, 0.0, 0.0],
-            [c3 - a32 - gamma, a32, gamma, 0.0, 0.0],
-            [c4 - a42 - a43 - gamma, a42, a43, gamma, 0.0],
-            [1 - b2 - b3 - b4 - gamma, b2, b3, b4, gamma],
-        ]
-    ),
-    np.array([1 - b2 - b3 - b4 - gamma, b2, b3, b4, gamma]),
-    np.array([0.0, 2 * gamma, c3, c4, 1.0]),
-)
+
+def create_fourth_order_five_stage_esdirk():
+    gamma = 0.43586652150845899941601945
+    c3 = (2 * gamma * (2 - 9 * gamma + 12 * gamma**2)) / (
+        1 - 6 * gamma + 12 * gamma**2
+    )
+    c4 = 1.0
+    phi1 = 1 - 6 * gamma + 6 * gamma**2
+    phi2 = 3 - 20 * gamma + 24 * gamma**2
+    phi3 = 5 - 36 * gamma + 48 * gamma**2
+    phi4 = -1 + 12 * gamma - 36 * gamma**2 + 24 * gamma**3
+    b2 = (
+        3
+        - 12 * gamma
+        + 4 * c4 * (-1 + 3 * gamma)
+        - 2 * c3 * (2 - 6 * gamma + c4 * (-3 + 6 * gamma))
+    ) / (24 * gamma * (2 * gamma - c3) * (2 * gamma - c4))
+    b3 = (phi2 - 4 * c4 * phi1) / (12 * c3 * (c3 - c4) * (c3 - 2 * gamma))
+    b4 = (phi2 - 4 * c3 * phi1) / (12 * c4 * (c4 - c3) * (c4 - 2 * gamma))
+    a32 = (c3 * (c3 - 2 * gamma)) / (4 * gamma)
+    a42 = (
+        c4
+        * (c4 - 2 * gamma)
+        * (-4 * c3**2 * phi1 - 2 * gamma * phi2 + c3 * phi3 + 2 * c4 * phi4)
+        / (4 * gamma * (2 * gamma - c3) * (4 * c3 * phi1 - phi2))
+    )
+    a43 = ((c4 - c3) * c4 * (c4 - 2 * gamma) * phi4) / (
+        c3 * (c3 - 2 * gamma) * (4 * c3 * phi1 - phi2)
+    )
+    tableau = ButcherTableau(
+        np.array(
+            [
+                [0.0, 0.0, 0.0, 0.0, 0.0],
+                [gamma, gamma, 0.0, 0.0, 0.0],
+                [c3 - a32 - gamma, a32, gamma, 0.0, 0.0],
+                [c4 - a42 - a43 - gamma, a42, a43, gamma, 0.0],
+                [1 - b2 - b3 - b4 - gamma, b2, b3, b4, gamma],
+            ]
+        ),
+        np.array([1 - b2 - b3 - b4 - gamma, b2, b3, b4, gamma]),
+        np.array([0.0, 2 * gamma, c3, c4, 1.0]),
+    )
+    return tableau
+
+
+fourth_order_five_stage_esdirk = create_fourth_order_five_stage_esdirk()
+
 
 fourth_order_five_stage_sdirk = ButcherTableau(
     np.array(
