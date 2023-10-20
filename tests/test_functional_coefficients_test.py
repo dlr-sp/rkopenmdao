@@ -21,9 +21,12 @@ from .test_postprocessing_problems import (
     create_negating_problem,
 )
 
-from .test_functional_coefficients import (
+from rkopenmdao.functional_coefficients import (
     AverageCoefficients,
     CompositeTrapezoidalCoefficients,
+)
+
+from .test_functional_coefficients import (
     FifthStepOfQuantity,
 )
 

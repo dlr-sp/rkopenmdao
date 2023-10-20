@@ -8,6 +8,28 @@ import numpy as np
 
 from rkopenmdao.butcher_tableau import ButcherTableau
 
+__all__ = [
+    "explicit_euler",
+    "implicit_euler",
+    "implicit_midpoint",
+    "second_order_two_stage_sdirk",
+    "third_order_two_stage_sdirk",
+    "second_order_three_stage_esdirk",
+    "third_order_three_stage_sdirk",
+    "third_order_three_stage_esdirk",
+    "runge_kutta_four",
+    "third_order_four_stage_sdirk",
+    "third_order_four_stage_esdirk",
+    "third_order_second_weak_stage_order_four_stage_dirk",
+    "third_order_third_weak_stage_order_four_stage_dirk",
+    "third_order_five_stage_esdirk",
+    "fourth_order_five_stage_sdirk",
+    "fourth_order_five_stage_esdirk",
+    "fifth_order_five_stage_sdirk",
+    "fourth_order_six_stage_esdirk",
+    "fourth_order_third_weak_stage_order_six_stage_dirk",
+    "fifth_order_six_stage_esdirk",
+]
 # one stage methods
 explicit_euler = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]))
 

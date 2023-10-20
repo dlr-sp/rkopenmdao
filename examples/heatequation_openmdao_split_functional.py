@@ -3,7 +3,6 @@ Solving the heat equation in openMDAO via the Runge-Kutta-integrator.In this ver
 via a domain decomposition two emulate a multidisciplinary problem.
 """
 
-from typing import List
 import numpy as np
 import openmdao.api as om
 
@@ -18,9 +17,7 @@ from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
 
-from rkopenmdao.functional_coefficients import (
-    FunctionalCoefficients,
-)
+from rkopenmdao.functional_coefficients import CompositeTrapezoidalCoefficients
 
 
 class HeatAverageOnSplit(om.ExplicitComponent):
@@ -75,23 +72,6 @@ class HeatAverageOnSplit(om.ExplicitComponent):
             d_inputs["heat_2"][0 : points_per_direction * points_x : points_x] += (
                 0.5 * d_outputs["heat_split_line_average"] / points_per_direction
             )
-
-
-class TrapezoidalCoefficients(FunctionalCoefficients):
-    def __init__(self, num_steps: int, delta: float, quantity_list: list) -> None:
-        self.num_steps = num_steps
-        self.delta = delta
-        self.quantity_list = quantity_list
-
-    def list_quantities(self) -> List[str]:
-        return self.quantity_list
-
-    def get_coefficient(self, time_step: int, quantity: str) -> float:
-        if quantity in self.quantity_list:
-            if time_step == 0 or time_step == self.num_steps:
-                return 0.5 * self.delta
-            else:
-                return self.delta
 
 
 if __name__ == "__main__":
@@ -157,8 +137,8 @@ if __name__ == "__main__":
             postprocessing_quantities=["heat_split_line_average"],
             write_out_distance=1,
             write_file="heat_equ_om_split_functional.h5",
-            functional_coefficients=TrapezoidalCoefficients(
-                integration_control.num_steps, delta_x, ["heat_split_line_average"]
+            functional_coefficients=CompositeTrapezoidalCoefficients(
+                integration_control, ["heat_split_line_average"]
             ),
         ),
         promotes_inputs=["heat_1_initial", "heat_2_initial"],
