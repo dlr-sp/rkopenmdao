@@ -173,5 +173,5 @@ class RungeKuttaScheme:
         stage_perturbation_field: np.ndarray,
     ) -> np.ndarray:
         # TODO
-        """"""
+        """Currently not needed, keeping for later if necessary."""
         return new_state_perturbation + delta_t * stage_perturbation_field.sum(axis=0)
