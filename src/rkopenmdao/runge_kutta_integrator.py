@@ -114,7 +114,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._serialized_new_state_symbol = None
         self._forward_operator = None
         self._reverse_operator = None
-
         self._disable_write_out = False
 
     def initialize(self):
@@ -241,6 +240,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_runge_kutta_scheme()
         self._setup_postprocessor()
         self._configure_write_out()
+        self._setup_write_file()
         self._setup_revolver_class()
         self._setup_checkpointing()
         # TODO: maybe add methods for time-independent in/outputs
@@ -256,6 +256,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._functional_quantities = self.options[
             "functional_coefficients"
         ].list_quantities()
+
         self._setup_variable_information()
         self._setup_wrt_and_of_vars()
 
@@ -330,7 +331,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ):
                 raise SetupError(
                     f"""Warning! The time integration problem contains a nonworking combination of variables for
-                    quantity {quantity}. Check that there is an output with the tags 'stage_output_var' and {quantity} 
+                    quantity {quantity} on rank {self.comm.rank}. Check that there is an output with the tags 'stage_output_var' and {quantity} 
                     and either both or no inputs with tags=['step_input_var', {quantity}]
                     and tags=['accumulated_stage_var', {quantity}]."""
                 )
@@ -378,6 +379,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             "shape": None,
             "global_shape": None,
         }
+
         for var, metadata in quantity_inputs.items():
             if var in old_step_input_vars:
                 self._quantity_metadata[quantity]["step_input_var"] = var
@@ -389,6 +391,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._extract_quantity_metadata_or_check_for_consistency(
                     quantity, metadata
                 )
+
         for var, metadata in quantity_outputs.items():
             if var in stage_output_vars:
                 self._quantity_metadata[quantity]["stage_output_var"] = var
@@ -397,8 +400,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._quantity_metadata[quantity]["shape"]
                 != self._quantity_metadata[quantity]["global_shape"]
             ):
-                sizes = time_stage_problem.model._var_sizes["output"][
-                    :, time_stage_problem.model._var_allprocs_abs2idx[var]
+                sizes = time_stage_problem.model._var_sizes["nonlinear"]["output"][
+                    :, time_stage_problem.model._var_allprocs_abs2idx["nonlinear"][var]
                 ]
                 self._quantity_metadata[quantity][
                     "local_indices_start"
@@ -466,6 +469,29 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._quantity_metadata[quantity]["global_shape"] = metadata[
                     "global_shape"
                 ]
+                if (
+                    self._quantity_metadata[quantity]["shape"]
+                    != self._quantity_metadata[quantity]["global_shape"]
+                ):
+                    sizes = postprocessing_problem.model._var_sizes["nonlinear"][
+                        "output"
+                    ][
+                        :,
+                        postprocessing_problem.model._var_allprocs_abs2idx["nonlinear"][
+                            var
+                        ],
+                    ]
+                    self._quantity_metadata[quantity][
+                        "local_indices_start"
+                    ] = start = np.sum(sizes[: self.comm.rank])
+                    self._quantity_metadata[quantity]["local_indices_end"] = (
+                        start + sizes[self.comm.rank]
+                    )
+                else:
+                    self._quantity_metadata[quantity]["local_indices_start"] = 0
+                    self._quantity_metadata[quantity]["local_indices_end"] = np.prod(
+                        self._quantity_metadata[quantity]["shape"]
+                    )
                 self._quantity_metadata[quantity][
                     "numpy_postproc_start_index"
                 ] = self._numpy_postproc_size
@@ -491,11 +517,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _add_time_integration_inputs_and_outputs(self, quantity):
         time_stage_problem: om.Problem = self.options["time_stage_problem"]
+        # time_stage_problem.comm.Barrier()
         self.add_input(
             quantity + "_initial",
             shape=self._quantity_metadata[quantity]["shape"],
             val=time_stage_problem.get_val(
-                self._quantity_metadata[quantity]["step_input_var"]
+                self._quantity_metadata[quantity]["step_input_var"],  # get_remote=False
             )
             if self._quantity_metadata[quantity]["step_input_var"] is not None
             else np.zeros(self._quantity_metadata[quantity]["shape"]),
@@ -621,6 +648,41 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _configure_write_out(self):
         self._disable_write_out = self.options["write_out_distance"] == 0
 
+    def _setup_write_file(self):
+        if not self._disable_write_out:
+            delta_t = self.options["integration_control"].delta_t
+            initial_time = self.options["integration_control"].delta_t
+            num_steps = self.options["integration_control"].num_steps
+            for i in range(self.comm.size):
+                if i == self.comm.rank:
+                    with h5py.File(
+                        self.options["write_file"], mode="w" if i == 0 else "a"
+                    ) as f:
+                        for quantity, metadata in self._quantity_metadata.items():
+                            for j in range(
+                                0,
+                                num_steps,
+                                self.options["write_out_distance"],
+                            ):
+                                path = quantity + "/" + str(j)
+                                if path not in f:
+                                    dataset = f.create_dataset(
+                                        path,
+                                        data=np.full(metadata["global_shape"], np.nan),
+                                    )
+                                    dataset.attrs["time"] = j * delta_t + initial_time
+                            path = quantity + "/" + str(num_steps)
+                            if path not in f:
+                                dataset = f.create_dataset(
+                                    path,
+                                    data=np.full(metadata["global_shape"], np.nan),
+                                )
+                                dataset.attrs["time"] = (
+                                    num_steps * delta_t + initial_time
+                                )
+
+                self.comm.Barrier()
+
     def _setup_revolver_class(self):
         revolver_type = self.options["revolver_type"]
         if revolver_type == "SingleLevel":
@@ -704,7 +766,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 initial_time,
                 self._serialized_new_state_symbol.data,
                 self._postprocessing_state,
-                open_mode="w",
+                open_mode="r+",
             )
 
     def _write_out(
@@ -715,24 +777,70 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         postprocessing_state=None,
         open_mode="r+",
     ):
-        with h5py.File(self.options["write_file"], mode=open_mode) as f:
+        further_args = {}
+        if self.comm.size > 1:
+            further_args["driver"] = "mpio"
+            further_args["comm"] = self.comm
+        with h5py.File(self.options["write_file"], mode=open_mode, **further_args) as f:
+            if self.comm.size > 1:
+                f.atomic = True
+            # TODO add offsets for distributed vars
             for quantity, metadata in self._quantity_metadata.items():
                 if metadata["type"] == "time_integration":
-                    start = metadata["numpy_start_index"]
-                    end = metadata["numpy_end_index"]
-                    dataset = f.create_dataset(
-                        quantity + "/" + str(step),
-                        data=serialized_state[start:end].reshape(metadata["shape"]),
+                    start = (
+                        metadata["numpy_start_index"] + metadata["local_indices_start"]
                     )
-                    dataset.attrs["time"] = time
+                    end = metadata["numpy_end_index"] + metadata["local_indices_start"]
+                    if np.isnan(
+                        f[quantity][str(step)][np.zeros(metadata["shape"], dtype=int)]
+                    ):
+                        f[quantity][str(step)][
+                            np.unravel_index(
+                                range(
+                                    metadata["local_indices_start"],
+                                    metadata["local_indices_end"],
+                                ),
+                                metadata["global_shape"],
+                            )
+                        ] = serialized_state[start:end].reshape(metadata["shape"])
                 elif metadata["type"] == "postprocessing":
-                    start = metadata["numpy_postproc_start_index"]
-                    end = metadata["numpy_postproc_end_index"]
-                    dataset = f.create_dataset(
-                        quantity + "/" + str(step),
-                        data=postprocessing_state[start:end].reshape(metadata["shape"]),
+                    start = (
+                        metadata["numpy_postproc_start_index"]
+                        + metadata["local_indices_start"]
                     )
-                    dataset.attrs["time"] = time
+                    end = (
+                        metadata["numpy_postproc_end_index"]
+                        + metadata["local_indices_start"]
+                    )
+                    if np.isnan(
+                        f[quantity][str(step)][np.zeros(metadata["shape"], dtype=int)]
+                    ):
+                        f[quantity][str(step)][
+                            np.unravel_index(
+                                range(
+                                    metadata["local_indices_start"],
+                                    metadata["local_indices_end"],
+                                ),
+                                metadata["global_shape"],
+                            )
+                        ] = postprocessing_state[start:end].reshape(metadata["shape"])
+            # for quantity, metadata in self._quantity_metadata.items():
+            #     if metadata["type"] == "time_integration":
+            #         start = metadata["numpy_start_index"]
+            #         end = metadata["numpy_end_index"]
+            #         dataset = f.create_dataset(
+            #             quantity + "/" + str(step),
+            #             data=serialized_state[start:end].reshape(metadata["shape"]),
+            #         )
+            #         dataset.attrs["time"] = time
+            #     elif metadata["type"] == "postprocessing":
+            #         start = metadata["numpy_postproc_start_index"]
+            #         end = metadata["numpy_postproc_end_index"]
+            #         dataset = f.create_dataset(
+            #             quantity + "/" + str(step),
+            #             data=postprocessing_state[start:end].reshape(metadata["shape"]),
+            #         )
+            #         dataset.attrs["time"] = time
 
     def _compute_functional_phase(self):
         if self._functional_quantities:
@@ -1206,3 +1314,4 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._add_functional_perturbations_to_state_perturbations(step - 1)
 
         return self._serialized_state_perturbations
+
