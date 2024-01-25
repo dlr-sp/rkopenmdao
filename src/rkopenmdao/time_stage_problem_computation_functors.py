@@ -7,6 +7,7 @@ from typing import Tuple
 
 import numpy as np
 import openmdao.api as om
+from openmdao.utils.general_utils import ContainsAll
 
 from .integration_control import IntegrationControl
 from .errors import TimeStageError
@@ -108,10 +109,10 @@ class TimeStageProblemComputeJacvecFunctor:
         self.fill_seed(old_state_perturbation, accumulated_stage_perturbation, seed)
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
+
         jvp = self.time_stage_problem.compute_jacvec_product(
             of=self.of_vars, wrt=self.wrt_vars, mode="fwd", seed=seed
         )
-
         # for key, vector in jvp.items():
         #     print(key, vector)
         stage_perturbation = np.zeros_like(old_state_perturbation)

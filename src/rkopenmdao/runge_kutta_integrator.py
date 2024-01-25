@@ -400,8 +400,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._quantity_metadata[quantity]["shape"]
                 != self._quantity_metadata[quantity]["global_shape"]
             ):
-                sizes = time_stage_problem.model._var_sizes["nonlinear"]["output"][
-                    :, time_stage_problem.model._var_allprocs_abs2idx["nonlinear"][var]
+                sizes = time_stage_problem.model._var_sizes["output"][
+                    :, time_stage_problem.model._var_allprocs_abs2idx[var]
                 ]
                 self._quantity_metadata[quantity][
                     "local_indices_start"
@@ -680,8 +680,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                                 dataset.attrs["time"] = (
                                     num_steps * delta_t + initial_time
                                 )
-
-                self.comm.Barrier()
+                if self.comm.size > 1:
+                    self.comm.Barrier()
 
     def _setup_revolver_class(self):
         revolver_type = self.options["revolver_type"]
@@ -1314,4 +1314,3 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._add_functional_perturbations_to_state_perturbations(step - 1)
 
         return self._serialized_state_perturbations
-
