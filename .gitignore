@@ -21,3 +21,4 @@ convergence_test/**
 **.tikz
 **/tests/dat_**
 **.dat
+.coverage
