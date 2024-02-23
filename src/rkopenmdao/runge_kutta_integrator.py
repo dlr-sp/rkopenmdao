@@ -866,7 +866,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         initial_time = self.options["integration_control"].initial_time
         delta_t = self.options["integration_control"].delta_t
         self.options["integration_control"].step = step
-        time = initial_time + step * delta_t
+        time = initial_time + (step - 1) * delta_t
         self.options["integration_control"].step_time_old = time
         self.options["integration_control"].step_time_new = time + delta_t
 
@@ -1154,7 +1154,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         delta_t = self.options["integration_control"].delta_t
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         self.options["integration_control"].step = step
-        time = initial_time + step * delta_t
+        time = initial_time + (step - 1) * delta_t
         self.options["integration_control"].step_time_old = time
         self.options["integration_control"].step_time_new = time + delta_t
 
