@@ -366,6 +366,7 @@ class ThirdComponent(om.ExplicitComponent):
                     )
 
 
+@pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
     "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]

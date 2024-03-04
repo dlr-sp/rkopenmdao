@@ -656,7 +656,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             for i in range(self.comm.size):
                 if i == self.comm.rank:
                     with h5py.File(
-                        self.options["write_file"], mode="w" if i == 0 else "a"
+                        self.options["write_file"], mode="w" if i == 0 else "r+"
                     ) as f:
                         for quantity, metadata in self._quantity_metadata.items():
                             for j in range(
@@ -664,6 +664,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                                 num_steps,
                                 self.options["write_out_distance"],
                             ):
+                                # check whether dataset was already created by other process
                                 path = quantity + "/" + str(j)
                                 if path not in f:
                                     dataset = f.create_dataset(
@@ -671,6 +672,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                                         data=np.full(metadata["global_shape"], np.nan),
                                     )
                                     dataset.attrs["time"] = j * delta_t + initial_time
+                            # check whether dataset was already created by other process, or in loop beforehand
                             path = quantity + "/" + str(num_steps)
                             if path not in f:
                                 dataset = f.create_dataset(
@@ -728,6 +730,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
+        if self.comm.rank == 0:
+            print("\n\nStarting compute\n\n")
         self._compute_preparation_phase(inputs)
         self._compute_postprocessing_phase()
         self._compute_initial_write_out_phase()
@@ -735,6 +739,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._compute_checkpointing_setup_phase()
         self._revolver.apply_forward()
         self._compute_translate_to_om_vector_phase(outputs)
+        if self.comm.rank == 0:
+            print("\n\nFinishing compute\n\n")
 
     def _compute_preparation_phase(self, inputs: OMVector):
         self._to_numpy_array(inputs, self._serialized_new_state_symbol.data)
@@ -754,13 +760,18 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
+            if self.comm.rank == 0:
+                print("Starting postprocessing.")
             self._postprocessing_state = self._postprocessor.postprocess(
                 self._serialized_new_state_symbol.data
             )
+            if self.comm.rank == 0:
+                print("Finished postprocessing.")
 
     def _compute_initial_write_out_phase(self):
         initial_time = self.options["integration_control"].initial_time
         if not self._disable_write_out:
+            print(self.comm.rank, "-----------------------------------------------")
             self._write_out(
                 0,
                 initial_time,
@@ -787,66 +798,66 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             # TODO add offsets for distributed vars
             for quantity, metadata in self._quantity_metadata.items():
                 if metadata["type"] == "time_integration":
-                    start = (
-                        metadata["numpy_start_index"] + metadata["local_indices_start"]
-                    )
-                    end = metadata["numpy_end_index"] + metadata["local_indices_start"]
+                    start = metadata["numpy_start_index"]
+                    end = metadata["numpy_end_index"]
+                    # check whether data has already been written on dataset by checking first element
                     if np.isnan(
-                        f[quantity][str(step)][np.zeros(metadata["shape"], dtype=int)]
-                    ):
                         f[quantity][str(step)][
                             np.unravel_index(
-                                range(
-                                    metadata["local_indices_start"],
-                                    metadata["local_indices_end"],
-                                ),
+                                metadata["local_indices_start"],
                                 metadata["global_shape"],
                             )
-                        ] = serialized_state[start:end].reshape(metadata["shape"])
+                        ]
+                    ):
+                        start_tuple = np.unravel_index(
+                            metadata["local_indices_start"],
+                            metadata["global_shape"],
+                        )
+                        end_tuple = np.unravel_index(
+                            metadata["local_indices_end"] - 1,
+                            metadata["global_shape"],
+                        )
+                        access_list = []
+                        for i in range(len(start_tuple)):
+                            access_list.append(slice(start_tuple[i], end_tuple[i] + 1))
+                        f[quantity][str(step)][tuple(access_list)] = serialized_state[
+                            start:end
+                        ].reshape(metadata["shape"])
                 elif metadata["type"] == "postprocessing":
-                    start = (
-                        metadata["numpy_postproc_start_index"]
-                        + metadata["local_indices_start"]
-                    )
-                    end = (
-                        metadata["numpy_postproc_end_index"]
-                        + metadata["local_indices_start"]
-                    )
+                    start = metadata["numpy_postproc_start_index"]
+                    end = metadata["numpy_postproc_end_index"]
                     if np.isnan(
-                        f[quantity][str(step)][np.zeros(metadata["shape"], dtype=int)]
-                    ):
                         f[quantity][str(step)][
                             np.unravel_index(
-                                range(
-                                    metadata["local_indices_start"],
-                                    metadata["local_indices_end"],
-                                ),
+                                metadata["local_indices_start"],
                                 metadata["global_shape"],
                             )
+                        ]
+                    ):
+                        start_tuple = np.unravel_index(
+                            metadata["local_indices_start"],
+                            metadata["global_shape"],
+                        )
+                        end_tuple = np.unravel_index(
+                            metadata["local_indices_end"] - 1,
+                            metadata["global_shape"],
+                        )
+                        access_list = []
+                        for i in range(len(start_tuple)):
+                            access_list.append(slice(start_tuple[i], end_tuple[i] + 1))
+                        f[quantity][str(step)][
+                            tuple(access_list)
                         ] = postprocessing_state[start:end].reshape(metadata["shape"])
-            # for quantity, metadata in self._quantity_metadata.items():
-            #     if metadata["type"] == "time_integration":
-            #         start = metadata["numpy_start_index"]
-            #         end = metadata["numpy_end_index"]
-            #         dataset = f.create_dataset(
-            #             quantity + "/" + str(step),
-            #             data=serialized_state[start:end].reshape(metadata["shape"]),
-            #         )
-            #         dataset.attrs["time"] = time
-            #     elif metadata["type"] == "postprocessing":
-            #         start = metadata["numpy_postproc_start_index"]
-            #         end = metadata["numpy_postproc_end_index"]
-            #         dataset = f.create_dataset(
-            #             quantity + "/" + str(step),
-            #             data=postprocessing_state[start:end].reshape(metadata["shape"]),
-            #         )
-            #         dataset.attrs["time"] = time
 
     def _compute_functional_phase(self):
         if self._functional_quantities:
+            if self.comm.rank == 0:
+                print("Starting computation of functional contribution.")
             self._functional_part = self._get_functional_contribution(
                 self._serialized_new_state_symbol.data, self._postprocessing_state, 0
             )
+            if self.comm.rank == 0:
+                print("Finished computation of functional contribution.")
 
     def _get_functional_contribution(
         self,
@@ -959,11 +970,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ].reshape(self._quantity_metadata[quantity]["shape"])
 
     def _run_step(self, step, serialized_state):
+        if self.comm.rank == 0:
+            print(f"\nStarting step {step} of compute.\n")
         self._run_step_preparation_phase(step, serialized_state)
         self._run_step_time_integration_phase()
         self._run_step_postprocessing_phase()
         self._run_step_functional_phase()
         self._run_step_write_out_phase()
+        if self.comm.rank == 0:
+            print(f"\nFinishing step {step} of compute.\n")
         return self._serialized_state
 
     def _run_step_preparation_phase(self, step, serialized_state):
@@ -982,12 +997,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         delta_t = self.options["integration_control"].delta_t
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         for stage in range(butcher_tableau.number_of_stages()):
-            self._stage_preparation(stage)
+            self._stage_computation(stage)
         self._serialized_state = self._runge_kutta_scheme.compute_step(
             delta_t, self._serialized_state, self._stage_cache
         )
 
-    def _stage_preparation(self, stage):
+    def _stage_computation(self, stage):
+        if self.comm.rank == 0:
+            print(f"Starting stage {stage} of compute.")
         delta_t = self.options["integration_control"].delta_t
         time = self.options["integration_control"].step_time_old
         self.options["integration_control"].stage = stage
@@ -1002,19 +1019,29 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._stage_cache[stage, :] = self._runge_kutta_scheme.compute_stage(
             stage, delta_t, time, self._serialized_state, self._accumulated_stages
         )
+        if self.comm.rank == 0:
+            print(f"Finished stage {stage} of compute.")
 
     def _run_step_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
+            if self.comm.rank == 0:
+                print("Starting postprocessing.")
             self._postprocessing_state = self._postprocessor.postprocess(
                 self._serialized_state
             )
+            if self.comm.rank == 0:
+                print("Finished postprocessing.")
 
     def _run_step_functional_phase(self):
         step = self.options["integration_control"].step
         if self._functional_quantities:
+            if self.comm.rank == 0:
+                print("Starting computation of functional contribution.")
             self._functional_part += self._get_functional_contribution(
                 self._serialized_state, self._postprocessing_state, step
             )
+            if self.comm.rank == 0:
+                print("Finished computation of functional contribution.")
 
     def _run_step_write_out_phase(self):
         step = self.options["integration_control"].step
@@ -1035,20 +1062,20 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
     ):  # pylint: disable = arguments-differ
         if mode == "fwd":
-            print("starting fwd_mode_jacvec")
             self._compute_jacvec_product_fwd(inputs, d_inputs, d_outputs)
-            print("finished fwd_mode_jacvec")
         elif mode == "rev":
-            print("starting rev_mode_jacvec")
             self._compute_jacvec_product_rev(inputs, d_inputs, d_outputs)
-            print("finished rev_mode_jacvec")
 
     def _compute_jacvec_product_fwd(self, inputs, d_inputs, d_outputs):
+        if self.comm.rank == 0:
+            print("\n\nStarting forward-mode jacvec product\n\n")
         self._compute_jacvec_fwd_preparation_phase(inputs, d_inputs)
         self._compute_jacvec_fwd_postprocessing_phase()
         self._compute_jacvec_fwd_functional_phase()
         self._compute_jacvec_fwd_run_steps()
         self._compute_jacvec_fwd_translate_to_om_vector_phase(d_outputs)
+        if self.comm.rank == 0:
+            print("\n\nFinished forward-mode jacvec product\n\n")
 
     def _compute_jacvec_fwd_preparation_phase(self, inputs, d_inputs):
         self._to_numpy_array(inputs, self._serialized_state)
@@ -1057,28 +1084,40 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_jacvec_fwd_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
+            if self.comm.rank == 0:
+                print("Starting postprocessing.")
             self._postprocessor.postprocess(self._serialized_state)
             self._postprocessing_state_perturbations = (
                 self._postprocessor.postprocess_jacvec(
                     self._serialized_state_perturbations
                 )
             )
+            if self.comm.rank == 0:
+                print("Finished postprocessing.")
 
     def _compute_jacvec_fwd_functional_phase(self):
         if self._functional_quantities:
+            if self.comm.rank == 0:
+                print("Starting computation of functional contribution.")
             self._functional_part_perturbations = self._get_functional_contribution(
                 self._serialized_state_perturbations,
                 self._postprocessing_state_perturbations,
                 0,
             )
+            if self.comm.rank == 0:
+                print("Finished computation of functional contribution.")
 
     def _compute_jacvec_fwd_run_steps(self):
         num_steps = self.options["integration_control"].num_steps
         for step in range(1, num_steps + 1):
+            if self.comm.rank == 0:
+                print(f"\nStarting step {step} of forward-mode jacvec product.\n")
             self._compute_jacvec_fwd_run_steps_preparation_phase(step)
             self._compute_jacvec_fwd_run_steps_time_integration_phase()
             self._compute_jacvec_fwd_run_steps_postprocessing_phase()
             self._compute_jacvec_fwd_run_steps_functional_phase()
+            if self.comm.rank == 0:
+                print(f"\nFinished step {step} of forward-mode jacvec product.\n")
 
     def _compute_jacvec_fwd_run_steps_preparation_phase(self, step):
         self._update_integration_control_step(step)
@@ -1088,6 +1127,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         time = self.options["integration_control"].step_time_old
         for stage in range(butcher_tableau.number_of_stages()):
+            if self.comm.rank == 0:
+                print(f"Starting stage {stage} of forward-mode jacvec product.")
             if stage != 0:
                 self._accumulated_stages = (
                     self._runge_kutta_scheme.compute_accumulated_stages(
@@ -1114,6 +1155,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._serialized_state_perturbations,
                 self._accumulated_stage_perturbations,
             )
+            if self.comm.rank == 0:
+                print(f"Finished stage {stage} of forward-mode jacvec product.")
         self._serialized_state = self._runge_kutta_scheme.compute_step(
             delta_t, self._serialized_state, self._stage_cache
         )
@@ -1128,21 +1171,29 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_jacvec_fwd_run_steps_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
+            if self.comm.rank == 0:
+                print("Starting postprocessing.")
             self._postprocessor.postprocess(self._serialized_state)
             self._postprocessing_state_perturbations = (
                 self._postprocessor.postprocess_jacvec(
                     self._serialized_state_perturbations
                 )
             )
+            if self.comm.rank == 0:
+                print("Finished postprocessing.")
 
     def _compute_jacvec_fwd_run_steps_functional_phase(self):
         step = self.options["integration_control"].step
         if self._functional_quantities:
+            if self.comm.rank == 0:
+                print("Starting computation of functional contribution.")
             self._functional_part_perturbations += self._get_functional_contribution(
                 self._serialized_state_perturbations,
                 self._postprocessing_state_perturbations,
                 step,
             )
+            if self.comm.rank == 0:
+                print("Finished computation of functional contribution.")
 
     def _compute_jacvec_fwd_translate_to_om_vector_phase(
         self,
@@ -1159,12 +1210,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
+        if self.comm.rank == 0:
+            print("\n\nStarting reverse-mode jacvec product\n\n")
         self._disable_write_out = True
         self._to_numpy_array(inputs, self._serialized_state)
         if (
             not np.array_equal(self._cached_input, self._serialized_state)
             or self._revolver is None
         ):
+            if self.comm.rank == 0:
+                print("Preparing checkpoints by calling compute()")
             outputs = self._vector_class("nonlinear", "output", self)
             self.compute(inputs, outputs)
         self._to_numpy_array(d_outputs, self._serialized_state_perturbations)
@@ -1172,16 +1227,24 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             d_outputs, self._postprocessing_state_perturbations
         )
         if self.options["postprocessing_problem"] is not None:
+            if self.comm.rank == 0:
+                print("Starting postprocessing.")
             self._serialized_state_perturbations += (
                 self._postprocessor.postprocess_jacvec_transposed(
                     self._postprocessing_state_perturbations
                 )
             )
+            if self.comm.rank == 0:
+                print("Finished postprocessing.")
         if self._functional_quantities:
+            if self.comm.rank == 0:
+                print("Finished computation of functional contribution.")
             self._get_functional_contribution_from_om_output_vec(d_outputs)
             self._add_functional_perturbations_to_state_perturbations(
                 self.options["integration_control"].num_steps
             )
+            if self.comm.rank == 0:
+                print("Finished computation of functional contribution.")
         self._reverse_operator.serialized_state_perturbations = (
             self._serialized_state_perturbations
         )
@@ -1192,6 +1255,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
         self._revolver = None
         self._configure_write_out()
+        if self.comm.rank == 0:
+            print("\n\nFinished reverse-mode jacvec product\n\n")
 
     def _to_numpy_array_postprocessing(
         self, om_vector: OMVector, np_postproc_array: np.ndarray
@@ -1222,39 +1287,54 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             "functional_coefficients"
         ]
         postprocessing_functional_perturbations = np.zeros(self._numpy_postproc_size)
-        for quantity in self._functional_quantities:
-            start_functional = self._quantity_metadata[quantity][
-                "numpy_functional_start_index"
-            ]
-            end_functional = self._quantity_metadata[quantity][
-                "numpy_functional_end_index"
-            ]
-            if self._quantity_metadata[quantity]["type"] == "time_integration":
-                start = self._quantity_metadata[quantity]["numpy_start_index"]
-                end = self._quantity_metadata[quantity]["numpy_end_index"]
-                self._serialized_state_perturbations[start:end] += (
-                    functional_coefficients.get_coefficient(step, quantity)
-                ) * self._functional_part_perturbations[start_functional:end_functional]
-            elif self._quantity_metadata[quantity]["type"] == "postprocessing":
-                start = self._quantity_metadata[quantity]["numpy_postproc_start_index"]
-                end = self._quantity_metadata[quantity]["numpy_postproc_end_index"]
-                postprocessing_functional_perturbations[start:end] += (
-                    functional_coefficients.get_coefficient(step, quantity)
-                    * self._functional_part_perturbations[
+        if self._functional_quantities:
+            if self.comm.rank == 0:
+                print("Starting computation of functional contribution.")
+            for quantity in self._functional_quantities:
+                start_functional = self._quantity_metadata[quantity][
+                    "numpy_functional_start_index"
+                ]
+                end_functional = self._quantity_metadata[quantity][
+                    "numpy_functional_end_index"
+                ]
+                if self._quantity_metadata[quantity]["type"] == "time_integration":
+                    start = self._quantity_metadata[quantity]["numpy_start_index"]
+                    end = self._quantity_metadata[quantity]["numpy_end_index"]
+                    self._serialized_state_perturbations[start:end] += (
+                        functional_coefficients.get_coefficient(step, quantity)
+                    ) * self._functional_part_perturbations[
                         start_functional:end_functional
                     ]
-                )
+                elif self._quantity_metadata[quantity]["type"] == "postprocessing":
+                    start = self._quantity_metadata[quantity][
+                        "numpy_postproc_start_index"
+                    ]
+                    end = self._quantity_metadata[quantity]["numpy_postproc_end_index"]
+                    postprocessing_functional_perturbations[start:end] += (
+                        functional_coefficients.get_coefficient(step, quantity)
+                        * self._functional_part_perturbations[
+                            start_functional:end_functional
+                        ]
+                    )
+            if self.comm.rank == 0:
+                print("Finished computation of functional contribution.")
         if self.options["postprocessing_problem"]:
+            if self.comm.rank == 0:
+                print("Starting postprocessing.")
             self._serialized_state_perturbations += (
                 self._postprocessor.postprocess_jacvec_transposed(
                     postprocessing_functional_perturbations,
                     **postprocessor_linearization_args,
                 )
             )
+            if self.comm.rank == 0:
+                print("Finished postprocessing.")
 
     def _run_step_jacvec_rev(
         self, step, serialized_state, serialized_state_perturbations
     ):
+        if self.comm.rank == 0:
+            print(f"\nStarting step {step} of reverse-mode jacvec product.\n")
         self._serialized_state = serialized_state
         self._serialized_state_perturbations = serialized_state_perturbations
         new_serialized_state_perturbations = serialized_state_perturbations.copy()
@@ -1270,7 +1350,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         outputs_cache = {}
         # forward iteration
         for stage in range(butcher_tableau.number_of_stages()):
-            self._stage_preparation(stage)
+            if self.comm.rank == 0:
+                print(
+                    f"Starting stage {stage} of the forward iteration of reverse-mode jacvec product."
+                )
+            self._stage_computation(stage)
             inputs_cache[stage] = self.options[
                 "time_stage_problem"
             ].model._vector_class(
@@ -1287,9 +1371,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             outputs_cache[stage].set_vec(
                 self.options["time_stage_problem"].model._outputs
             )
+            if self.comm.rank == 0:
+                print(
+                    f"Finished stage {stage} of the forward iteration of reverse-mode jacvec product."
+                )
         # backward iteration
 
         for stage in reversed(range(butcher_tableau.number_of_stages())):
+            if self.comm.rank == 0:
+                print(
+                    f"Starting stage {stage} of the reverse iteration of reverse-mode jacvec product."
+                )
             linearization_args = {
                 "inputs": inputs_cache[stage],
                 "outputs": outputs_cache[stage],
@@ -1306,11 +1398,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 stage, delta_t, time, joined_perturbations, **linearization_args
             )
             new_serialized_state_perturbations += delta_t * wrt_old_state
-
+            if self.comm.rank == 0:
+                print(
+                    f"Finished stage {stage} of the reverse iteration of reverse-mode jacvec product."
+                )
         self._serialized_state_perturbations = new_serialized_state_perturbations
         if self.options["postprocessing_problem"] is not None:
             self._postprocessor.postprocess(self._serialized_state)
 
         self._add_functional_perturbations_to_state_perturbations(step - 1)
 
+        if self.comm.rank == 0:
+            print(f"\nFinishing step {step} of forward-mode jacvec product.\n")
         return self._serialized_state_perturbations
