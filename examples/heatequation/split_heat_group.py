@@ -10,7 +10,7 @@ from .heatequation import HeatEquation
 from .heatequation_stage_component import (
     HeatEquationStageComponent,
 )
-from rkopenmdao.stage_value_component import StageValueComponent
+from rkopenmdao.utils.utility_components import StageValueComponent
 from rkopenmdao.integration_control import IntegrationControl
 
 
