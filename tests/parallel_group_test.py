@@ -366,13 +366,117 @@ class ThirdComponent(om.ExplicitComponent):
                     )
 
 
+def ode_system_solution(time: float, initial_values: np.ndarray):
+    # expects in order d to a, and returns in the same order
+    return np.array(
+        [
+            initial_values[0] * np.exp(time),
+            (initial_values[1] - time * initial_values[0]) * np.exp(time),
+            (initial_values[2] + time * initial_values[0]) * np.exp(time),
+            (initial_values[3] + time * (initial_values[1] + initial_values[2]))
+            * np.exp(time),
+        ]
+    )
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1])
+@pytest.mark.parametrize(
+    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+)
+@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
+def test_parallel_group_time_integration(
+    num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
+):
+    delta_t = 0.0001
+    prob = om.Problem()
+    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+        -1, -1
+    ]
+    prob.model.add_subsystem(
+        "First", FirstComponent(integration_control=integration_control)
+    )
+    par_group = om.ParallelGroup()
+    group_1 = om.Group()
+    ivc21 = om.IndepVarComp()
+    ivc21.add_output("c_old")
+    ivc21.add_output("c_accumulated_stages")
+    group_1.add_subsystem("ivc21", ivc21, promotes=["*"])
+    group_1.add_subsystem(
+        "comp_21",
+        SecondComponent1(integration_control=integration_control),
+        promotes=["*"],
+    )
+    par_group.add_subsystem("Second_1", group_1)
+
+    group_2 = om.Group()
+    ivc22 = om.IndepVarComp()
+    ivc22.add_output("b_old")
+    ivc22.add_output("b_accumulated_stages")
+    group_1.add_subsystem("ivc22", ivc22, promotes=["*"])
+    group_2.add_subsystem(
+        "comp_22",
+        SecondComponent2(integration_control=integration_control),
+        promotes=["*"],
+    )
+    par_group.add_subsystem("Second_2", group_2)
+    prob.model.add_subsystem("Second", par_group)
+    prob.model.add_subsystem(
+        "Third", ThirdComponent(integration_control=integration_control)
+    )
+    prob.model.connect("First.d_state", "Second.Second_1.d")
+    prob.model.connect("First.d_state", "Second.Second_2.d")
+    prob.model.connect("Second.Second_1.c_state", "Third.c")
+    prob.model.connect("Second.Second_2.b_state", "Third.b")
+
+    prob.setup()
+    prob.run_model()
+
+    time_integration_prob = om.Problem()
+    time_integration_prob.model.add_subsystem(
+        "rk_integrator",
+        RungeKuttaIntegrator(
+            time_stage_problem=prob,
+            time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
+            integration_control=integration_control,
+            butcher_tableau=butcher_tableau,
+        ),
+        promotes=["*"],
+    )
+    time_integration_prob.model.nonlinear_solver = om.NonlinearBlockJac()
+    time_integration_prob.model.linear_solver = om.LinearBlockGS()
+    time_integration_prob.setup()
+    time_integration_prob["d_initial"] = initial_values[0]
+    if time_integration_prob.comm.rank == 0:
+        time_integration_prob["c_initial"] = initial_values[1]
+    else:
+        time_integration_prob["b_initial"] = initial_values[2]
+    time_integration_prob["a_initial"] = initial_values[3]
+    time_integration_prob.run_model()
+
+    result_array = np.array(
+        [
+            time_integration_prob["d_final"][:],
+            time_integration_prob[
+                "c_final" if time_integration_prob.comm.rank == 0 else "b_final"
+            ][:],
+            time_integration_prob["a_final"][:],
+        ]
+    ).flatten()
+    analytical_result = ode_system_solution(
+        num_steps * delta_t, np.array(initial_values)
+    )[[0, 1 if time_integration_prob.comm.rank == 0 else 2, 3]]
+    assert np.allclose(result_array, analytical_result)
+
+
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
     "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-def test_parallel_group_time_integration(
+def test_parallel_group_time_integration_partials(
     num_steps: int, butcher_tableau: ButcherTableau, test_direction: str
 ):
     prob = om.Problem()
@@ -438,7 +542,7 @@ def test_parallel_group_time_integration(
     time_integration_prob.run_model()
 
     # we test b and c later, since they can't be tested one by one (at least not with functionality already provided by
-    # OpenMDAO, and testing them together gives (expected) wrong results
+    # OpenMDAO, and testing them together gives (expectedly) wrong results
     if prob.comm.rank == 0:
         data = time_integration_prob.check_totals(
             ["a_final", "d_final"],
@@ -457,43 +561,3 @@ def test_parallel_group_time_integration(
             out_stream=None,
         )
     assert_check_totals(data)
-
-    # TODO: maybe move this to a different test
-
-    # time_integration_prob.model._doutputs.set_val(0.0)
-    # time_integration_prob.model._dresiduals.set_val(0.0)
-    # if time_integration_prob.comm.rank == 0:
-    #     time_integration_prob.model._doutputs[
-    #         time_integration_prob.model.get_source("c_initial")
-    #     ] = 1.0
-    # time_integration_prob.model.run_apply_linear(mode="fwd")
-    # db_fin = np.zeros(1)
-    # fwd_res = 0
-    # if time_integration_prob.comm.rank == 0:
-    #     time_integration_prob.comm.Recv(db_fin, source=1, tag=0)
-    #     fwd_res = (
-    #         time_integration_prob.model._dresiduals["a_final"]
-    #         + db_fin
-    #         + time_integration_prob.model._dresiduals["c_final"]
-    #         + time_integration_prob.model._dresiduals["d_final"]
-    #     )
-    # else:
-    #     db_fin = time_integration_prob.model._dresiduals["b_final"]
-    #     time_integration_prob.comm.Send(db_fin, dest=0, tag=0)
-    #
-    # time_integration_prob.model._doutputs.set_val(0.0)
-    # time_integration_prob.model._dresiduals.set_val(0.0)
-    #
-    # if time_integration_prob.comm.rank == 0:
-    #     time_integration_prob.model._dresiduals["a_final"] = 1.0
-    #     time_integration_prob.model._dresiduals["c_final"] = 1.0
-    #     time_integration_prob.model._dresiduals["d_final"] = 1.0
-    # elif time_integration_prob.comm.rank == 1:
-    #     time_integration_prob.model._dresiduals["b_final"] = 1.0
-    #
-    # time_integration_prob.model.run_apply_linear(mode="rev")
-    # if time_integration_prob.comm.rank == 0:
-    #     rev_res = time_integration_prob.model._doutputs[
-    #         time_integration_prob.model.get_source("c_initial")
-    #     ]
-    #     assert fwd_res == pytest.approx(rev_res)

@@ -88,6 +88,15 @@ class Test1Component1(om.ImplicitComponent):
                 d_outputs["k_i"] += d_residuals["k_i"]
 
 
+def ode_1_analytical_solution(time, initial_values):
+    return np.array(
+        [
+            initial_values[0] * np.cos(time) + initial_values[1] * np.sin(time),
+            -initial_values[0] * np.sin(time) + initial_values[1] * np.cos(time),
+        ]
+    )
+
+
 class Test2Component1(om.ImplicitComponent):
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -247,6 +256,79 @@ class Test2Component2(om.ImplicitComponent):
                 d_outputs["k43_i"] -= d_residuals["k43_i"]
 
 
+def ode_2_analytical_solution(time, initial_values):
+    a = np.sum(initial_values) / 4
+    b = (np.sum(initial_values[0:3:2]) - np.sum(initial_values[1:4:2])) / 4
+    c = (initial_values[3] - initial_values[1]) / 2
+    d = (initial_values[0] - initial_values[2]) / 2
+    return np.array(
+        [
+            a * np.exp(time) + b * np.exp(-time) + c * np.sin(time) + d * np.cos(time),
+            a * np.exp(time) - b * np.exp(-time) - c * np.cos(time) + d * np.sin(time),
+            a * np.exp(time) + b * np.exp(-time) - c * np.sin(time) - d * np.cos(time),
+            a * np.exp(time) - b * np.exp(-time) + c * np.cos(time) - d * np.sin(time),
+        ]
+    )
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1, 10])
+@pytest.mark.parametrize(
+    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+)
+@pytest.mark.parametrize("initial_values", [[1, 1], [0, 0]])
+def test_parallel_single_distributed_time_integration(
+    num_steps, butcher_tableau, initial_values
+):
+    delta_t = 0.0001
+    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+        -1, -1
+    ]
+    test_comp = Test1Component1(integration_control=integration_control)
+
+    test_prob = om.Problem()
+    test_prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
+
+    ivc = om.IndepVarComp()
+    ivc.add_output("x_old", shape=1, distributed=True)
+    ivc.add_output("s_i", shape=1, distributed=True)
+
+    test_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
+    test_prob.model.nonlinear_solver = om.NewtonSolver(
+        iprint=-1, solve_subsystems=False
+    )
+    test_prob.model.linear_solver = om.PETScKrylov(iprint=-1, atol=1e-12, rtol=1e-12)
+    test_prob.setup()
+
+    test_prob.run_model()
+
+    rk_integrator = RungeKuttaIntegrator(
+        time_stage_problem=test_prob,
+        butcher_tableau=butcher_tableau,
+        integration_control=integration_control,
+        time_integration_quantities=["x"],
+    )
+
+    time_test_prob = om.Problem()
+    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
+    time_ivc = om.IndepVarComp()
+    time_ivc.add_output("x_initial", shape=1, distributed=True)
+    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
+    # these solvers are only necessary so that check_partials actually produces results
+    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
+    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
+    time_test_prob.setup()
+    time_test_prob["x_initial"][:] = initial_values[time_test_prob.comm.rank]
+    time_test_prob.run_model()
+
+    analytical_solution = ode_1_analytical_solution(num_steps * delta_t, initial_values)
+
+    assert time_test_prob.get_val("x_final", get_remote=False) == pytest.approx(
+        analytical_solution[time_test_prob.comm.rank]
+    )
+
+
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
@@ -323,6 +405,74 @@ def test_parallel_single_distributed_partial(
             of=["x_final"], wrt=["x_initial"], abs_err_tol=1e-4, rel_err_tol=1e-4
         )
     assert_check_totals(data, atol=1e-4, rtol=1e-4)
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1, 10])
+@pytest.mark.parametrize(
+    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+)
+@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
+def test_parallel_two_distributed_time_integration(
+    num_steps, butcher_tableau, initial_values
+):
+    delta_t = 0.0001
+    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+        -1, -1
+    ]
+    test_comp1 = Test2Component1(integration_control=integration_control)
+    test_comp2 = Test2Component2(integration_control=integration_control)
+    test_prob = om.Problem()
+    test_prob.model.add_subsystem("test_comp1", test_comp1, promotes=["*"])
+    test_prob.model.add_subsystem("test_comp2", test_comp2, promotes=["*"])
+
+    ivc = om.IndepVarComp()
+    ivc.add_output("x12_old", shape=1, distributed=True)
+    ivc.add_output("s12_i", shape=1, distributed=True)
+    ivc.add_output("x43_old", shape=1, distributed=True)
+    ivc.add_output("s43_i", shape=1, distributed=True)
+
+    test_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
+    test_prob.model.nonlinear_solver = om.NewtonSolver(
+        solve_subsystems=False, iprint=-1
+    )
+    test_prob.model.linear_solver = om.PETScKrylov(atol=1e-12, rtol=1e-12, iprint=-1)
+
+    rk_integrator = RungeKuttaIntegrator(
+        time_stage_problem=test_prob,
+        butcher_tableau=butcher_tableau,
+        integration_control=integration_control,
+        time_integration_quantities=["x12", "x43"],
+    )
+
+    time_test_prob = om.Problem()
+    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
+    time_ivc = om.IndepVarComp()
+    time_ivc.add_output("x12_initial", shape=1, distributed=True)
+    time_ivc.add_output("x43_initial", shape=1, distributed=True)
+    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
+    # these solvers are only necessary so that check_partials actually produces results
+    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
+    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
+    time_test_prob.setup()
+    time_test_prob["x12_initial"][:] = initial_values[time_test_prob.comm.rank]
+    time_test_prob["x43_initial"][:] = initial_values[3 - time_test_prob.comm.rank]
+    time_test_prob.run_model()
+
+    analytical_solution = ode_2_analytical_solution(num_steps * delta_t, initial_values)
+
+    numerical_solution = np.array(
+        [
+            time_test_prob.get_val("x12_final", get_remote=False),
+            time_test_prob.get_val("x43_final", get_remote=False),
+        ]
+    ).flatten()
+
+    assert np.allclose(
+        numerical_solution,
+        analytical_solution[[time_test_prob.comm.rank, 3 - time_test_prob.comm.rank]],
+    )
 
 
 @pytest.mark.mpi
