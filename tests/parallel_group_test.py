@@ -379,6 +379,68 @@ def ode_system_solution(time: float, initial_values: np.ndarray):
     )
 
 
+class ParGroupTestAccumulatingComp(om.ExplicitComponent):
+    def setup(self):
+        self.add_input("d", tags=["d", "postproc_input_var"])
+        if self.comm.rank == 0:
+            self.add_input("c", tags=["c", "postproc_input_var"])
+        elif self.comm.rank == 1:
+            self.add_input("b", tags=["b", "postproc_input_var"])
+        self.add_input("a", tags=["a", "postproc_input_var"])
+        self.add_output("sum", tags=["sum", "postproc_output_var"])
+
+    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
+        outputs["sum"] = inputs["d"] + inputs["a"]
+        send_data = np.zeros(1)
+        recv_data = np.zeros(1)
+        if self.comm.rank == 0:
+            outputs["sum"] += inputs["c"]
+            send_data[0] = inputs["c"]
+            self.comm.Send(send_data, dest=1, tag=0)
+            self.comm.Recv(recv_data, source=1, tag=1)
+            outputs["sum"] += recv_data
+        else:
+            outputs["sum"] += inputs["b"]
+            send_data[0] = inputs["b"]
+            self.comm.Recv(recv_data, source=0, tag=0)
+            self.comm.Send(send_data, dest=0, tag=1)
+            outputs["sum"] += recv_data
+
+    def compute_jacvec_product(
+        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
+    ):
+        if mode == "fwd":
+            if "d" in d_inputs:
+                d_outputs["sum"] += d_inputs["d"]
+            if "a" in d_inputs:
+                d_outputs["sum"] += d_inputs["a"]
+            send_data = np.zeros(1)
+            recv_data = np.zeros(1)
+            if self.comm.rank == 0:
+                if "c" in d_inputs:
+                    d_outputs["sum"] += d_inputs["c"]
+                    send_data[0] = d_inputs["c"]
+                self.comm.Send(send_data, dest=1, tag=0)
+                self.comm.Recv(recv_data, source=1, tag=1)
+                d_outputs["sum"] += recv_data
+            else:
+                if "b" in d_inputs:
+                    d_outputs["sum"] += d_inputs["b"]
+                    send_data[0] = d_inputs["b"]
+                self.comm.Recv(recv_data, source=0, tag=0)
+                self.comm.Send(send_data, dest=0, tag=1)
+                d_outputs["sum"] += recv_data
+        elif mode == "rev":
+            if "d" in d_inputs:
+                d_inputs["d"] += d_outputs["sum"]
+            if "c" in d_inputs:
+                d_inputs["c"] += d_outputs["sum"]
+            if "b" in d_inputs:
+                d_inputs["b"] += d_outputs["sum"]
+            if "a" in d_inputs:
+                d_inputs["a"] += d_outputs["sum"]
+
+
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1])
 @pytest.mark.parametrize(
@@ -471,6 +533,97 @@ def test_parallel_group_time_integration(
 
 
 @pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1])
+@pytest.mark.parametrize(
+    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+)
+@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
+def test_parallel_group_time_integration_with_postprocessing(
+    num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
+):
+    delta_t = 0.0001
+    prob = om.Problem()
+    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+        -1, -1
+    ]
+    prob.model.add_subsystem(
+        "First", FirstComponent(integration_control=integration_control)
+    )
+    par_group = om.ParallelGroup()
+    group_1 = om.Group()
+    ivc21 = om.IndepVarComp()
+    ivc21.add_output("c_old")
+    ivc21.add_output("c_accumulated_stages")
+    group_1.add_subsystem("ivc21", ivc21, promotes=["*"])
+    group_1.add_subsystem(
+        "comp_21",
+        SecondComponent1(integration_control=integration_control),
+        promotes=["*"],
+    )
+    par_group.add_subsystem("Second_1", group_1)
+
+    group_2 = om.Group()
+    ivc22 = om.IndepVarComp()
+    ivc22.add_output("b_old")
+    ivc22.add_output("b_accumulated_stages")
+    group_1.add_subsystem("ivc22", ivc22, promotes=["*"])
+    group_2.add_subsystem(
+        "comp_22",
+        SecondComponent2(integration_control=integration_control),
+        promotes=["*"],
+    )
+    par_group.add_subsystem("Second_2", group_2)
+    prob.model.add_subsystem("Second", par_group)
+    prob.model.add_subsystem(
+        "Third", ThirdComponent(integration_control=integration_control)
+    )
+    prob.model.connect("First.d_state", "Second.Second_1.d")
+    prob.model.connect("First.d_state", "Second.Second_2.d")
+    prob.model.connect("Second.Second_1.c_state", "Third.c")
+    prob.model.connect("Second.Second_2.b_state", "Third.b")
+
+    prob.setup()
+    prob.run_model()
+
+    postproc_prob = om.Problem()
+    postproc_prob.model.add_subsystem(
+        "sum", ParGroupTestAccumulatingComp(), promotes=["*"]
+    )
+
+    time_integration_prob = om.Problem()
+    time_integration_prob.model.add_subsystem(
+        "rk_integrator",
+        RungeKuttaIntegrator(
+            time_stage_problem=prob,
+            postprocessing_problem=postproc_prob,
+            time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
+            postprocessing_quantities=["sum"],
+            integration_control=integration_control,
+            butcher_tableau=butcher_tableau,
+        ),
+        promotes=["*"],
+    )
+    time_integration_prob.model.nonlinear_solver = om.NonlinearBlockJac()
+    time_integration_prob.model.linear_solver = om.LinearBlockGS()
+    time_integration_prob.setup()
+    time_integration_prob["d_initial"] = initial_values[0]
+    if time_integration_prob.comm.rank == 0:
+        time_integration_prob["c_initial"] = initial_values[1]
+    else:
+        time_integration_prob["b_initial"] = initial_values[2]
+    time_integration_prob["a_initial"] = initial_values[3]
+    time_integration_prob.run_model()
+
+    analytical_result = ode_system_solution(
+        num_steps * delta_t, np.array(initial_values)
+    )
+    assert time_integration_prob["sum_final"] == pytest.approx(
+        np.sum(analytical_result)
+    )
+
+
+@pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
     "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
@@ -541,7 +694,7 @@ def test_parallel_group_time_integration_partials(
     time_integration_prob.setup(mode=test_direction)
     time_integration_prob.run_model()
 
-    # we test b and c later, since they can't be tested one by one (at least not with functionality already provided by
+    # we omit b and c here, since they can't be tested one by one (at least not with functionality already provided by
     # OpenMDAO, and testing them together gives (expectedly) wrong results
     if prob.comm.rank == 0:
         data = time_integration_prob.check_totals(
@@ -554,6 +707,106 @@ def test_parallel_group_time_integration_partials(
     else:
         data = time_integration_prob.check_totals(
             ["a_final", "d_final"],
+            [
+                "a_initial",
+                "d_initial",
+            ],
+            out_stream=None,
+        )
+    assert_check_totals(data)
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1, 10])
+@pytest.mark.parametrize(
+    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+)
+@pytest.mark.parametrize("test_direction", ["fwd", "rev"])
+def test_parallel_group_time_integration_partials_with_postprocessing(
+    num_steps: int, butcher_tableau: ButcherTableau, test_direction: str
+):
+    prob = om.Problem()
+    integration_control = IntegrationControl(0.0, num_steps, 0.1)
+    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
+        -1, -1
+    ]
+    prob.model.add_subsystem(
+        "First", FirstComponent(integration_control=integration_control)
+    )
+    par_group = om.ParallelGroup()
+    group_1 = om.Group()
+    ivc21 = om.IndepVarComp()
+    ivc21.add_output("c_old")
+    ivc21.add_output("c_accumulated_stages")
+    group_1.add_subsystem("ivc21", ivc21, promotes=["*"])
+    group_1.add_subsystem(
+        "comp_21",
+        SecondComponent1(integration_control=integration_control),
+        promotes=["*"],
+    )
+    par_group.add_subsystem("Second_1", group_1)
+
+    group_2 = om.Group()
+    ivc22 = om.IndepVarComp()
+    ivc22.add_output("b_old")
+    ivc22.add_output("b_accumulated_stages")
+    group_1.add_subsystem("ivc22", ivc22, promotes=["*"])
+    group_2.add_subsystem(
+        "comp_22",
+        SecondComponent2(integration_control=integration_control),
+        promotes=["*"],
+    )
+    par_group.add_subsystem("Second_2", group_2)
+    prob.model.add_subsystem("Second", par_group)
+    prob.model.add_subsystem(
+        "Third", ThirdComponent(integration_control=integration_control)
+    )
+    prob.model.connect("First.d_state", "Second.Second_1.d")
+    prob.model.connect("First.d_state", "Second.Second_2.d")
+    prob.model.connect("Second.Second_1.c_state", "Third.c")
+    prob.model.connect("Second.Second_2.b_state", "Third.b")
+
+    prob.setup()
+    prob.run_model()
+    data = prob.check_partials()
+    assert_check_partials(data)
+
+    postproc_prob = om.Problem()
+    postproc_prob.model.add_subsystem(
+        "sum", ParGroupTestAccumulatingComp(), promotes=["*"]
+    )
+
+    time_integration_prob = om.Problem()
+    time_integration_prob.model.add_subsystem(
+        "rk_integrator",
+        RungeKuttaIntegrator(
+            time_stage_problem=prob,
+            postprocessing_problem=postproc_prob,
+            time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
+            postprocessing_quantities=["sum"],
+            integration_control=integration_control,
+            butcher_tableau=butcher_tableau,
+        ),
+        promotes=["*"],
+    )
+    time_integration_prob.model.nonlinear_solver = om.NonlinearBlockJac()
+    time_integration_prob.model.linear_solver = om.LinearBlockGS()
+    time_integration_prob.setup(mode=test_direction)
+    time_integration_prob.run_model()
+
+    # we omit b and c, since they can't be tested one by one (at least not with functionality already provided by
+    # OpenMDAO, and testing them together gives (expectedly) wrong results
+    if prob.comm.rank == 0:
+        data = time_integration_prob.check_totals(
+            ["sum_final"],
+            [
+                "a_initial",
+                "d_initial",
+            ],
+        )
+    else:
+        data = time_integration_prob.check_totals(
+            ["sum_final"],
             [
                 "a_initial",
                 "d_initial",
