@@ -118,8 +118,13 @@ class PostprocessingProblemComputeJacvecFunctor:
     def linearize(self, inputs=None, outputs=None):
         """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
-            self.postprocessing_problem.model._inputs = inputs
-            self.postprocessing_problem.model._outputs = outputs
+            (
+                prob_inputs,
+                prob_outputs,
+                _,
+            ) = self.postprocessing_problem.model.get_nonlinear_vectors()
+            prob_inputs.set_vec(inputs)
+            prob_outputs.set_vec(outputs)
         elif inputs is not None or outputs is not None:
             raise PostprocessingError(
                 "Either both or none of inputs and outputs must be given."
@@ -185,8 +190,13 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
     def linearize(self, inputs=None, outputs=None):
         """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
-            self.postprocessing_problem.model._inputs = inputs
-            self.postprocessing_problem.model._outputs = outputs
+            (
+                prob_inputs,
+                prob_outputs,
+                _,
+            ) = self.postprocessing_problem.model.get_nonlinear_vectors()
+            prob_inputs.set_vec(inputs)
+            prob_outputs.set_vec(outputs)
         elif inputs is not None or outputs is not None:
             raise PostprocessingError(
                 "Either both or none of inputs and outputs must be given."

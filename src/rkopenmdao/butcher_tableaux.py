@@ -1,8 +1,14 @@
 """
-A collection of butcher tableaux. Most of them are given by Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
+A collection of butcher tableaux. Most of them are given by
+Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
 Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016).
-Exceptions are either from well known methods (like explicit/implicit Euler), or their source is given at the tableau.
+Exceptions are either from well known methods (like explicit/implicit Euler),
+or their source is given at the tableau.
 """
+
+# All functions in here just create the corresponding butcher tableau.
+# No need to write this into doc again.
+# pylint: disable=missing-function-docstring
 
 import numpy as np
 

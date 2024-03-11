@@ -1,10 +1,18 @@
+"""Components and analytical solutions for some ODEs used for convergence tests."""
+
 import numpy as np
 import openmdao.api as om
 
 from rkopenmdao.integration_control import IntegrationControl
 
+# pylint: disable=arguments-differ, unused-argument, too-many-branches
+
 
 class KapsComponent1(om.ImplicitComponent):
+    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
+    Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016). section 10
+    """
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
         self.options.declare("epsilon", types=float)
@@ -135,6 +143,12 @@ class KapsComponent1(om.ImplicitComponent):
 
 
 class KapsComponent2(om.ImplicitComponent):
+    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
+    Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016). section 10
+    """
+
+    y_2: float
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -202,10 +216,6 @@ class KapsComponent2(om.ImplicitComponent):
         )
 
     def linearize(self, inputs, outputs, partials):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         self.y_2 = outputs["y_2"]
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
@@ -310,6 +320,8 @@ class KapsComponent2(om.ImplicitComponent):
 
 
 class KapsGroup(om.Group):
+    """Creates group out of the 2 Kaps components"""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
         self.options.declare("epsilon", types=float)
@@ -346,6 +358,8 @@ class KapsGroup(om.Group):
 
 # y' = -y
 class SimpleLinearODE(om.ExplicitComponent):
+    """Component modelling the ODE y' = -y , y(0) = 1 (by default)"""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -380,8 +394,10 @@ class SimpleLinearODE(om.ExplicitComponent):
 
 
 def KapsSolution(time):
+    "Analytical solution to Kaps problem to compare with the components above."
     return np.array([np.exp(-2 * time), np.exp(-time)])
 
 
 def SimpleLinearSolution(time):
+    """Analytical solution to y' = -y, y(0) = 1"""
     return np.array([np.exp(-time)])

@@ -1,3 +1,5 @@
+# pylint: disable=missing-module-docstring
+
 import warnings
 from typing import Optional
 import h5py
@@ -331,9 +333,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ):
                 raise SetupError(
                     f"""Warning! The time integration problem contains a nonworking combination of variables for
-                    quantity {quantity} on rank {self.comm.rank}. Check that there is an output with the tags 'stage_output_var' and {quantity} 
-                    and either both or no inputs with tags=['step_input_var', {quantity}]
-                    and tags=['accumulated_stage_var', {quantity}]."""
+                    quantity {quantity} on rank {self.comm.rank}. Check that there is an output with the tags 
+                    'stage_output_var' and {quantity} and either both or no inputs with 
+                    tags=['step_input_var', {quantity}] and tags=['accumulated_stage_var', {quantity}]."""
                 )
             self._quantity_metadata[quantity][
                 "numpy_start_index"
@@ -769,12 +771,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 print("Finished postprocessing.")
 
     def _compute_initial_write_out_phase(self):
-        initial_time = self.options["integration_control"].initial_time
         if not self._disable_write_out:
             print(self.comm.rank, "-----------------------------------------------")
             self._write_out(
                 0,
-                initial_time,
                 self._serialized_new_state_symbol.data,
                 self._postprocessing_state,
                 open_mode="r+",
@@ -783,7 +783,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _write_out(
         self,
         step: int,
-        time: float,
         serialized_state: np.ndarray,
         postprocessing_state=None,
         open_mode="r+",
@@ -795,7 +794,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         with h5py.File(self.options["write_file"], mode=open_mode, **further_args) as f:
             if self.comm.size > 1:
                 f.atomic = True
-            # TODO add offsets for distributed vars
             for quantity, metadata in self._quantity_metadata.items():
                 if metadata["type"] == "time_integration":
                     start = metadata["numpy_start_index"]
@@ -1045,14 +1043,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _run_step_write_out_phase(self):
         step = self.options["integration_control"].step
-        time = self.options["integration_control"].step_time_old
         if not self._disable_write_out and (
             step % self.options["write_out_distance"] == 0
             or step == self.options["integration_control"].num_steps
         ):
             self._write_out(
                 step,
-                time,
                 self._serialized_state,
                 self._postprocessing_state,
                 open_mode="r+",
@@ -1350,6 +1346,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         outputs_cache = {}
         # forward iteration
         for stage in range(butcher_tableau.number_of_stages()):
+            prob_inputs, prob_outputs, _ = self.options[
+                "time_stage_problem"
+            ].model.get_nonlinear_vectors()
             if self.comm.rank == 0:
                 print(
                     f"Starting stage {stage} of the forward iteration of reverse-mode jacvec product."
@@ -1360,17 +1359,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ].model._vector_class(
                 "nonlinear", "input", self.options["time_stage_problem"].model
             )
-            inputs_cache[stage].set_vec(
-                self.options["time_stage_problem"].model._inputs
-            )
+            inputs_cache[stage].set_vec(prob_inputs)
             outputs_cache[stage] = self.options[
                 "time_stage_problem"
             ].model._vector_class(
                 "nonlinear", "output", self.options["time_stage_problem"].model
             )
-            outputs_cache[stage].set_vec(
-                self.options["time_stage_problem"].model._outputs
-            )
+            outputs_cache[stage].set_vec(prob_outputs)
             if self.comm.rank == 0:
                 print(
                     f"Finished stage {stage} of the forward iteration of reverse-mode jacvec product."

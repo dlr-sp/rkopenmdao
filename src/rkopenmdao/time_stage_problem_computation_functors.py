@@ -7,7 +7,6 @@ from typing import Tuple
 
 import numpy as np
 import openmdao.api as om
-from openmdao.utils.general_utils import ContainsAll
 
 from .integration_control import IntegrationControl
 from .errors import TimeStageError
@@ -105,21 +104,13 @@ class TimeStageProblemComputeJacvecFunctor:
         butcher_diagonal_element: float,
     ) -> np.ndarray:
         self.time_stage_problem.model.run_linearize()
-        # seed = {}
-        # self.fill_seed(old_state_perturbation, accumulated_stage_perturbation, seed)
         self.fill_vector(old_state_perturbation, accumulated_stage_perturbation)
 
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
         self.time_stage_problem.model.run_solve_linear("fwd")
 
-        # jvp = self.time_stage_problem.compute_jacvec_product(
-        #    of=self.of_vars, wrt=self.wrt_vars, mode="fwd", seed=seed
-        # )
-        # for key, vector in jvp.items():
-        #     print(key, vector)
         stage_perturbation = np.zeros_like(old_state_perturbation)
-        # self.extract_jvp(jvp, stage_perturbation)
         self.extract_vector(stage_perturbation)
 
         return stage_perturbation
@@ -129,18 +120,20 @@ class TimeStageProblemComputeJacvecFunctor:
         old_state_perturbation: np.ndarray,
         accumulated_stage_perturbation: np.ndarray,
     ):
-        self.time_stage_problem.model._dresiduals.asarray()[:] *= 0.0
+        """Fills d_residuals of the time_stage_problem to prepare for jacvec product."""
+        (_, _, d_residuals) = self.time_stage_problem.model.get_linear_vectors()
+        d_residuals.asarray()[:] *= 0.0
         for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
                 if metadata["step_input_var"] is not None:
-                    self.time_stage_problem.model._dresiduals[
+                    d_residuals[
                         self.time_stage_problem.model.get_source(
                             metadata["step_input_var"]
                         )
                     ] = -old_state_perturbation[start:end].reshape(metadata["shape"])
-                    self.time_stage_problem.model._dresiduals[
+                    d_residuals[
                         self.time_stage_problem.model.get_source(
                             metadata["accumulated_stage_var"]
                         )
@@ -148,51 +141,27 @@ class TimeStageProblemComputeJacvecFunctor:
                         metadata["shape"]
                     )
 
-    def fill_seed(
-        self,
-        old_state_perturbation: np.ndarray,
-        accumulated_stage_perturbation: np.ndarray,
-        seed,
-    ):
-        """Write data into a seed to be used by the compute_jacvec_product function by the owned problem."""
-        for metadata in self.quantity_metadata.values():
-            if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
-                end = start + np.prod(metadata["shape"])
-                if metadata["step_input_var"] is not None:
-                    seed[metadata["step_input_var"]] = old_state_perturbation[
-                        start:end
-                    ].reshape(metadata["shape"])
-                    seed[
-                        metadata["accumulated_stage_var"]
-                    ] = accumulated_stage_perturbation[start:end].reshape(
-                        metadata["shape"]
-                    )
-
     def extract_vector(self, stage_perturbation: np.ndarray):
+        """Extracts the result of the jacvec product from d_outputs of the time_stage_problem."""
         for metadata in self.quantity_metadata.values():
+            _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
-                stage_perturbation[start:end] = self.time_stage_problem.model._doutputs[
-                    metadata["stage_output_var"]
-                ].flatten()
-
-    def extract_jvp(self, jvp: dict, stage_perturbation: np.ndarray):
-        """Extracts data from the result of the owned problems compute_jacvec_product functions."""
-        for metadata in self.quantity_metadata.values():
-            if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
-                end = start + np.prod(metadata["shape"])
-                stage_perturbation[start:end] = jvp[
+                stage_perturbation[start:end] = d_outputs[
                     metadata["stage_output_var"]
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
         """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
-            self.time_stage_problem.model._inputs.set_vec(inputs)
-            self.time_stage_problem.model._outputs.set_vec(outputs)
+            (
+                prob_inputs,
+                prob_outputs,
+                _,
+            ) = self.time_stage_problem.model.get_nonlinear_vectors()
+            prob_inputs.set_vec(inputs)
+            prob_outputs.set_vec(outputs)
         elif inputs is not None or outputs is not None:
             raise TimeStageError(
                 "Either both or none of inputs and outputs must be given."
@@ -227,40 +196,26 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         butcher_diagonal_element: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
         self.time_stage_problem.model.run_linearize()
-        seed = {}
-        # self.fill_seed(stage_perturbation, seed)
         self.fill_vector(stage_perturbation)
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
 
-        # jvp = self.time_stage_problem.compute_jacvec_product(
-        #    of=self.of_vars, wrt=self.wrt_vars, mode="rev", seed=seed
-        # )
         self.time_stage_problem.model.run_solve_linear("rev")
 
         old_state_perturbation = np.zeros_like(stage_perturbation)
         accumulated_stage_perturbation = np.zeros_like(stage_perturbation)
-        # self.extract_jvp(jvp, old_state_perturbation, accumulated_stage_perturbation)
         self.extract_vector(old_state_perturbation, accumulated_stage_perturbation)
         return old_state_perturbation, accumulated_stage_perturbation
 
     def fill_vector(self, stage_perturbation: np.ndarray):
-        self.time_stage_problem.model._doutputs.asarray()[:] *= 0
+        """Fills d_outputs of the time_stage_problem to prepare for jacvec product."""
+        (_, d_outputs, _) = self.time_stage_problem.model.get_linear_vectors()
+        d_outputs.asarray()[:] *= 0
         for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
-                self.time_stage_problem.model._doutputs[
-                    metadata["stage_output_var"]
-                ] = -stage_perturbation[start:end].reshape(metadata["shape"])
-
-    def fill_seed(self, stage_perturbation: np.ndarray, seed: dict):
-        """Write data into a seed to be used by the compute_jacvec_product function by the owned problem."""
-        for metadata in self.quantity_metadata.values():
-            if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
-                end = start + np.prod(metadata["shape"])
-                seed[metadata["stage_output_var"]] = stage_perturbation[
+                d_outputs[metadata["stage_output_var"]] = -stage_perturbation[
                     start:end
                 ].reshape(metadata["shape"])
 
@@ -269,50 +224,34 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         old_state_perturbation: np.ndarray,
         accumulated_stage_perturbation: np.ndarray,
     ):
+        """Extracts the result of the jacvec product from d_residuals of the time_stage_problem."""
+        _, _, d_residuals = self.time_stage_problem.model.get_linear_vectors()
         for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
                 if metadata["step_input_var"] is not None:
-                    old_state_perturbation[
-                        start:end
-                    ] = self.time_stage_problem.model._dresiduals[
+                    old_state_perturbation[start:end] = d_residuals[
                         self.time_stage_problem.model.get_source(
                             metadata["step_input_var"]
                         )
                     ].flatten()
-                    accumulated_stage_perturbation[
-                        start:end
-                    ] = self.time_stage_problem.model._dresiduals[
+                    accumulated_stage_perturbation[start:end] = d_residuals[
                         self.time_stage_problem.model.get_source(
                             metadata["accumulated_stage_var"]
                         )
                     ].flatten()
 
-    def extract_jvp(
-        self,
-        jvp: dict,
-        old_state_perturbation: np.ndarray,
-        accumulated_stage_perturbation: np.ndarray,
-    ):
-        """Extracts data from the result of the owned problems compute_jacvec_product functions."""
-        for metadata in self.quantity_metadata.values():
-            if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
-                end = start + np.prod(metadata["shape"])
-                if metadata["step_input_var"] is not None:
-                    old_state_perturbation[start:end] = jvp[
-                        metadata["step_input_var"]
-                    ].flatten()
-                    accumulated_stage_perturbation[start:end] = jvp[
-                        metadata["accumulated_stage_var"]
-                    ].flatten()
-
     def linearize(self, inputs=None, outputs=None):
         """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
         if inputs is not None and outputs is not None:
-            self.time_stage_problem.model._inputs.set_vec(inputs)
-            self.time_stage_problem.model._outputs.set_vec(outputs)
+            (
+                prob_inputs,
+                prob_outputs,
+                _,
+            ) = self.time_stage_problem.model.get_nonlinear_vectors()
+            prob_inputs.set_vec(inputs)
+            prob_outputs.set_vec(outputs)
         elif inputs is not None or outputs is not None:
             raise TimeStageError(
                 "Either both or none of inputs and outputs must be given."

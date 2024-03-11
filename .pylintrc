@@ -1,6 +1,6 @@
 [MASTER]
 max-args = 7
-disable=C0103
+disable=C0103, R1705
 
 [BASIC]
 

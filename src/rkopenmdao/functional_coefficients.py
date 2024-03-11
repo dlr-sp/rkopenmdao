@@ -76,7 +76,7 @@ class CompositeTrapezoidalCoefficients(FunctionalCoefficients):
     def get_coefficient(
         self, time_step: int, quantity: str
     ) -> Union[float, np.ndarray]:
-        if time_step == 0 or time_step == self._integration_control.num_steps:
+        if time_step in (0, self._integration_control.num_steps):
             return 0.5 * self._integration_control.delta_t
         else:
             return self._integration_control.delta_t

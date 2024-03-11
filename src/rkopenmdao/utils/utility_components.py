@@ -1,3 +1,5 @@
+"""Place for some components that are useful in multiple scenarios"""
+
 import openmdao.api as om
 
 from rkopenmdao.integration_control import IntegrationControl
@@ -75,11 +77,11 @@ class StageValueComponent(om.ExplicitComponent):
                     )
 
 
-class RKPassthroughComponent(om.ExplicitComponent):
+class StageUpdateComponent(om.ExplicitComponent):
     """
-    Passes a value to the time-integration that normally isn't a part of it, by calculating its time derivative
-    via k_i = (u_n^i - u_n - \\Delta t * s_i) / (a_ii * \\Delta t * s_i). Only works for schemes that don't have
-    explicit stages.
+    General purpose component to compute the stage at stage time (which is needed for coupling) from the old information
+    and the newly computed stage state. Can also be used to passthrough a variable without time-derivative to the
+    RK-scheme.
     """
 
     def initialize(self):

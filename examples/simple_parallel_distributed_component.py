@@ -1,16 +1,18 @@
-from mpi4py import MPI
+"""Example to show how the RungeKuttaIntegrator works with MPI using distributed components in the time_stage_problem"""
 
 import openmdao.api as om
 import numpy as np
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.butcher_tableaux import (
     third_order_four_stage_esdirk,
-    implicit_euler,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
 
+# pylint: disable=arguments-differ
 class SimpleDistributedComponent(om.ExplicitComponent):
+    """Component for the ODE system x' = -y, y' = x. The equations are distributed over two ranks."""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -104,7 +106,7 @@ class SimpleDistributedComponent(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    butcher_tableau = implicit_euler
+    butcher_tableau = third_order_four_stage_esdirk
     integration_control = IntegrationControl(0.0, 3, 0.1)
     prob = om.Problem()
 
@@ -125,8 +127,6 @@ if __name__ == "__main__":
     prob.model.linear_solver = om.PETScKrylov(iprint=-1)
     prob.setup()
 
-    # prob.check_partials()
-    # prob.check_totals(["k_i"], ["x_old", "s_i"])
     outer_prob = om.Problem()
     rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=prob,
@@ -152,44 +152,3 @@ if __name__ == "__main__":
     outer_prob.setup()
 
     outer_prob.run_model()
-
-    d_inputs = om.DefaultVector("linear", "input", rk_integrator)
-
-    for i in range(2):
-        if outer_prob.comm.rank == 0:
-            d_inputs["x_initial"] = 1 - i
-        elif outer_prob.comm.rank == 1:
-            d_inputs["x_initial"] = i
-
-        d_outputs = om.DefaultVector("linear", "output", rk_integrator)
-
-        outer_prob.comm.Barrier()
-
-        rk_integrator.compute_jacvec_product(
-            outer_prob.model._inputs, d_inputs, d_outputs, "fwd"
-        )
-        outer_prob.comm.Barrier()
-        if outer_prob.comm.rank == 0:
-            print("fwd", outer_prob.comm.rank, d_outputs["x_final"])
-        outer_prob.comm.Barrier()
-        if outer_prob.comm.rank == 1:
-            print("fwd", outer_prob.comm.rank, d_outputs["x_final"])
-
-    for i in range(2):
-        if outer_prob.comm.rank == 0:
-            d_outputs["x_final"] = 1 - i
-
-        elif outer_prob.comm.rank == 1:
-            d_outputs["x_final"] = i
-
-        outer_prob.comm.Barrier()
-
-        rk_integrator.compute_jacvec_product(
-            outer_prob.model._inputs, d_inputs, d_outputs, "rev"
-        )
-        outer_prob.comm.Barrier()
-        if outer_prob.comm.rank == 0:
-            print("rev", outer_prob.comm.rank, d_inputs["x_initial"])
-        outer_prob.comm.Barrier()
-        if outer_prob.comm.rank == 1:
-            print("rev", outer_prob.comm.rank, d_inputs["x_initial"])

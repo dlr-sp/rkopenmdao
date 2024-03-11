@@ -1,3 +1,5 @@
+# pylint: disable=missing-module-docstring
+
 from dataclasses import dataclass
 
 
@@ -6,6 +8,9 @@ class IntegrationControl:
     """
     Object for exchanging data between the Runge-Kutta integrator and the inner problems.
     """
+
+    # Could solve this by putting things into subclasses, but I don't see the benefit here.
+    # pylint: disable=too-many-instance-attributes
 
     # General information
     initial_time: float

@@ -38,7 +38,7 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
         if isinstance(symbols, Mapping):
             self.symbols: dict = symbols
         else:
-            raise Exception(
+            raise TypeError(
                 "Symbols must be a Mapping, for example a \
                               dictionary."
             )

@@ -1,16 +1,18 @@
-from mpi4py import MPI
+"""Example to show how the RungeKuttaIntegrator works with MPI using parallel groups in the time_stage_problem."""
 
 import openmdao.api as om
-import numpy as np
+
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.butcher_tableaux import (
     third_order_four_stage_esdirk,
-    implicit_euler,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
 
+# pylint: disable=arguments-differ
 class ComponentPart1(om.ExplicitComponent):
+    """This component models x' = -y, part 2 models y' = x"""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -56,6 +58,8 @@ class ComponentPart1(om.ExplicitComponent):
 
 
 class ComponentPart2(om.ExplicitComponent):
+    """This component models y' = x, part 1 models x' = -y"""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -101,7 +105,7 @@ class ComponentPart2(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    butcher_tableau = implicit_euler
+    butcher_tableau = third_order_four_stage_esdirk
     integration_control = IntegrationControl(0.0, 3, 0.1)
     prob = om.Problem()
 
@@ -129,17 +133,10 @@ if __name__ == "__main__":
     par_group.add_subsystem("second_group", second_group, promotes=["*"])
 
     prob.model.add_subsystem("parallel_group", par_group, promotes=["*"])
-    # indep = om.IndepVarComp()
-    # if prob.comm.rank == 0:
-    #     indep.add_output("x_old", val=1.0, shape=1, distributed=True)
-    # elif prob.comm.rank == 1:
-    #     indep.add_output("x_old", val=0.0, shape=1, distributed=True)
-    # indep.add_output("s_i", val=0.0, shape=1, distributed=True)
 
-    # prob.model.add_subsystem("indep", indep, promotes=["*"])
     prob.model.nonlinear_solver = om.NewtonSolver(solve_subsystems=True)
     prob.model.linear_solver = om.PETScKrylov()
-    prob.setup()
+    # prob.setup()
     outer_prob = om.Problem()
     rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=prob,
@@ -158,63 +155,6 @@ if __name__ == "__main__":
         promotes=["*"],
     )
 
-    # outer_indep = om.IndepVarComp()
-    # if outer_prob.comm.rank == 0:
-    #     outer_indep.add_output("x_initial", val=1.0, shape=1, distributed=True)
-    # elif outer_prob.comm.rank == 1:
-    #     outer_indep.add_output("x_initial", val=0.0, shape=1, distributed=True)
-    # outer_prob.model.add_subsystem("outer_indep", outer_indep, promotes=["*"])
-    #
     outer_prob.setup()
 
     outer_prob.run_model()
-
-    # outer_prob.check_partials()
-
-    # outer_prob.check_totals(
-    #     ["x_final", "y_final"]
-    #     if prob.comm.size == 1
-    #     else ["x_final"]
-    #     if prob.comm.rank == 0
-    #     else ["y_final"],
-    #     ["x_initial", "y_initial"]
-    #     if prob.comm.size == 1
-    #     else ["x_initial"]
-    #     if prob.comm.rank == 0
-    #     else ["y_initial"],
-    # )
-
-    d_inputs = om.DefaultVector("linear", "input", rk_integrator)
-
-    for i in range(2):
-        if outer_prob.comm.rank == 0:
-            d_inputs["x_initial"] = i
-        elif outer_prob.comm.rank == 1:
-            d_inputs["y_initial"] = 1 - i
-
-        d_outputs = om.DefaultVector("linear", "output", rk_integrator)
-        rk_integrator.compute_jacvec_product(
-            outer_prob.model._inputs, d_inputs, d_outputs, "fwd"
-        )
-        outer_prob.comm.Barrier()
-        if outer_prob.comm.rank == 0:
-            print("fwd", outer_prob.comm.rank, d_outputs["x_final"])
-        elif outer_prob.comm.rank == 1:
-            print("fwd", outer_prob.comm.rank, d_outputs["y_final"])
-
-        if outer_prob.comm.rank == 0:
-            d_outputs["x_final"] = i
-            d_inputs["x_initial"] = 0.0
-        elif outer_prob.comm.rank == 1:
-            d_outputs["y_final"] = 1 - i
-
-        outer_prob.comm.Barrier()
-        print("reverse test")
-        rk_integrator.compute_jacvec_product(
-            outer_prob.model._inputs, d_inputs, d_outputs, "rev"
-        )
-        outer_prob.comm.Barrier()
-        if outer_prob.comm.rank == 0:
-            print("rev", outer_prob.comm.rank, d_inputs["x_initial"])
-        elif outer_prob.comm.rank == 1:
-            print("rev", outer_prob.comm.rank, d_inputs["y_initial"])

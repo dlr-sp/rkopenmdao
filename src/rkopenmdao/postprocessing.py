@@ -1,3 +1,5 @@
+# pylint: disable=missing-module-docstring
+
 from typing import Callable
 import numpy as np
 

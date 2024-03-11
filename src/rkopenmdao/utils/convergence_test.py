@@ -1,10 +1,12 @@
+"""Tries out some ODEs with various DIRK schemes to assess their order under different conditions"""
+
 import numpy as np
 import openmdao.api as om
 
 
 import matplotlib.pyplot as plt
 
-from convergence_test_components import (
+from rkopenmdao.utils.convergence_test_components import (
     KapsGroup,
     KapsSolution,
     SimpleLinearODE,
@@ -115,13 +117,18 @@ for problem_name, (Class, Solution, var_list) in problem_dict.items():
                 try:
                     runge_kutta_problem.run_model()
                 except om.AnalysisError:
-                    for var in time_integration_problem.model._inputs:
+                    (
+                        inputs,
+                        outputs,
+                        residuals,
+                    ) = time_integration_problem.model.get_nonlinear_vectors()
+                    for var in inputs:
                         print(var, time_integration_problem[var])
-                    for var in time_integration_problem.model._outputs:
+                    for var in outputs:
                         print(var, time_integration_problem[var])
                         print(
                             var + "residual",
-                            time_integration_problem.model._residuals[var],
+                            residuals[var],
                         )
                     continue
 

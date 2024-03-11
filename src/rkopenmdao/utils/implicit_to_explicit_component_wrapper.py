@@ -1,10 +1,4 @@
-"""
-Wraps an implicit component to an explicit compontent,
-such that the residual of the wrapped implicit component is the
-output of the resulting explicit component, and the inputs and
-outputs of the implicit component are the inputs of the explicit
-component
-"""
+# pylint: disable=missing-module-docstring
 
 
 import openmdao.api as om
@@ -12,7 +6,11 @@ import openmdao.api as om
 
 class ImplicitToExplicitComponentWrapper(om.ExplicitComponent):
     """
-    doc
+    Wraps an implicit component to an explicit compontent,
+    such that the residual of the wrapped implicit component is the
+    output of the resulting explicit component, and the inputs and
+    outputs of the implicit component are the inputs of the explicit
+    component
     """
 
     def _declare_options(self):

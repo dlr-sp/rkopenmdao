@@ -37,8 +37,9 @@ class ButcherTableau:
 
     def is_diagonally_implicit(self) -> bool:
         """
-        Checks whether this tableau is diagonally implicit or not. This requires at least one non-zero diagonal element
-        in the Butcher matrix, i.e. we don't count explicit schemes as diagonally implicit.
+        Checks whether this tableau is diagonally implicit or not.
+        This requires at least one non-zero diagonal element in the Butcher matrix,
+        i.e. we don't count explicit schemes as diagonally implicit.
         """
         if self.is_explicit():
             return False
@@ -57,12 +58,10 @@ class ButcherTableau:
         return True
 
 
-# TODO: is currently not used, need to re-add adaptive step size control at some point
-# (but this currently clashes with checkpointing)
 class AdaptiveButcherTableau(ButcherTableau):
     """
-    Representation of a Butcher tableau with internal error control (i.e. has a second weight vector for representing a
-    second scheme with lower order).
+    Representation of a Butcher tableau with internal error control
+    (i.e. has a second weight vector for representing a second scheme with lower order).
     """
 
     def __init__(
