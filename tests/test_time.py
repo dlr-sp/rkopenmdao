@@ -1,3 +1,5 @@
+"""Tests that the RungeKuttaIntegrator/IntegrationControl has the correct time at the stages/steps."""
+
 import pytest
 import openmdao.api as om
 
@@ -12,6 +14,8 @@ from rkopenmdao.butcher_tableaux import (
 
 
 class DummyComponent(om.ExplicitComponent):
+    """Component that doesn't compute anything, and only checks for the expected times in IntegrationControl."""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
         self.options.declare("butcher_tableau", types=ButcherTableau)
@@ -45,6 +49,7 @@ class DummyComponent(om.ExplicitComponent):
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize("delta_t", [0.1, 0.01])
 def test_integration_control_updating(butcher_tableau, initial_time, delta_t):
+    """Tests integration control for step/stage-times."""
     integration_control = IntegrationControl(initial_time, 10, delta_t)
     prob = om.Problem()
     prob.model.add_subsystem(

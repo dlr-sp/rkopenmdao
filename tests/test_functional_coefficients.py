@@ -1,3 +1,5 @@
+"""FunctionalCoefficients that are useful for tests, but not for real usage."""
+
 from typing import List, Union
 
 import numpy as np
@@ -5,10 +7,11 @@ import numpy as np
 from rkopenmdao.functional_coefficients import (
     FunctionalCoefficients,
 )
-from rkopenmdao.integration_control import IntegrationControl
 
 
 class FifthStepOfQuantity(FunctionalCoefficients):
+    """A functional that only takes the state at time step five of the given quantity."""
+
     def __init__(self, quantity: str):
         self._quantity_list = [quantity]
 

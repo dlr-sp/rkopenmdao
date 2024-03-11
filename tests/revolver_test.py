@@ -1,3 +1,5 @@
+"""Tests for the usage of pyrevolve in rkopenmdao."""
+
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
@@ -22,8 +24,8 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
         ["SingleLevel", {"diskstorage": True}],
         ["SingleLevel", {"n_checkpoints": 20, "diskstorage": True}],
         ["SingleLevel", {"n_checkpoints": 100, "diskstorage": True}],
-        # something is strange here. For certain checkpoint numbers, the MultiLevelRevolver works, but for others it doesn't
-        # We skip this for now
+        # something is strange here. For certain checkpoint numbers, the MultiLevelRevolver works,
+        # but for others it doesn't. We skip this for now
         # TODO: investigate this
         # [
         #     "MultiLevel",
@@ -52,6 +54,7 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
     ),
 )
 def test_rk_integrator_revolver_options(revolver_type, revolver_options):
+    """Tests that the options given to the RungeKuttaIntegrator are passed through to the Revolver."""
     integration_control = IntegrationControl(0.0, 100, 0.01)
 
     inner_prob = om.Problem()

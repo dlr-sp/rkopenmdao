@@ -1,3 +1,5 @@
+"""Tests for the Runge-Kutta integration core."""
+
 from typing import Callable, Tuple
 
 import numpy as np
@@ -12,6 +14,9 @@ from rkopenmdao.butcher_tableaux import (
 
 
 class RkFunctionProvider:
+    """Wraps functions and their (transposed) derivative into a common interface."""
+
+    # pylint: disable=too-few-public-methods
     def __init__(
         self,
         stage_computation_functor: Callable[
@@ -77,6 +82,8 @@ time_scaled_identity_ode_provider = RkFunctionProvider(
 
 
 class RootOdeJacvec:
+    """Functor for the jacvec-product of the root function."""
+
     def __init__(self):
         self.old_state = 0.0
         self.acc_stages = 0.0
@@ -98,6 +105,7 @@ class RootOdeJacvec:
         )
 
     def linearize(self, old_state, acc_stages):
+        """Saves the linearization point for the jacobian."""
         self.old_state = old_state
         self.acc_stages = acc_stages
 
@@ -106,6 +114,8 @@ root_ode_jacvec = RootOdeJacvec()
 
 
 class RootOdeJacvecTransposed:
+    """Functor for the transposed jacvec-product of the root function."""
+
     def __init__(self):
         self.old_state = 0.0
         self.acc_stages = 0.0
@@ -132,6 +142,7 @@ class RootOdeJacvecTransposed:
         )
 
     def linearize(self, old_state, acc_stages):
+        """Saves the linearization point for the jacobian."""
         self.old_state = old_state
         self.acc_stages = acc_stages
 
@@ -235,12 +246,12 @@ def test_compute_stage(
     accumulated_stages: np.ndarray,
     expected_stage: np.ndarray,
 ):
+    """Tests the compute_stage function."""
     assert rk_scheme.compute_stage(
         stage, delta_t, old_time, old_state, accumulated_stages
     ) == pytest.approx(expected_stage)
 
 
-# TODO: add a test case some some butcher tableau with "better" coefficients
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
@@ -273,6 +284,7 @@ def test_compute_accumulated_stages(
     stage_field: np.ndarray,
     expected_accumulated_stages: np.ndarray,
 ):
+    """Tests the compute_accumulated_stages function."""
     assert rk_scheme.compute_accumulated_stages(stage, stage_field) == pytest.approx(
         expected_accumulated_stages
     )
@@ -306,6 +318,7 @@ def test_compute_step(
     stage_field: np.ndarray,
     expected_new_state: np.ndarray,
 ):
+    """Tests the compute_step function."""
     assert rk_scheme.compute_step(delta_t, old_state, stage_field) == pytest.approx(
         expected_new_state
     )
@@ -314,7 +327,8 @@ def test_compute_step(
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "rk_scheme, stage, delta_t, old_time, old_state_perturbation, accumulated_stages_perturbation, linearization_args, expected_jacvec_product",
+    """rk_scheme, stage, delta_t, old_time, old_state_perturbation, accumulated_stages_perturbation, 
+    linearization_args, expected_jacvec_product""",
     (
         [identity_ode_rk4_scheme, 0, 0.1, 0.0, 1.0, 1.0, {}, 1.1],
         [identity_ode_rk4_scheme, 3, 0.01, 0.0, 2.0, 10.0, {}, 2.1],
@@ -378,6 +392,8 @@ def test_compute_stage_jacvec(
     linearization_args: dict,
     expected_jacvec_product: np.ndarray,
 ):
+    """Tests the compute_stage_jacvec function."""
+    # pylint: disable=too-many-arguments
     assert rk_scheme.compute_stage_jacvec(
         stage,
         delta_t,
@@ -450,6 +466,7 @@ def test_compute_stage_transposed_jacvec(
     linearization_args: dict,
     expected_jacvec_product: Tuple[np.ndarray, np.ndarray],
 ):
+    """Tests the compute_stage_tranposed_jacvec function."""
     assert rk_scheme.compute_stage_transposed_jacvec(
         stage, delta_t, old_time, joined_perturbation, **linearization_args
     ) == pytest.approx(expected_jacvec_product)
@@ -490,6 +507,7 @@ def test_join_new_state_and_accumulated_stages_perturbations(
     accumulated_stages_perturbation_field: np.ndarray,
     expected_joined_perturbation: np.ndarray,
 ):
+    """Tests the join_new_state_and_accumulated_stages_perturbations function"""
     assert rk_scheme.join_new_state_and_accumulated_stages_perturbations(
         stage, new_state_perturbation, accumulated_stages_perturbation_field
     ) == pytest.approx(expected_joined_perturbation)
@@ -523,6 +541,7 @@ def test_compute_step_transposed_jacvec(
     stage_perturbation_field: np.ndarray,
     expected_old_state_perturbation: np.ndarray,
 ):
+    """Tests the compute_step_tranposed_jacvec function."""
     assert rk_scheme.compute_step_transposed_jacvec(
         delta_t, new_state_perturbation, stage_perturbation_field
     ) == pytest.approx(expected_old_state_perturbation)

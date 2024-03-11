@@ -1,9 +1,10 @@
+"""Components for various ODEs with which the RungeKuttaIntegrator gets tested in test_component_test.py"""
 import openmdao.api as om
 import numpy as np
 
 from rkopenmdao.integration_control import IntegrationControl
 
-"""Contains various components for relatively simple ODEs. Used to test some basics that have to work."""
+# pylint: disable=arguments-differ
 
 
 class TestComp1(om.ExplicitComponent):
@@ -47,6 +48,7 @@ class TestComp1(om.ExplicitComponent):
 
 
 def Test1Solution(time, initial_value, initial_time):
+    """Analytical solution to the ODE of the above component."""
     return initial_value * np.exp(time - initial_time)
 
 
@@ -80,6 +82,7 @@ class TestComp2(om.ExplicitComponent):
 
 
 def Test2Solution(time, initial_value, initial_time):
+    """Analytical solution to the ODE of the above component."""
     return initial_value + 0.5 * (time**2 - initial_time**2)
 
 
@@ -141,6 +144,7 @@ class TestComp3(om.ExplicitComponent):
 
 
 def Test3Solution(time, initial_value, initial_time):
+    """Analytical solution to the ODE of the above component."""
     return initial_value * np.exp(0.5 * (time**2 - initial_time**2))
 
 
@@ -227,6 +231,7 @@ class TestComp4(om.ExplicitComponent):
 
 
 def Test4Solution(time, initial_value, initial_time):
+    """Analytical solution to the ODE of the above component."""
     return np.array(
         [
             [
@@ -239,9 +244,9 @@ def Test4Solution(time, initial_value, initial_time):
     )
 
 
-"""The next two components also model the ODE system  x' = y, y'=x. However, this time
-the formulas are implemented in 2 components. This can then be used to test that both
-ways (one or two components) work the same."""
+# The next two components also model the ODE system  x' = y, y'=x. However, this time
+# the formulas are implemented in 2 components. This can then be used to test that both
+# ways (one or two components) work the same.
 
 
 class TestComp5_1(om.ExplicitComponent):
@@ -347,6 +352,7 @@ class TestComp5_2(om.ExplicitComponent):
 
 
 def Test5Solution(time, initial_value, initial_time):
+    """Analytical solution to the ODE of the above components."""
     return np.array(
         [
             initial_value[0]
@@ -414,6 +420,7 @@ class TestComp6(om.ExplicitComponent):
 
 
 def Test6Solution(time, initial_value, initial_time):
+    """Analytical solution to the ODE of the above component."""
     return (0.5 * (time - initial_time) + np.sqrt(initial_value)) ** 2
 
 
@@ -427,7 +434,8 @@ class TestComp7(om.ExplicitComponent):
     (rev) dx_n = 0.5 * t_n^i * dk_i * (0.25 * dt**2 * a_ii**2 * t_n^i**2 +t_n_i * (x_n + dt * s_i))**-0.5
     (rev) ds_i = 0.5 * t_n^i * dt * dk_i * (0.25 * dt**2 * a_ii**2 * t_n^i**2 +t_n_i * (x_n + dt * s_i))**-0.5
 
-    This is a non-autonomous version of the last nonlinear ODE. with that we also have a non-autonomous nonlinear testcase.
+    This is a non-autonomous version of the last nonlinear ODE. with that we also have a non-autonomous nonlinear
+    testcase.
     """
 
     def initialize(self):
@@ -475,6 +483,7 @@ class TestComp7(om.ExplicitComponent):
 
 
 def Test7Solution(time, initial_value, initial_time):
+    """Analytical solution to the ODE of the above component."""
     return (
         np.sqrt(initial_value) + (np.sqrt(time**3) - np.sqrt(initial_time**3)) / 3
     ) ** 2

@@ -1,3 +1,5 @@
+"""Tests the correct writing into hdf5-files."""
+
 import openmdao.api as om
 import h5py
 import pytest
@@ -27,6 +29,7 @@ from .test_postprocessing_problems import SquaringComponent
     ),
 )
 def test_monodisciplinary(write_out_distance, write_file):
+    """Tests write-out for monodisciplinary problems."""
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
@@ -77,6 +80,7 @@ def test_monodisciplinary(write_out_distance, write_file):
     ),
 )
 def test_multidisciplinary(write_out_distance, write_file):
+    """Tests write-out for multidisciplinary problems."""
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
@@ -139,6 +143,7 @@ def test_multidisciplinary(write_out_distance, write_file):
     ),
 )
 def test_postprocessing(write_out_distance, write_file):
+    """Tests write out when postprocessing is involved."""
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
@@ -194,6 +199,7 @@ def test_postprocessing(write_out_distance, write_file):
     (1, 10),
 )
 def test_n_d_array(write_out_distance):
+    """Tests write-out when shape isn't just 1D."""
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
@@ -241,6 +247,7 @@ def test_n_d_array(write_out_distance):
 @pytest.mark.parametrize("write_out_distance", [1, 10])
 @pytest.mark.parametrize("shape", [(2,), (2, 2), (2, 2, 2)])
 def test_parallel_write_out(write_out_distance, shape):
+    """Tests write-out with parallel execution. (Needs h5py that has MPI support.)"""
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 

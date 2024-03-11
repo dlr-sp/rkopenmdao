@@ -1,3 +1,5 @@
+"""Tests to make sure that FunctionalCoefficients in the RungeKuttaIntegrator work correctly."""
+
 import pytest
 
 import openmdao.api as om
@@ -5,22 +7,11 @@ from openmdao.utils.assert_utils import assert_check_partials
 
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-
-from .test_components import TestComp6
-
-from .test_components import Test6Solution
-
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
-
-
-from .test_postprocessing_problems import (
-    create_negating_problem,
-)
-
 from rkopenmdao.functional_coefficients import (
     AverageCoefficients,
     CompositeTrapezoidalCoefficients,
@@ -28,6 +19,11 @@ from rkopenmdao.functional_coefficients import (
 
 from .test_functional_coefficients import (
     FifthStepOfQuantity,
+)
+from .test_components import TestComp6
+from .test_components import Test6Solution
+from .test_postprocessing_problems import (
+    create_negating_problem,
 )
 
 
@@ -45,6 +41,7 @@ def test_average_functional(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the averaging functional with various time integration schemes."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -94,6 +91,7 @@ def test_average_functional_partials(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the partials of the averaging functional with various time integration schemes."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -138,6 +136,7 @@ def test_composite_trapezoidal_functional(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the functional for the composite trapezoidal rule with various time integration schemes."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -189,6 +188,7 @@ def test_composite_trapezoidal_functional_partials(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the partials of the functional for the composite trapezoidal rule with various time integration schemes."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -235,6 +235,7 @@ def test_fifth_value_functional(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the functional for the fifth step with various time integration schemes."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -280,6 +281,7 @@ def test_fifth_value_functional_partials(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the partials of the functional for the fifth step with various time integration schemes."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -324,6 +326,7 @@ def test_average_functional_with_postprocessing(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the averaging functional with time integration and postprocessing."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -382,6 +385,7 @@ def test_average_functional_with_postprocessing_partials(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the partials of the averaging functional with time integration and postprocessing."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -432,6 +436,7 @@ def test_average_functional_with_only_postprocessing(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the averaging functional with only postprocessing."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -488,6 +493,7 @@ def test_average_functional_with_only_postprocessing_partials(
     initial_value,
     butcher_tableau,
 ):
+    """Tests the partials of the averaging functional with only postprocessing."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()

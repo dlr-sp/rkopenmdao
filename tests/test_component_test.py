@@ -1,9 +1,11 @@
-import openmdao.api as om
-import pytest
-import numpy as np
+"""Tests the time integration with the various components of test_components.py"""
 
 from itertools import product
+
+import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
+import pytest
+import numpy as np
 
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
@@ -55,6 +57,7 @@ butcher_diagonal_elements = np.linspace(0.0, 1.0, 5)
     product(test_comp_class_list, times, butcher_diagonal_elements),
 )
 def test_component_partials(test_class, time, butcher_diagonal_element):
+    """Tests whether the components itself produce the right partials"""
     integration_control = IntegrationControl(0.0, 1, 0.1)
     integration_control.stage_time = time
     integration_control.butcher_diagonal_element = butcher_diagonal_element
@@ -157,6 +160,7 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
 def test_component_integration(
     test_class, test_functor, initial_time, initial_values, butcher_tableau, quantities
 ):
+    """Tests the time integration of the different components."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -211,6 +215,7 @@ def test_component_integration(
     ),
 )
 def test_component_splitting(initial_time, initial_values, butcher_tableau):
+    """Tests the time integration of the problem that is split over multiple components."""
     integration_control_1 = IntegrationControl(initial_time, 1000, 0.001)
     integration_control_2 = IntegrationControl(initial_time, 1000, 0.001)
 
@@ -317,6 +322,7 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
 def test_time_integration_partials(
     test_class, initial_time, butcher_tableau, quantities
 ):
+    """Tests the partials of the time integration of the different components."""
     integration_control = IntegrationControl(initial_time, 10, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -360,6 +366,7 @@ def test_time_integration_partials(
     ),
 )
 def test_component_splitting_partials(initial_time, butcher_tableau):
+    """Tests the partials of the time integration of the problem that is split into multiple components."""
     integration_control_1 = IntegrationControl(initial_time, 10, 0.001)
     integration_control_2 = IntegrationControl(initial_time, 10, 0.001)
 

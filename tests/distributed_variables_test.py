@@ -1,3 +1,5 @@
+"""Test to make sure that rkopenmdao works with problems containing distributed variables."""
+
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_totals
 import numpy as np
@@ -13,6 +15,8 @@ from rkopenmdao.butcher_tableaux import (
 
 
 class Test1Component1(om.ImplicitComponent):
+    """Models x' = y, y' = -x and distributed the equations over two cores."""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -68,7 +72,6 @@ class Test1Component1(om.ImplicitComponent):
         elif mode == "rev":
             send_data = d_residuals["k_i"]
             recv_data = np.zeros(1)
-            # TODO: Are the += and -= correct? According to check_totals they are, but they seem wrong somehow?
             if self.comm.rank == 0:
                 self.comm.Send(send_data, dest=1, tag=0)
                 self.comm.Recv(recv_data, source=1, tag=1)
@@ -86,6 +89,7 @@ class Test1Component1(om.ImplicitComponent):
 
 
 def ode_1_analytical_solution(time, initial_values):
+    """Analytical solution for the ODE of the above component."""
     return np.array(
         [
             initial_values[0] * np.cos(time) + initial_values[1] * np.sin(time),
@@ -94,7 +98,14 @@ def ode_1_analytical_solution(time, initial_values):
     )
 
 
+# The following two components model the system
+#   x_1' = x_4
+#   x_2' = x_1
+#   x_3' = x_2
+#   x_4' = x_3
 class Test2Component1(om.ImplicitComponent):
+    """Models the first two equations from above, with the first being on rank 0 and the second on rank 1"""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -153,7 +164,7 @@ class Test2Component1(om.ImplicitComponent):
             elif self.comm.rank == 1:
                 self.comm.Recv(exch_data, source=0, tag=0)
                 d_residuals["k12_i"] += exch_data[0] - d_outputs["k12_i"]
-        # TODO: Are the Sends and Recvs at the right place? According to check_totals they are, but they seem wrong somehow?
+        # but they seem wrong somehow?
         elif mode == "rev":
             d_inputs["x12_old"] += d_residuals["x12"]
             d_inputs["s12_i"] += delta_t * d_residuals["x12"]
@@ -174,6 +185,8 @@ class Test2Component1(om.ImplicitComponent):
 
 
 class Test2Component2(om.ImplicitComponent):
+    """Models the last two equations from above, with the first being on rank 1 and the second on rank 0"""
+
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
 
@@ -231,7 +244,7 @@ class Test2Component2(om.ImplicitComponent):
                 exch_data[0] = d_outputs["x43"]
                 self.comm.Send(exch_data, dest=0, tag=3)
                 d_residuals["k43_i"] += d_inputs["x12"] - d_outputs["k43_i"]
-        # TODO: Are the Sends and Recvs at the right place? According to check_totals they are, but they seem wrong somehow?
+        # but they seem wrong somehow?
         elif mode == "rev":
             d_inputs["x43_old"] += d_residuals["x43"]
             d_inputs["s43_i"] += delta_t * d_residuals["x43"]
@@ -254,6 +267,7 @@ class Test2Component2(om.ImplicitComponent):
 
 
 def ode_2_analytical_solution(time, initial_values):
+    """Analytical solution to the above system of ODEs modelled by the two components"""
     a = np.sum(initial_values) / 4
     b = (np.sum(initial_values[0:3:2]) - np.sum(initial_values[1:4:2])) / 4
     c = (initial_values[3] - initial_values[1]) / 2
@@ -270,6 +284,8 @@ def ode_2_analytical_solution(time, initial_values):
 
 class AccumulatingComponent(om.ExplicitComponent):
     # TODO: see if this still works with openMDAO 3.25
+    """A component that accumulates its inputs. To be used as postprocessing."""
+
     def setup(self):
         self.add_input(
             "x12", distributed=True, shape=1, tags=["x12", "postproc_input_var"]
@@ -338,6 +354,7 @@ class AccumulatingComponent(om.ExplicitComponent):
 def test_parallel_single_distributed_time_integration(
     num_steps, butcher_tableau, initial_values
 ):
+    """Tests time integration with distributed variables for a single component."""
     delta_t = 0.0001
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -393,9 +410,8 @@ def test_parallel_single_distributed_time_integration(
     "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-def test_parallel_single_distributed_partial(
-    num_steps, butcher_tableau, test_direction
-):
+def test_parallel_single_distributed_totals(num_steps, butcher_tableau, test_direction):
+    """Tests totals of time integration with distributed variables for a single component."""
     integration_control = IntegrationControl(0.0, num_steps, 0.1)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
@@ -474,6 +490,7 @@ def test_parallel_single_distributed_partial(
 def test_parallel_two_distributed_time_integration(
     num_steps, butcher_tableau, initial_values
 ):
+    """Tests time integration with distributed variables for a problem with two components."""
     delta_t = 0.0001
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -542,6 +559,7 @@ def test_parallel_two_distributed_time_integration(
 def test_parallel_two_distributed_time_integration_with_postprocessing(
     num_steps, butcher_tableau, initial_values
 ):
+    """Tests postprocessing after time integration with distributed variables."""
     delta_t = 0.0001
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -610,7 +628,8 @@ def test_parallel_two_distributed_time_integration_with_postprocessing(
     "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-def test_parallel_two_distributed_partial(num_steps, butcher_tableau, test_direction):
+def test_parallel_two_distributed_totals(num_steps, butcher_tableau, test_direction):
+    """Tests totals of time integration with distributed variables for a problem with two components."""
     integration_control = IntegrationControl(0.0, num_steps, 0.1)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
@@ -695,9 +714,10 @@ def test_parallel_two_distributed_partial(num_steps, butcher_tableau, test_direc
     "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-def test_parallel_two_distributed_time_integration_with_postprocessing(
+def test_parallel_two_distributed_totals_with_postprocessing(
     num_steps, butcher_tableau, test_direction
 ):
+    """Tests totals of postprocessing after time integration with distributed variables."""
     delta_t = 0.1
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
