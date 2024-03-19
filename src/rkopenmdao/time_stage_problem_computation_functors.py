@@ -108,7 +108,12 @@ class TimeStageProblemComputeJacvecFunctor:
 
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
-        self.time_stage_problem.model.run_solve_linear("fwd")
+        try:
+            self.time_stage_problem.model.run_solve_linear("fwd")
+        except TypeError:  # old openMDAO version had different interface
+            self.time_stage_problem.model.run_solve_linear(
+                vec_names=["linear"], mode="fwd"
+            )
 
         stage_perturbation = np.zeros_like(old_state_perturbation)
         self.extract_vector(stage_perturbation)
@@ -200,7 +205,12 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
 
-        self.time_stage_problem.model.run_solve_linear("rev")
+        try:
+            self.time_stage_problem.model.run_solve_linear("rev")
+        except TypeError:  # old openMDAO version had different interface
+            self.time_stage_problem.model.run_solve_linear(
+                vec_names=["linear"], mode="rev"
+            )
 
         old_state_perturbation = np.zeros_like(stage_perturbation)
         accumulated_stage_perturbation = np.zeros_like(stage_perturbation)

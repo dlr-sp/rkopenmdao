@@ -402,9 +402,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._quantity_metadata[quantity]["shape"]
                 != self._quantity_metadata[quantity]["global_shape"]
             ):
-                sizes = time_stage_problem.model._var_sizes["output"][
-                    :, time_stage_problem.model._var_allprocs_abs2idx[var]
-                ]
+                try:
+                    sizes = time_stage_problem.model._var_sizes["output"][
+                        :, time_stage_problem.model._var_allprocs_abs2idx[var]
+                    ]
+                except KeyError:  # Have to deal with an older openMDAO version
+                    sizes = time_stage_problem.model._var_sizes["nonlinear"]["output"][
+                        :,
+                        time_stage_problem.model._var_allprocs_abs2idx["nonlinear"][
+                            var
+                        ],
+                    ]
                 self._quantity_metadata[quantity][
                     "local_indices_start"
                 ] = start = np.sum(sizes[: self.comm.rank])
