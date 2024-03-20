@@ -79,6 +79,52 @@ def test_monodisciplinary(write_out_distance, write_file):
         [30, "other_file.h5"],
     ),
 )
+def test_time_attribute(write_out_distance, write_file):
+    test_prob = om.Problem()
+    integration_control = IntegrationControl(1.0, 100, 0.01)
+
+    butcher_tableau = third_order_four_stage_esdirk
+
+    test_prob.model.add_subsystem(
+        "test_comp", TestComp1(integration_control=integration_control)
+    )
+
+    time_int_prob = om.Problem()
+    time_int_prob.model.add_subsystem(
+        "rk_integration",
+        RungeKuttaIntegrator(
+            time_stage_problem=test_prob,
+            butcher_tableau=butcher_tableau,
+            integration_control=integration_control,
+            write_out_distance=write_out_distance,
+            write_file=write_file,
+            time_integration_quantities=["x"],
+        ),
+    )
+
+    time_int_prob.setup()
+    time_int_prob.run_model()
+
+    with h5py.File(write_file) as f:
+        for i in range(0, 100, write_out_distance):
+            assert f["x"][str(i)].attrs["time"] == pytest.approx(i * 0.01 + 1.0)
+        assert f["x"][str(100)].attrs["time"] == pytest.approx(2.0)
+
+
+@pytest.mark.rk
+@pytest.mark.parametrize(
+    "write_out_distance, write_file",
+    (
+        [1, "file.h5"],
+        [10, "file.h5"],
+        [20, "file.h5"],
+        [30, "file.h5"],
+        [1, "other_file.h5"],
+        [10, "other_file.h5"],
+        [20, "other_file.h5"],
+        [30, "other_file.h5"],
+    ),
+)
 def test_multidisciplinary(write_out_distance, write_file):
     """Tests write-out for multidisciplinary problems."""
     test_prob = om.Problem()

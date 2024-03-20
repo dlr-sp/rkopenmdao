@@ -661,7 +661,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _setup_write_file(self):
         if not self._disable_write_out:
             delta_t = self.options["integration_control"].delta_t
-            initial_time = self.options["integration_control"].delta_t
+            initial_time = self.options["integration_control"].initial_time
             num_steps = self.options["integration_control"].num_steps
             for i in range(self.comm.size):
                 if i == self.comm.rank:
@@ -682,7 +682,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                                         data=np.full(metadata["global_shape"], np.nan),
                                     )
                                     dataset.attrs["time"] = j * delta_t + initial_time
-                            # check whether dataset was already created by other process, or in loop beforehand
                             path = quantity + "/" + str(num_steps)
                             if path not in f:
                                 dataset = f.create_dataset(
