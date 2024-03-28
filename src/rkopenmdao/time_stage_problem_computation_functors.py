@@ -36,7 +36,7 @@ class TimeStageProblemComputeFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
-        self.fill_inputs(old_state, accumulated_stages)
+        self.fill_vector(old_state, accumulated_stages)
 
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
@@ -44,8 +44,26 @@ class TimeStageProblemComputeFunctor:
         self.time_stage_problem.model.run_solve_nonlinear()
 
         stage_state = np.zeros_like(old_state)
-        self.get_outputs(stage_state)
+        self.extract_vector(stage_state)
         return stage_state
+
+    def fill_vector(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
+        _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
+        for metadata in self.quantity_metadata.values():
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                if metadata["step_input_var"] is not None:
+                    outputs[
+                        self.time_stage_problem.model.get_source(
+                            metadata["step_input_var"]
+                        )
+                    ] = old_state[start:end].reshape(metadata["shape"])
+                    outputs[
+                        self.time_stage_problem.model.get_source(
+                            metadata["accumulated_stage_var"]
+                        )
+                    ] = accumulated_stage[start:end].reshape(metadata["shape"])
 
     def fill_inputs(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
         """Write data into the input vectors of the owned problem."""
@@ -73,6 +91,15 @@ class TimeStageProblemComputeFunctor:
                 stage_state[start:end] = self.time_stage_problem.get_val(
                     metadata["stage_output_var"], get_remote=False
                 ).flatten()
+
+    def extract_vector(self, stage_state: np.ndarray):
+        """Extract data from the output vectors of the owned problem."""
+        _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
+        for metadata in self.quantity_metadata.values():
+            if metadata["type"] == "time_integration":
+                start = metadata["numpy_start_index"]
+                end = start + np.prod(metadata["shape"])
+                stage_state[start:end] = outputs[metadata["stage_output_var"]].flatten()
 
 
 class TimeStageProblemComputeJacvecFunctor:
@@ -148,8 +175,8 @@ class TimeStageProblemComputeJacvecFunctor:
 
     def extract_vector(self, stage_perturbation: np.ndarray):
         """Extracts the result of the jacvec product from d_outputs of the time_stage_problem."""
+        _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
         for metadata in self.quantity_metadata.values():
-            _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
             if metadata["type"] == "time_integration":
                 start = metadata["numpy_start_index"]
                 end = start + np.prod(metadata["shape"])
@@ -219,7 +246,7 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
 
     def fill_vector(self, stage_perturbation: np.ndarray):
         """Fills d_outputs of the time_stage_problem to prepare for jacvec product."""
-        (_, d_outputs, _) = self.time_stage_problem.model.get_linear_vectors()
+        _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0
         for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
