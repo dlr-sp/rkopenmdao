@@ -110,21 +110,15 @@ class PostprocessingProblemComputeJacvecFunctor:
 
     def __call__(self, input_perturbation: np.ndarray) -> np.ndarray:
         self.postprocessing_problem.model.run_linearize()
-        # seed = {}
-        # self.fill_seed(input_perturbation, seed)
         self.fill_vector(input_perturbation)
+
         try:
             self.postprocessing_problem.model.run_solve_linear("fwd")
         except TypeError:  # old openMDAO version had different interface
             self.postprocessing_problem.model.run_solve_linear(
                 vec_names=["linear"], mode="fwd"
             )
-
-        # jvp = self.postprocessing_problem.compute_jacvec_product(
-        #     of=self.of_vars, wrt=self.wrt_vars, mode="fwd", seed=seed
-        # )
         postproc_perturbations = np.zeros(self.postproc_size)
-        # self.extract_jvp(jvp, postproc_perturbations)
         self.extract_vector(postproc_perturbations)
         return postproc_perturbations
 

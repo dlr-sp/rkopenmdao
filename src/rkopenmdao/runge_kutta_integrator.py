@@ -1361,18 +1361,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     f"Starting stage {stage} of the forward iteration of reverse-mode jacvec product."
                 )
             self._stage_computation(stage)
-            inputs_cache[stage] = self.options[
-                "time_stage_problem"
-            ].model._vector_class(
-                "nonlinear", "input", self.options["time_stage_problem"].model
-            )
-            inputs_cache[stage].set_vec(prob_inputs)
-            outputs_cache[stage] = self.options[
-                "time_stage_problem"
-            ].model._vector_class(
-                "nonlinear", "output", self.options["time_stage_problem"].model
-            )
-            outputs_cache[stage].set_vec(prob_outputs)
+            inputs_cache[stage] = prob_inputs.asarray(copy=True)
+            outputs_cache[stage] = prob_outputs.asarray(copy=True)
             if self.comm.rank == 0:
                 print(
                     f"Finished stage {stage} of the forward iteration of reverse-mode jacvec product."

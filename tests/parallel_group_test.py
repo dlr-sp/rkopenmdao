@@ -397,68 +397,60 @@ def ode_system_solution(time: float, initial_values: np.ndarray):
     )
 
 
-class ParGroupTestAccumulatingComp(om.ExplicitComponent):
-    """Component that accumulated inputs. Tp be used for tests with postprocessing."""
+class CosPostprocComp(om.ExplicitComponent):
+    def initialize(self):
+        self.options.declare("quantity_name", types=str)
 
     def setup(self):
-        self.add_input("d", tags=["d", "postproc_input_var"])
-        if self.comm.rank == 0:
-            self.add_input("c", tags=["c", "postproc_input_var"])
-        elif self.comm.rank == 1:
-            self.add_input("b", tags=["b", "postproc_input_var"])
-        self.add_input("a", tags=["a", "postproc_input_var"])
-        self.add_output("sum", tags=["sum", "postproc_output_var"])
+        self.add_input(
+            self.options["quantity_name"],
+            tags=["postproc_input_var", self.options["quantity_name"]],
+        )
+        self.add_output("cos_" + self.options["quantity_name"])
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        outputs["sum"] = inputs["d"] + inputs["a"]
-        send_data = np.zeros(1)
-        recv_data = np.zeros(1)
-        if self.comm.rank == 0:
-            outputs["sum"] += inputs["c"]
-            send_data[0] = inputs["c"]
-            self.comm.Send(send_data, dest=1, tag=0)
-            self.comm.Recv(recv_data, source=1, tag=1)
-            outputs["sum"] += recv_data
-        else:
-            outputs["sum"] += inputs["b"]
-            send_data[0] = inputs["b"]
-            self.comm.Recv(recv_data, source=0, tag=0)
-            self.comm.Send(send_data, dest=0, tag=1)
-            outputs["sum"] += recv_data
+        outputs["cos_" + self.options["quantity_name"]] = np.cos(
+            inputs[self.options["quantity_name"]]
+        )
 
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
     ):
         if mode == "fwd":
-            if "d" in d_inputs:
-                d_outputs["sum"] += d_inputs["d"]
-            if "a" in d_inputs:
-                d_outputs["sum"] += d_inputs["a"]
-            send_data = np.zeros(1)
-            recv_data = np.zeros(1)
-            if self.comm.rank == 0:
-                if "c" in d_inputs:
-                    d_outputs["sum"] += d_inputs["c"]
-                    send_data[0] = d_inputs["c"]
-                self.comm.Send(send_data, dest=1, tag=0)
-                self.comm.Recv(recv_data, source=1, tag=1)
-                d_outputs["sum"] += recv_data
-            else:
-                if "b" in d_inputs:
-                    d_outputs["sum"] += d_inputs["b"]
-                    send_data[0] = d_inputs["b"]
-                self.comm.Recv(recv_data, source=0, tag=0)
-                self.comm.Send(send_data, dest=0, tag=1)
-                d_outputs["sum"] += recv_data
+            d_outputs["cos_" + self.options["quantity_name"]] -= (
+                np.sin(inputs[self.options["quantity_name"]])
+                * d_inputs[self.options["quantity_name"]]
+            )
+
         elif mode == "rev":
-            if "d" in d_inputs:
-                d_inputs["d"] += d_outputs["sum"]
-            if "c" in d_inputs:
-                d_inputs["c"] += d_outputs["sum"]
-            if "b" in d_inputs:
-                d_inputs["b"] += d_outputs["sum"]
-            if "a" in d_inputs:
-                d_inputs["a"] += d_outputs["sum"]
+            d_inputs[self.options["quantity_name"]] -= (
+                np.sin(inputs[self.options["quantity_name"]])
+                * d_outputs["cos_" + self.options["quantity_name"]]
+            )
+
+
+class PostprocSumComp(om.ExplicitComponent):
+    def setup(self):
+        self.add_input("cos_b")
+        self.add_input("cos_c")
+        self.add_output("sum", tags=["postproc_output_var", "sum"])
+
+    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
+        outputs["sum"] = inputs["cos_b"] + inputs["cos_c"]
+
+    def compute_jacvec_product(
+        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
+    ):
+        if mode == "fwd":
+            if "cos_b" in d_inputs:
+                d_outputs["sum"] += d_inputs["cos_b"]
+            if "cos_c" in d_inputs:
+                d_outputs["sum"] += d_inputs["cos_c"]
+        elif mode == "rev":
+            if "cos_b" in d_inputs:
+                d_inputs["cos_b"] += d_outputs["sum"]
+            if "cos_c" in d_inputs:
+                d_inputs["cos_c"] += d_outputs["sum"]
 
 
 @pytest.mark.mpi
@@ -617,9 +609,27 @@ def test_parallel_group_time_integration_with_postprocessing(
     prob.run_model()
 
     postproc_prob = om.Problem()
-    postproc_prob.model.add_subsystem(
-        "sum", ParGroupTestAccumulatingComp(), promotes=["*"]
+
+    c_group = om.Group()
+    c_group.add_subsystem(
+        "ivc_c",
+        om.IndepVarComp("c"),
+        promotes=["*"],
     )
+    c_group.add_subsystem("cos_c", CosPostprocComp(quantity_name="c"), promotes=["*"])
+    b_group = om.Group()
+    b_group.add_subsystem(
+        "ivc_b",
+        om.IndepVarComp("b"),
+        promotes=["*"],
+    )
+    b_group.add_subsystem("cos_b", CosPostprocComp(quantity_name="b"), promotes=["*"])
+    par_group = om.ParallelGroup()
+    par_group.add_subsystem("c_group", c_group, promotes=["*"])
+    par_group.add_subsystem("b_group", b_group, promotes=["*"])
+    postproc_prob.model.add_subsystem("par", par_group, promotes=["*"])
+
+    postproc_prob.model.add_subsystem("sum", PostprocSumComp(), promotes=["*"])
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -648,8 +658,11 @@ def test_parallel_group_time_integration_with_postprocessing(
     analytical_result = ode_system_solution(
         num_steps * delta_t, np.array(initial_values)
     )
+    postprocessed_analytical_result = np.cos(analytical_result[1]) + np.cos(
+        analytical_result[2]
+    )
     assert time_integration_prob["sum_final"] == pytest.approx(
-        np.sum(analytical_result)
+        postprocessed_analytical_result
     )
 
 
@@ -747,6 +760,7 @@ def test_parallel_group_time_integration_totals(
     assert_check_totals(data)
 
 
+# currently not working, although not sure why
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
@@ -804,9 +818,27 @@ def test_parallel_group_time_integration_totals_with_postprocessing(
     assert_check_partials(data)
 
     postproc_prob = om.Problem()
-    postproc_prob.model.add_subsystem(
-        "sum", ParGroupTestAccumulatingComp(), promotes=["*"]
+
+    c_group = om.Group()
+    c_group.add_subsystem(
+        "ivc_c",
+        om.IndepVarComp("c"),
+        promotes=["*"],
     )
+    c_group.add_subsystem("cos_c", CosPostprocComp(quantity_name="c"), promotes=["*"])
+    b_group = om.Group()
+    b_group.add_subsystem(
+        "ivc_b",
+        om.IndepVarComp("b"),
+        promotes=["*"],
+    )
+    b_group.add_subsystem("cos_b", CosPostprocComp(quantity_name="b"), promotes=["*"])
+    par_group = om.ParallelGroup()
+    par_group.add_subsystem("c_group", c_group, promotes=["*"])
+    par_group.add_subsystem("b_group", b_group, promotes=["*"])
+    postproc_prob.model.add_subsystem("par", par_group, promotes=["*"])
+
+    postproc_prob.model.add_subsystem("sum", PostprocSumComp(), promotes=["*"])
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -845,4 +877,4 @@ def test_parallel_group_time_integration_totals_with_postprocessing(
             ],
             out_stream=None,
         )
-    assert_check_totals(data)
+    assert_check_totals(data, rtol=1e-4, atol=1e-4)

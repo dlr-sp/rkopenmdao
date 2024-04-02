@@ -24,6 +24,7 @@ from .test_components import (
     TestComp5_1,
     TestComp5_2,
     TestComp6,
+    TestComp6a,
     TestComp7,
 )
 
@@ -44,6 +45,7 @@ test_comp_class_list = [
     TestComp5_1,
     TestComp5_2,
     TestComp6,
+    TestComp6a,
     TestComp7,
 ]
 times = np.linspace(1.0, 9.0, 3)
@@ -149,6 +151,12 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
         [TestComp6, Test6Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
         [TestComp6, Test6Solution, 0.0, np.array([1.0]), runge_kutta_four, ["x"]],
         [TestComp6, Test6Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
+        [TestComp6a, Test6Solution, 0.0, np.array([1.0]), implicit_euler, ["x"]],
+        [TestComp6a, Test6Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
+        [TestComp6a, Test6Solution, 0.0, np.array([1.0]), two_stage_dirk, ["x"]],
+        [TestComp6a, Test6Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
+        [TestComp6a, Test6Solution, 0.0, np.array([1.0]), runge_kutta_four, ["x"]],
+        [TestComp6a, Test6Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
         [TestComp7, Test7Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
         [TestComp7, Test7Solution, 2.0, np.array([1.0]), implicit_euler, ["x"]],
         [TestComp7, Test7Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
@@ -166,6 +174,11 @@ def test_component_integration(
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
     )
+
+    time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
+        solve_subsystems=True
+    )
+    time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
     runge_kutta_prob = om.Problem()
     runge_kutta_prob.model.add_subsystem(
@@ -311,6 +324,12 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
         [TestComp6, 1.0, two_stage_dirk, ["x"]],
         [TestComp6, 0.0, runge_kutta_four, ["x"]],
         [TestComp6, 1.0, runge_kutta_four, ["x"]],
+        [TestComp6a, 0.0, implicit_euler, ["x"]],
+        [TestComp6a, 1.0, implicit_euler, ["x"]],
+        [TestComp6a, 0.0, two_stage_dirk, ["x"]],
+        [TestComp6a, 1.0, two_stage_dirk, ["x"]],
+        [TestComp6a, 0.0, runge_kutta_four, ["x"]],
+        [TestComp6a, 1.0, runge_kutta_four, ["x"]],
         [TestComp7, 1.0, implicit_euler, ["x"]],
         [TestComp7, 2.0, implicit_euler, ["x"]],
         [TestComp7, 1.0, two_stage_dirk, ["x"]],
@@ -328,6 +347,12 @@ def test_time_integration_partials(
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
     )
+
+    time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
+        solve_subsystems=True
+    )
+    time_integration_prob.model.linear_solver = om.ScipyKrylov()
+
     runge_kutta_prob = om.Problem()
     runge_kutta_prob.model.add_subsystem(
         "rk_integrator",

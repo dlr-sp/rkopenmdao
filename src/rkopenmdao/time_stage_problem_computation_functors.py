@@ -130,11 +130,11 @@ class TimeStageProblemComputeJacvecFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
+        self.integration_control.stage_time = stage_time
+        self.integration_control.butcher_diagonal_element = butcher_diagonal_element
         self.time_stage_problem.model.run_linearize()
         self.fill_vector(old_state_perturbation, accumulated_stage_perturbation)
 
-        self.integration_control.stage_time = stage_time
-        self.integration_control.butcher_diagonal_element = butcher_diagonal_element
         try:
             self.time_stage_problem.model.run_solve_linear("fwd")
         except TypeError:  # old openMDAO version had different interface
@@ -192,8 +192,8 @@ class TimeStageProblemComputeJacvecFunctor:
                 prob_outputs,
                 _,
             ) = self.time_stage_problem.model.get_nonlinear_vectors()
-            prob_inputs.set_vec(inputs)
-            prob_outputs.set_vec(outputs)
+            prob_inputs.set_val(inputs)
+            prob_outputs.set_val(outputs)
         elif inputs is not None or outputs is not None:
             raise TimeStageError(
                 "Either both or none of inputs and outputs must be given."
@@ -227,10 +227,10 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        self.time_stage_problem.model.run_linearize()
-        self.fill_vector(stage_perturbation)
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
+        self.time_stage_problem.model.run_linearize()
+        self.fill_vector(stage_perturbation)
 
         try:
             self.time_stage_problem.model.run_solve_linear("rev")
@@ -287,8 +287,8 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
                 prob_outputs,
                 _,
             ) = self.time_stage_problem.model.get_nonlinear_vectors()
-            prob_inputs.set_vec(inputs)
-            prob_outputs.set_vec(outputs)
+            prob_inputs.set_val(inputs)
+            prob_outputs.set_val(outputs)
         elif inputs is not None or outputs is not None:
             raise TimeStageError(
                 "Either both or none of inputs and outputs must be given."

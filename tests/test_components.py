@@ -419,6 +419,89 @@ class TestComp6(om.ExplicitComponent):
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
 
 
+class TestComp6a(om.ImplicitComponent):
+    """Same as test 6, but as an implicit component with linearize"""
+
+    def initialize(self):
+        self.options.declare("integration_control", types=IntegrationControl)
+
+    def setup(self):
+        self.add_input("x", shape=1, tags=["step_input_var", "x"])
+        self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
+        self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
+
+    def apply_nonlinear(
+        self, inputs, outputs, residuals, discrete_inputs=None, discrete_outputs=None
+    ):
+        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.options[
+            "integration_control"
+        ].butcher_diagonal_element
+        residuals["x_stage"] = (
+            outputs["x_stage"]
+            - (
+                inputs["x"]
+                + delta_t
+                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+            )
+            ** 0.5
+        )
+
+    def linearize(
+        self, inputs, outputs, jacobian, discrete_inputs=None, discrete_outputs=None
+    ):
+        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.options[
+            "integration_control"
+        ].butcher_diagonal_element
+        self.dr_dx_stage = (
+            1
+            - 0.5
+            * delta_t
+            * butcher_diagonal_element
+            / (
+                inputs["x"]
+                + delta_t
+                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+            )
+            ** 0.5
+        )
+        self.dr_dx = (
+            -0.5
+            / (
+                inputs["x"]
+                + delta_t
+                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+            )
+            ** 0.5
+        )
+
+        self.dr_dacc_stages = (
+            -0.5
+            * delta_t
+            / (
+                inputs["x"]
+                + delta_t
+                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+            )
+            ** 0.5
+        )
+
+    def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
+        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.options[
+            "integration_control"
+        ].butcher_diagonal_element
+        if mode == "fwd":
+            d_residuals["x_stage"] += self.dr_dx_stage * d_outputs["x_stage"]
+            d_residuals["x_stage"] += self.dr_dx * d_inputs["x"]
+            d_residuals["x_stage"] += self.dr_dacc_stages * d_inputs["acc_stages"]
+        elif mode == "rev":
+            d_outputs["x_stage"] += self.dr_dx_stage * d_residuals["x_stage"]
+            d_inputs["x"] += self.dr_dx * d_residuals["x_stage"]
+            d_inputs["acc_stages"] += self.dr_dacc_stages * d_residuals["x_stage"]
+
+
 def Test6Solution(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return (0.5 * (time - initial_time) + np.sqrt(initial_value)) ** 2
