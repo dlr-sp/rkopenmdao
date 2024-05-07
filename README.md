@@ -53,3 +53,10 @@ which is a small Jupyter file that shows the main ways of using this extension.
 
 This work is licensed under the conditions of the BSD license, see LICENSE.txt.
 
+The software is provided as is.
+We sincerely welcome your feedback on issues, bugs and possible improvements.
+Please use the issue tracker of the project for the corresponding communication or make a fork.
+Our priority and time line for working on the issues depend on the project and its follow ups.
+This may lead to issue and tickets, which are not pursued.
+In case you need an urgent fix, please contact us directly for discussing possible forms of collaboration (direct contribution, projects, contracting, ...): Institute of Software Methods for Product Virtualization.
+
