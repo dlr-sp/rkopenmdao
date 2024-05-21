@@ -9,13 +9,21 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     install_requires=[
+        "openmdao",
         "scipy",
         "numpy",
-        "openmdao",
         "matplotlib",
         "h5py",
-        "pytest",
         "numba",
         "pyrevolve",
+        "mpi4py",
+        "petsc4py",
     ],
+    extras_require={
+        "dev": [
+            "pytest",
+            "pytest-mpi",
+            "pylint",
+        ]
+    },
 )
