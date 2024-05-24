@@ -29,7 +29,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install petsc4py==3.21.0 ".[dev]"
+        pip install cython  # required to build petsc4py
+        pip install petsc==3.21.0
+        pip install petsc4py==3.21.0
+        pip install ".[dev]"
     - name: Lint with pylint
       continue-on-error: true
       run: |
