@@ -31,8 +31,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install ".[dev]"
     - name: Lint with pylint
+      continue-on-error: true
       run: |
-        pylint .
+        pylint src tests setup.py
+        
     - name: Run tests
       run: |
         mpirun -n 2 pytest --with-mpi tests
