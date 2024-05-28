@@ -1,21 +1,22 @@
-# Runge-Kutta-OpenMDAO
+# rkopenmdao: Runge-Kutta methods in OpenMDAO
 
-Prototype for solving time-dependent problems in OpenMDAO using Runge-Kutta-schemes.
+Prototype for solving time-dependent problems in [OpenMDAO](https://openmdao.org/) using Runge-Kutta-schemes.
 
 ## Description
 
-Runge-Kutta-schemes are widely used methods for solving initial value problems. Implementing this into OpenMDAO is done by using nesting:
-An inner OpenMDAO-Problem is used to model one Runge-Kutta stage of an instationary multidisciplinary problem.
-An outer explicit component loops over the time steps and time stages, running the inner problem to compute the stage values.
+Runge-Kutta-schemes are widely used methods for solving initial value problems. Implementing them into OpenMDAO is done by using nesting:
+An inner OpenMDAO-Problem is used to model one Runge-Kutta stage of an unsteady multidisciplinary problem.
+An outer explicit component loops over the time steps and time stages, running the inner problem to compute the stage updates.
+
+At the current time, diagonally-implicit and explicit Runge-Kutta schemes are supported.
 
 ## Getting started
 
 ### Installing
 
 Start by cloning this repository, e.g. with
-    
-    TODO
-    git clone github-url /path/to/directory
+
+    git clone https://github.com/dlr-sp/rkopenmdao.git /path/to/directory
 
 and use
 
@@ -35,6 +36,17 @@ Then use
     pip install .
 
 to install the package.
+
+Note that the file-writing features of rkopenmdao use [h5py](https://docs.h5py.org/en/stable/index.html). 
+Prebuilt versions of it (like via pip) usually don't come with MPI support.
+If you want to use file-writing in conjunction with MPI, you will need to install h5py manually.
+For more information, look at https://docs.h5py.org/en/stable/build.html and https://docs.h5py.org/en/stable/mpi.html.
+
+If you want to also install dev-dependencies, use
+
+    pip install ".[dev]"
+
+instead.
 ### Execution
 
 In the examples directory of this repository are files for the solution of a heat equation, some using OpenMDAO and this prototype, and for comparison an analytical solution and another discretized solution where neither OpenMDAO nor this extension is used.
@@ -58,5 +70,5 @@ We sincerely welcome your feedback on issues, bugs and possible improvements.
 Please use the issue tracker of the project for the corresponding communication or make a fork.
 Our priority and time line for working on the issues depend on the project and its follow ups.
 This may lead to issue and tickets, which are not pursued.
-In case you need an urgent fix, please contact us directly for discussing possible forms of collaboration (direct contribution, projects, contracting, ...): Institute of Software Methods for Product Virtualization.
+In case you need an urgent fix, please contact us directly for discussing possible forms of collaboration (direct contribution, projects, contracting, ...): [Institute of Software Methods for Product Virtualization](https://www.dlr.de/sp).
 
