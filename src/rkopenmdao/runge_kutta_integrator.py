@@ -6,7 +6,7 @@ import h5py
 import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
-import pyrevolve as pr
+
 
 from .butcher_tableau import ButcherTableau
 from .functional_coefficients import FunctionalCoefficients, EmptyFunctionalCoefficients
@@ -23,13 +23,8 @@ from .postprocessing_computation_functors import (
     PostprocessingProblemComputeJacvecFunctor,
     PostprocessingProblemComputeTransposeJacvecFunctor,
 )
-from .runge_kutta_integrator_pyrevolve_classes import (
-    RungeKuttaIntegratorSymbol,
-    RungeKuttaCheckpoint,
-    RungeKuttaForwardOperator,
-    RungeKuttaReverseOperator,
-)
-
+from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInterface
+from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from .errors import SetupError
 
 
@@ -72,13 +67,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _numpy_functional_size: int
 
     _cached_input: np.ndarray
-    _revolver: Optional[pr.BaseRevolver]
-    _serialized_old_state_symbol: Optional[RungeKuttaIntegratorSymbol]
-    _serialized_new_state_symbol: Optional[RungeKuttaIntegratorSymbol]
-    _forward_operator: Optional[RungeKuttaForwardOperator]
-    _reverse_operator: Optional[RungeKuttaReverseOperator]
 
     _disable_write_out: bool
+
+    _checkpointer: Optional[CheckpointInterface]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -109,14 +101,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._numpy_postproc_size = 0
         self._numpy_functional_size = 0
 
-        self._cached_input = np.zeros(0)
-        self._revolver = None
-        self._revolver_class = None
-        self._serialized_old_state_symbol = None
-        self._serialized_new_state_symbol = None
-        self._forward_operator = None
-        self._reverse_operator = None
+        self._cached_input = np.full(0, np.nan)
         self._disable_write_out = False
+
+        self._checkpointer = None
 
     def initialize(self):
         self.options.declare(
@@ -218,22 +206,23 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
         self.options.declare(
-            "revolver_type",
-            values=["SingleLevel", "MultiLevel", "Memory", "Disk", "Base"],
-            default="Memory",
-            desc="""Chooses the type of revolver from pyrevolve. The default is the MemoryRevolver using numpy arrays as
-            storage. 
-            Warning: MultiLevelRevolver currently has problems where certain numbers of checkpoints work and others do 
-            not (without an obvious reason why). Use with care.""",
+            "checkpointing_type",
+            check_valid=self.check_checkpointing_type,
+            default=NoCheckpointer,
+            desc="""Type of checkpointing used. Must be a subclass of CheckpointInterface""",
         )
 
         self.options.declare(
-            "revolver_options",
+            "checkpoint_options",
             types=dict,
             default={},
-            desc="""Options that are given to the constructor of the revolver. Which options are possible depend on
-            revolver_type.""",
+            desc="""Additional options passed the the checkpointer. Valid options depend on the checkpointing_type""",
         )
+
+    @staticmethod
+    def check_checkpointing_type(name, value):
+        if not issubclass(value, CheckpointInterface):
+            raise TypeError(f"{value} is not a subclass of CheckpointInterface")
 
     def setup(self):
         self._setup_inner_problems()
@@ -243,7 +232,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_postprocessor()
         self._configure_write_out()
         self._setup_write_file()
-        self._setup_revolver_class()
         self._setup_checkpointing()
         # TODO: maybe add methods for time-independent in/outputs
 
@@ -413,9 +401,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                             var
                         ],
                     ]
-                self._quantity_metadata[quantity][
-                    "local_indices_start"
-                ] = start = np.sum(sizes[: self.comm.rank])
+                self._quantity_metadata[quantity]["local_indices_start"] = start = (
+                    np.sum(sizes[: self.comm.rank])
+                )
                 self._quantity_metadata[quantity]["local_indices_end"] = (
                     start + sizes[self.comm.rank]
                 )
@@ -491,9 +479,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                             var
                         ],
                     ]
-                    self._quantity_metadata[quantity][
-                        "local_indices_start"
-                    ] = start = np.sum(sizes[: self.comm.rank])
+                    self._quantity_metadata[quantity]["local_indices_start"] = start = (
+                        np.sum(sizes[: self.comm.rank])
+                    )
                     self._quantity_metadata[quantity]["local_indices_end"] = (
                         start + sizes[self.comm.rank]
                     )
@@ -531,11 +519,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.add_input(
             quantity + "_initial",
             shape=self._quantity_metadata[quantity]["shape"],
-            val=time_stage_problem.get_val(
-                self._quantity_metadata[quantity]["step_input_var"],  # get_remote=False
-            )
-            if self._quantity_metadata[quantity]["step_input_var"] is not None
-            else np.zeros(self._quantity_metadata[quantity]["shape"]),
+            val=(
+                time_stage_problem.get_val(
+                    self._quantity_metadata[quantity][
+                        "step_input_var"
+                    ],  # get_remote=False
+                )
+                if self._quantity_metadata[quantity]["step_input_var"] is not None
+                else np.zeros(self._quantity_metadata[quantity]["shape"])
+            ),
             distributed=self._quantity_metadata[quantity]["shape"]
             != self._quantity_metadata[quantity]["global_shape"],
         )
@@ -694,49 +686,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 if self.comm.size > 1:
                     self.comm.Barrier()
 
-    def _setup_revolver_class(self):
-        revolver_type = self.options["revolver_type"]
-        if revolver_type == "SingleLevel":
-            self._revolver_class = pr.SingleLevelRevolver
-        elif revolver_type == "MultiLevel":
-            self._revolver_class = pr.MultiLevelRevolver
-            warnings.warn(
-                """MultiLevelRevolver currently has problems where certain numbers of checkpoints work and others don't 
-                (without an obvious reason why). Use with care."""
-            )
-        elif revolver_type == "Disk":
-            self._revolver_class = pr.DiskRevolver
-        elif revolver_type == "Base":
-            self._revolver_class = pr.BaseRevolver
-        else:
-            self._revolver_class = pr.MemoryRevolver
-
     def _setup_checkpointing(self):
-        self._check_num_checkpoints_in_revolver_options()
-        self._serialized_old_state_symbol = RungeKuttaIntegratorSymbol(
-            self._numpy_array_size
+        self._checkpointer = self.options["checkpointing_type"]()
+        self._checkpointer.setup(
+            array_size=self._numpy_array_size,
+            num_steps=self.options["integration_control"].num_steps,
+            run_step_func=self._run_step,
+            run_step_jacvec_func=self._run_step_jacvec_rev,
+            **self.options["checkpoint_options"],
         )
-        self._serialized_new_state_symbol = RungeKuttaIntegratorSymbol(
-            self._numpy_array_size
-        )
-        self._forward_operator = RungeKuttaForwardOperator(
-            self._serialized_old_state_symbol,
-            self._serialized_new_state_symbol,
-            self._run_step,
-        )
-        self._reverse_operator = RungeKuttaReverseOperator(
-            self._serialized_old_state_symbol,
-            self._numpy_array_size,
-            self._run_step_jacvec_rev,
-        )
-
-    def _check_num_checkpoints_in_revolver_options(self):
-        if "n_checkpoints" not in self.options[
-            "revolver_options"
-        ].keys() and self.options["revolver_type"] not in ["MultiLevel", "Base"]:
-            self.options["revolver_options"]["n_checkpoints"] = (
-                1 if self.options["integration_control"].num_steps == 1 else None
-            )
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         if self.comm.rank == 0:
@@ -746,14 +704,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._compute_initial_write_out_phase()
         self._compute_functional_phase()
         self._compute_checkpointing_setup_phase()
-        self._revolver.apply_forward()
+        self._checkpointer.iterate_forward(self._serialized_state)
         self._compute_translate_to_om_vector_phase(outputs)
         if self.comm.rank == 0:
             print("\n\nFinishing compute\n\n")
 
     def _compute_preparation_phase(self, inputs: OMVector):
-        self._to_numpy_array(inputs, self._serialized_new_state_symbol.data)
-        self._cached_input = self._serialized_new_state_symbol.data.copy()
+        self._to_numpy_array(inputs, self._serialized_state)
+        self._cached_input = self._serialized_state.copy()
         self.options["integration_control"].reset()
 
     def _to_numpy_array(self, om_vector: OMVector, np_array: np.ndarray):
@@ -772,7 +730,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print("Starting postprocessing.")
             self._postprocessing_state = self._postprocessor.postprocess(
-                self._serialized_new_state_symbol.data
+                self._serialized_state
             )
             if self.comm.rank == 0:
                 print("Finished postprocessing.")
@@ -782,7 +740,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print(self.comm.rank, "-----------------------------------------------")
             self._write_out(
                 0,
-                self._serialized_new_state_symbol.data,
+                self._serialized_state,
                 self._postprocessing_state,
                 open_mode="r+",
             )
@@ -850,16 +808,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                         access_list = []
                         for i in range(len(start_tuple)):
                             access_list.append(slice(start_tuple[i], end_tuple[i] + 1))
-                        f[quantity][str(step)][
-                            tuple(access_list)
-                        ] = postprocessing_state[start:end].reshape(metadata["shape"])
+                        f[quantity][str(step)][tuple(access_list)] = (
+                            postprocessing_state[start:end].reshape(metadata["shape"])
+                        )
 
     def _compute_functional_phase(self):
         if self._functional_quantities:
             if self.comm.rank == 0:
                 print("Starting computation of functional contribution.")
             self._functional_part = self._get_functional_contribution(
-                self._serialized_new_state_symbol.data, self._postprocessing_state, 0
+                self._serialized_state, self._postprocessing_state, 0
             )
             if self.comm.rank == 0:
                 print("Finished computation of functional contribution.")
@@ -904,36 +862,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         return contribution
 
     def _compute_checkpointing_setup_phase(self):
-        num_steps = self.options["integration_control"].num_steps
-        checkpoint_dict = {
-            "serialized_old_state": self._serialized_old_state_symbol,
-            "serialized_new_state": self._serialized_new_state_symbol,
-        }
-        checkpoint = RungeKuttaCheckpoint(checkpoint_dict)
-        revolver_options = {}
-        for key, value in self.options["revolver_options"].items():
-            if self.options["revolver_type"] == "MultiLevel" and key == "storage_list":
-                storage_list = []
-                for storage_type, options in value.items():
-                    if storage_type == "Numpy":
-                        storage_list.append(pr.NumpyStorage(checkpoint.size, **options))
-                    elif storage_type == "Disk":
-                        storage_list.append(pr.DiskStorage(checkpoint.size, **options))
-                    elif storage_type == "Bytes":
-                        storage_list.append(pr.BytesStorage(checkpoint.size, **options))
-                revolver_options[key] = storage_list
-            else:
-                revolver_options[key] = value
-        revolver_options["checkpoint"] = checkpoint
-        revolver_options["fwd_operator"] = self._forward_operator
-        revolver_options["rev_operator"] = self._reverse_operator
-        revolver_options["n_timesteps"] = num_steps
-        self._revolver = self._revolver_class(
-            **revolver_options,
-        )
+        self._checkpointer.create_checkpointer()
 
     def _compute_translate_to_om_vector_phase(self, outputs: OMVector):
-        self._from_numpy_array(self._serialized_new_state_symbol.data, outputs)
+        self._from_numpy_array(self._serialized_state, outputs)
         if self.options["postprocessing_problem"] is not None:
             self._from_numpy_array_postprocessing(self._postprocessing_state, outputs)
         if self._functional_quantities:
@@ -1149,14 +1081,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._stage_cache[stage, :] = self._runge_kutta_scheme.compute_stage(
                 stage, delta_t, time, self._serialized_state, self._accumulated_stages
             )
-            self._stage_perturbations_cache[
-                stage, :
-            ] = self._runge_kutta_scheme.compute_stage_jacvec(
-                stage,
-                delta_t,
-                time,
-                self._serialized_state_perturbations,
-                self._accumulated_stage_perturbations,
+            self._stage_perturbations_cache[stage, :] = (
+                self._runge_kutta_scheme.compute_stage_jacvec(
+                    stage,
+                    delta_t,
+                    time,
+                    self._serialized_state_perturbations,
+                    self._accumulated_stage_perturbations,
+                )
             )
             if self.comm.rank == 0:
                 print(f"Finished stage {stage} of forward-mode jacvec product.")
@@ -1217,10 +1149,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print("\n\nStarting reverse-mode jacvec product\n\n")
         self._disable_write_out = True
         self._to_numpy_array(inputs, self._serialized_state)
-        if (
-            not np.array_equal(self._cached_input, self._serialized_state)
-            or self._revolver is None
-        ):
+        if not np.array_equal(self._cached_input, self._serialized_state):
             if self.comm.rank == 0:
                 print("Preparing checkpoints by calling compute()")
             outputs = self._vector_class("nonlinear", "output", self)
@@ -1248,15 +1177,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
             if self.comm.rank == 0:
                 print("Finished computation of functional contribution.")
-        self._reverse_operator.serialized_state_perturbations = (
-            self._serialized_state_perturbations
-        )
-        self._revolver.apply_reverse()
+        self._checkpointer.iterate_reverse(self._serialized_state_perturbations)
 
-        self._from_numpy_array(
-            self._reverse_operator.serialized_state_perturbations, d_inputs
-        )
-        self._revolver = None
+        self._from_numpy_array(self._serialized_state_perturbations, d_inputs)
         self._configure_write_out()
         if self.comm.rank == 0:
             print("\n\nFinished reverse-mode jacvec product\n\n")
