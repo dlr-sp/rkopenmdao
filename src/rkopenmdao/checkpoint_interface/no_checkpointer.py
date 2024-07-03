@@ -28,6 +28,6 @@ class NoCheckpointer(CheckpointInterface):
 
     def iterate_reverse(self, final_state_perturbation):
         raise NotImplementedError(
-            "NoCheckpointer is explicitely for cases where no reverse mode is used. If you need"
+            "NoCheckpointer is explicitly for cases where no reverse mode is used. If you need"
             " reverse mode, use another checkpointing implementation."
         )

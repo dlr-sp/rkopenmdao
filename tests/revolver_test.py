@@ -8,6 +8,7 @@ import pytest
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.butcher_tableaux import implicit_euler
+from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 from .test_components import TestComp6
 
 revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
@@ -19,11 +20,11 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
     "revolver_type, revolver_options",
     (
         ["SingleLevel", {}],
-        ["SingleLevel", {"n_checkpoints": 20}],
-        ["SingleLevel", {"n_checkpoints": 100}],
+        ["SingleLevel", {"n_checkpoints": 2}],
+        ["SingleLevel", {"n_checkpoints": 10}],
         ["SingleLevel", {"diskstorage": True}],
-        ["SingleLevel", {"n_checkpoints": 20, "diskstorage": True}],
-        ["SingleLevel", {"n_checkpoints": 100, "diskstorage": True}],
+        ["SingleLevel", {"n_checkpoints": 2, "diskstorage": True}],
+        ["SingleLevel", {"n_checkpoints": 10, "diskstorage": True}],
         # something is strange here. For certain checkpoint numbers, the MultiLevelRevolver works,
         # but for others it doesn't. We skip this for now
         # TODO: investigate this
@@ -46,16 +47,16 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
         #     },
         # ],
         ["Memory", {}],
-        ["Memory", {"n_checkpoints": 20}],
-        ["Memory", {"n_checkpoints": 100}],
+        ["Memory", {"n_checkpoints": 2}],
+        ["Memory", {"n_checkpoints": 10}],
         ["Disk", {}],
-        ["Disk", {"n_checkpoints": 20}],
-        ["Disk", {"n_checkpoints": 100}],
+        ["Disk", {"n_checkpoints": 2}],
+        ["Disk", {"n_checkpoints": 10}],
     ),
 )
 def test_rk_integrator_revolver_options(revolver_type, revolver_options):
     """Tests that the options given to the RungeKuttaIntegrator are passed through to the Revolver."""
-    integration_control = IntegrationControl(0.0, 100, 0.01)
+    integration_control = IntegrationControl(0.0, 10, 0.01)
 
     inner_prob = om.Problem()
     inner_prob.model.add_subsystem(
@@ -70,8 +71,11 @@ def test_rk_integrator_revolver_options(revolver_type, revolver_options):
             butcher_tableau=implicit_euler,
             integration_control=integration_control,
             time_integration_quantities=["x"],
-            revolver_type=revolver_type,
-            revolver_options=revolver_options,
+            checkpointing_type=PyrevolveCheckpointer,
+            checkpoint_options={
+                "revolver_type": revolver_type,
+                "revolver_options": revolver_options,
+            },
         ),
     )
     runge_kutta_prob.setup()

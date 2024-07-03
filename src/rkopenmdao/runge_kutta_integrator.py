@@ -692,7 +692,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             array_size=self._numpy_array_size,
             num_steps=self.options["integration_control"].num_steps,
             run_step_func=self._run_step,
-            run_step_jacvec_func=self._run_step_jacvec_rev,
+            run_step_jacvec_rev_func=self._run_step_jacvec_rev,
             **self.options["checkpoint_options"],
         )
 
@@ -1181,6 +1181,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._from_numpy_array(self._serialized_state_perturbations, d_inputs)
         self._configure_write_out()
+
+        # using the checkpoints invalidates the checkpointer in general
+        self._cached_input = np.full(0, np.nan)
+
         if self.comm.rank == 0:
             print("\n\nFinished reverse-mode jacvec product\n\n")
 

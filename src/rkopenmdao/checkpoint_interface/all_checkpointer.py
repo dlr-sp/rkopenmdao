@@ -31,7 +31,7 @@ class AllCheckpointer(CheckpointInterface):
     def iterate_forward(self, initial_state):
         self._state = initial_state.copy()
         for i in range(self._num_steps):
-            self._storage.append(self._state_copy())
+            self._storage.append(self._state.copy())
             self._state = self._run_step(i + 1, self._state.copy())
 
     def iterate_reverse(self, final_state_perturbation):

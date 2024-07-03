@@ -1,7 +1,9 @@
+import warnings
+
 import pyrevolve as pr
 
 from .checkpoint_interface import CheckpointInterface
-from runge_kutta_integrator_pyrevolve_classes import (
+from .runge_kutta_integrator_pyrevolve_classes import (
     RungeKuttaCheckpoint,
     RungeKuttaIntegratorSymbol,
     RungeKuttaForwardOperator,
@@ -69,7 +71,7 @@ class PyrevolveCheckpointer(CheckpointInterface):
                     self.revolver_options[key] = value
         self.revolver_options["checkpoint"] = checkpoint
         self.revolver_options["n_timesteps"] = kwargs["num_steps"]
-        if "n_checkpoints" in revolver_options:
+        if "n_checkpoints" not in self.revolver_options:
             if revolver_type not in ["MultiLevel", "Base"]:
                 self.revolver_options["n_checkpoints"] = None
 
@@ -85,7 +87,7 @@ class PyrevolveCheckpointer(CheckpointInterface):
         )
 
     def create_checkpointer(self):
-        self._revolver = revolver_class_type(**revolver_options)
+        self._revolver = self.revolver_class_type(**self.revolver_options)
 
     def _setup_revolver_class_type(self, revolver_type: str):
         if revolver_type == "SingleLevel":
@@ -113,7 +115,7 @@ class PyrevolveCheckpointer(CheckpointInterface):
         self._revolver.apply_forward()
 
     def iterate_reverse(self, final_state_perturbation):
-        self._reverse_operator.serialized_state_perturbations = (
+        self.revolver_options["rev_operator"].serialized_state_perturbations = (
             final_state_perturbation.copy()
         )
         self._revolver.apply_reverse()

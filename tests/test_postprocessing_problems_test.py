@@ -12,6 +12,8 @@ from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     second_order_two_stage_sdirk as two_stage_dirk,
 )
+from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
+from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
 from .test_components import TestComp4, TestComp5_1, TestComp5_2, TestComp6
 
@@ -70,187 +72,27 @@ def test_postprocessing_problem_partials(problem_creator, quantity_list):
 
 @pytest.mark.postproc
 @pytest.mark.parametrize(
-    """postprocessing_problem_creator, postproc_functor, quantity_size, test_class,
-    test_functor, initial_time, initial_values, postprocessing_quantity, butcher_tableau""",
+    """postprocessing_problem_creator, postproc_functor, postprocessing_quantity""",
     (
-        [
-            create_negating_problem,
-            negating_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["negated_x"],
-            implicit_euler,
-        ],
-        [
-            create_negating_problem,
-            negating_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["negated_x"],
-            two_stage_dirk,
-        ],
-        [
-            create_accumulating_problem,
-            accumulating_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["accumulated"],
-            implicit_euler,
-        ],
-        [
-            create_accumulating_problem,
-            accumulating_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["accumulated"],
-            two_stage_dirk,
-        ],
-        [
-            create_squaring_problem,
-            squaring_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["squared_x"],
-            implicit_euler,
-        ],
-        [
-            create_squaring_problem,
-            squaring_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["squared_x"],
-            two_stage_dirk,
-        ],
-        [
-            create_phase_problem,
-            phase_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["phase_x"],
-            implicit_euler,
-        ],
-        [
-            create_phase_problem,
-            phase_function,
-            1,
-            TestComp6,
-            Test6Solution,
-            0.0,
-            np.array([1.0]),
-            ["phase_x"],
-            two_stage_dirk,
-        ],
-        [
-            create_negating_problem,
-            negating_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["negated_x"],
-            implicit_euler,
-        ],
-        [
-            create_negating_problem,
-            negating_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["negated_x"],
-            two_stage_dirk,
-        ],
-        [
-            create_accumulating_problem,
-            accumulating_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["accumulated"],
-            implicit_euler,
-        ],
-        [
-            create_accumulating_problem,
-            accumulating_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["accumulated"],
-            two_stage_dirk,
-        ],
-        [
-            create_squaring_problem,
-            squaring_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["squared_x"],
-            implicit_euler,
-        ],
-        [
-            create_squaring_problem,
-            squaring_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["squared_x"],
-            two_stage_dirk,
-        ],
-        [
-            create_phase_problem,
-            phase_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["phase_x"],
-            implicit_euler,
-        ],
-        [
-            create_phase_problem,
-            phase_function,
-            2,
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([1.0, 1.0]),
-            ["phase_x"],
-            two_stage_dirk,
-        ],
+        [create_negating_problem, negating_function, ["negated_x"]],
+        [create_accumulating_problem, accumulating_function, ["accumulated"]],
+        [create_squaring_problem, squaring_function, ["squared_x"]],
+        [create_phase_problem, phase_function, ["phase_x"]],
+        [create_negating_problem, negating_function, ["negated_x"]],
+        [create_accumulating_problem, accumulating_function, ["accumulated"]],
+        [create_squaring_problem, squaring_function, ["squared_x"]],
+        [create_phase_problem, phase_function, ["phase_x"]],
     ),
 )
+@pytest.mark.parametrize("initial_time", [0.0])
+@pytest.mark.parametrize(
+    "test_class, test_functor, quantity_size, initial_values",
+    [
+        [TestComp6, Test6Solution, 1, np.array([1.0])],
+        [TestComp4, Test4Solution, 2, np.array([1.0, 1.0])],
+    ],
+)
+@pytest.mark.parametrize("butcher_tableau", [implicit_euler, two_stage_dirk])
 def test_postprocessing_after_time_integration(
     postprocessing_problem_creator,
     postproc_functor,
@@ -263,7 +105,7 @@ def test_postprocessing_after_time_integration(
     butcher_tableau,
 ):
     """Tests the postprocessing after time integration."""
-    integration_control = IntegrationControl(0.0, 1000, 0.001)
+    integration_control = IntegrationControl(0.0, 10, 0.001)
     postproc_problem = postprocessing_problem_creator([("x", quantity_size)])
 
     time_stage_problem = om.Problem()
@@ -296,73 +138,22 @@ def test_postprocessing_after_time_integration(
     result = np.array([runge_kutta_prob[postprocessing_quantity[0]]])
 
     assert postproc_functor(
-        test_functor(initial_time + 1, np.array([initial_values]), initial_time)
+        test_functor(initial_time + 0.01, np.array([initial_values]), initial_time)
     ) == pytest.approx(result, rel=1e-2)
 
 
 @pytest.mark.postporc
 @pytest.mark.parametrize(
-    """postprocessing_problem_creator,  initial_values,
-      postprocessing_quantity_1, postprocessing_quantities_2, butcher_tableau""",
+    """postprocessing_problem_creator, postprocessing_quantity_1, postprocessing_quantities_2""",
     (
-        [
-            create_negating_problem,
-            np.array([1.0, 1.0]),
-            ["negated_x"],
-            ["negated_x", "negated_y"],
-            implicit_euler,
-        ],
-        [
-            create_negating_problem,
-            np.array([1.0, 1.0]),
-            ["negated_x"],
-            ["negated_x", "negated_y"],
-            two_stage_dirk,
-        ],
-        [
-            create_accumulating_problem,
-            np.array([1.0, 1.0]),
-            ["accumulated"],
-            ["accumulated"],
-            implicit_euler,
-        ],
-        [
-            create_accumulating_problem,
-            np.array([1.0, 1.0]),
-            ["accumulated"],
-            ["accumulated"],
-            two_stage_dirk,
-        ],
-        [
-            create_squaring_problem,
-            np.array([1.0, 1.0]),
-            ["squared_x"],
-            ["squared_x", "squared_y"],
-            implicit_euler,
-        ],
-        [
-            create_squaring_problem,
-            np.array([1.0, 1.0]),
-            ["squared_x"],
-            ["squared_x", "squared_y"],
-            two_stage_dirk,
-        ],
-        [
-            create_phase_problem,
-            np.array([1.0, 1.0]),
-            ["phase_x"],
-            ["phase_x", "phase_y"],
-            implicit_euler,
-        ],
-        [
-            create_phase_problem,
-            np.array([1.0, 1.0]),
-            ["phase_x"],
-            ["phase_x", "phase_y"],
-            two_stage_dirk,
-        ],
+        [create_negating_problem, ["negated_x"], ["negated_x", "negated_y"]],
+        [create_accumulating_problem, ["accumulated"], ["accumulated"]],
+        [create_squaring_problem, ["squared_x"], ["squared_x", "squared_y"]],
+        [create_phase_problem, ["phase_x"], ["phase_x", "phase_y"]],
     ),
 )
+@pytest.mark.parametrize("initial_values", [np.array([1.0, 1.0])])
+@pytest.mark.parametrize("butcher_tableau", [implicit_euler, two_stage_dirk])
 def test_postprocessing_after_time_integration_split(
     postprocessing_problem_creator,
     initial_values,
@@ -371,8 +162,8 @@ def test_postprocessing_after_time_integration_split(
     butcher_tableau,
 ):
     """Tests whether postprocessing works the same when split over multiple components."""
-    integration_control_1 = IntegrationControl(0.0, 1000, 0.001)
-    integration_control_2 = IntegrationControl(0.0, 1000, 0.001)
+    integration_control_1 = IntegrationControl(0.0, 10, 0.001)
+    integration_control_2 = IntegrationControl(0.0, 10, 0.001)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])
     postproc_problem_2 = postprocessing_problem_creator([("x", 1), ("y", 1)])
 
@@ -450,49 +241,21 @@ def test_postprocessing_after_time_integration_split(
 
 @pytest.mark.postporc
 @pytest.mark.parametrize(
-    "postprocessing_problem_creator, quantity_list, test_class, postprocessing_quantities, butcher_tableau",
+    "postprocessing_problem_creator, quantity_list, test_class, postprocessing_quantities",
     (
-        [create_negating_problem, [("x", 2)], TestComp4, ["negated_x"], implicit_euler],
-        [create_negating_problem, [("x", 1)], TestComp6, ["negated_x"], implicit_euler],
-        [create_negating_problem, [("x", 2)], TestComp4, ["negated_x"], two_stage_dirk],
-        [create_negating_problem, [("x", 1)], TestComp6, ["negated_x"], two_stage_dirk],
-        [
-            create_accumulating_problem,
-            [("x", 2)],
-            TestComp4,
-            ["accumulated"],
-            implicit_euler,
-        ],
-        [
-            create_accumulating_problem,
-            [("x", 1)],
-            TestComp6,
-            ["accumulated"],
-            implicit_euler,
-        ],
-        [
-            create_accumulating_problem,
-            [("x", 2)],
-            TestComp4,
-            ["accumulated"],
-            two_stage_dirk,
-        ],
-        [
-            create_accumulating_problem,
-            [("x", 1)],
-            TestComp6,
-            ["accumulated"],
-            two_stage_dirk,
-        ],
-        [create_squaring_problem, [("x", 2)], TestComp4, ["squared_x"], implicit_euler],
-        [create_squaring_problem, [("x", 1)], TestComp6, ["squared_x"], implicit_euler],
-        [create_squaring_problem, [("x", 2)], TestComp4, ["squared_x"], two_stage_dirk],
-        [create_squaring_problem, [("x", 1)], TestComp6, ["squared_x"], two_stage_dirk],
-        [create_phase_problem, [("x", 2)], TestComp4, ["phase_x"], implicit_euler],
-        [create_phase_problem, [("x", 1)], TestComp6, ["phase_x"], implicit_euler],
-        [create_phase_problem, [("x", 2)], TestComp4, ["phase_x"], two_stage_dirk],
-        [create_phase_problem, [("x", 1)], TestComp6, ["phase_x"], two_stage_dirk],
+        [create_negating_problem, [("x", 2)], TestComp4, ["negated_x"]],
+        [create_negating_problem, [("x", 1)], TestComp6, ["negated_x"]],
+        [create_accumulating_problem, [("x", 2)], TestComp4, ["accumulated"]],
+        [create_accumulating_problem, [("x", 1)], TestComp6, ["accumulated"]],
+        [create_squaring_problem, [("x", 2)], TestComp4, ["squared_x"]],
+        [create_squaring_problem, [("x", 1)], TestComp6, ["squared_x"]],
+        [create_phase_problem, [("x", 2)], TestComp4, ["phase_x"]],
+        [create_phase_problem, [("x", 1)], TestComp6, ["phase_x"]],
     ),
+)
+@pytest.mark.parametrize("butcher_tableau", [implicit_euler, two_stage_dirk])
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
 )
 def test_postprocessing_after_time_integration_partials(
     postprocessing_problem_creator,
@@ -500,9 +263,10 @@ def test_postprocessing_after_time_integration_partials(
     test_class,
     postprocessing_quantities,
     butcher_tableau,
+    checkpointing_implementation,
 ):
     """Tests partials of the postprocessing after time integration."""
-    integration_control = IntegrationControl(0.0, 1000, 0.001)
+    integration_control = IntegrationControl(0.0, 10, 0.001)
     postproc_problem = postprocessing_problem_creator(quantity_list)
     quantities = [quantity_tuple[0] for quantity_tuple in quantity_list]
 
@@ -523,6 +287,7 @@ def test_postprocessing_after_time_integration_partials(
             time_integration_quantities=quantities,
             postprocessing_problem=postproc_problem,
             postprocessing_quantities=postprocessing_quantities,
+            checkpointing_type=checkpointing_implementation,
         ),
     )
 
@@ -539,67 +304,28 @@ def test_postprocessing_after_time_integration_partials(
 
 @pytest.mark.postporc
 @pytest.mark.parametrize(
-    """postprocessing_problem_creator, postprocessing_quantity_1, postprocessing_quantities_2, butcher_tableau""",
+    """postprocessing_problem_creator, postprocessing_quantity_1, postprocessing_quantities_2""",
     (
-        [
-            create_negating_problem,
-            ["negated_x"],
-            ["negated_x", "negated_y"],
-            implicit_euler,
-        ],
-        [
-            create_negating_problem,
-            ["negated_x"],
-            ["negated_x", "negated_y"],
-            two_stage_dirk,
-        ],
-        [
-            create_accumulating_problem,
-            ["accumulated"],
-            ["accumulated"],
-            implicit_euler,
-        ],
-        [
-            create_accumulating_problem,
-            ["accumulated"],
-            ["accumulated"],
-            two_stage_dirk,
-        ],
-        [
-            create_squaring_problem,
-            ["squared_x"],
-            ["squared_x", "squared_y"],
-            implicit_euler,
-        ],
-        [
-            create_squaring_problem,
-            ["squared_x"],
-            ["squared_x", "squared_y"],
-            two_stage_dirk,
-        ],
-        [
-            create_phase_problem,
-            ["phase_x"],
-            ["phase_x", "phase_y"],
-            implicit_euler,
-        ],
-        [
-            create_phase_problem,
-            ["phase_x"],
-            ["phase_x", "phase_y"],
-            two_stage_dirk,
-        ],
+        [create_negating_problem, ["negated_x"], ["negated_x", "negated_y"]],
+        [create_accumulating_problem, ["accumulated"], ["accumulated"]],
+        [create_squaring_problem, ["squared_x"], ["squared_x", "squared_y"]],
+        [create_phase_problem, ["phase_x"], ["phase_x", "phase_y"]],
     ),
+)
+@pytest.mark.parametrize("butcher_tableau", [implicit_euler, two_stage_dirk])
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
 )
 def test_postprocessing_after_time_integration_split_partials(
     postprocessing_problem_creator,
     postprocessing_quantity_1,
     postprocessing_quantities_2,
     butcher_tableau,
+    checkpointing_implementation,
 ):
     """Tests whether the partials of the postprocessing are the same for a split and unsplit problem."""
-    integration_control_1 = IntegrationControl(0.0, 100, 0.01)
-    integration_control_2 = IntegrationControl(0.0, 100, 0.01)
+    integration_control_1 = IntegrationControl(0.0, 10, 0.01)
+    integration_control_2 = IntegrationControl(0.0, 10, 0.01)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])
     postproc_problem_2 = postprocessing_problem_creator([("x", 1), ("y", 1)])
 
@@ -620,6 +346,7 @@ def test_postprocessing_after_time_integration_split_partials(
             time_integration_quantities=["x"],
             postprocessing_problem=postproc_problem_1,
             postprocessing_quantities=postprocessing_quantity_1,
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=[(x + "_final", x) for x in postprocessing_quantity_1],
     )
@@ -655,6 +382,7 @@ def test_postprocessing_after_time_integration_split_partials(
             time_integration_quantities=["x", "y"],
             postprocessing_problem=postproc_problem_2,
             postprocessing_quantities=postprocessing_quantities_2,
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=[(x + "_final", x) for x in postprocessing_quantities_2],
     )

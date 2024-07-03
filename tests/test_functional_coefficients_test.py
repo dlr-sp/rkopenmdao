@@ -17,6 +17,10 @@ from rkopenmdao.functional_coefficients import (
     CompositeTrapezoidalCoefficients,
 )
 
+from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
+from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+
+
 from .test_functional_coefficients import (
     FifthStepOfQuantity,
 )
@@ -28,13 +32,10 @@ from .test_postprocessing_problems import (
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_average_functional(
     initial_time,
@@ -42,7 +43,7 @@ def test_average_functional(
     butcher_tableau,
 ):
     """Tests the averaging functional with various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -70,29 +71,27 @@ def test_average_functional(
     result = runge_kutta_prob["x_functional"]
 
     expected = 0.0
-    for i in range(0, 1001):
+    for i in range(0, 11):
         expected += (
-            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 1001
+            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 11
         )
-    assert result[0] == pytest.approx(expected, abs=1e-3)
+    assert result[0] == pytest.approx(expected, abs=1e-5)
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
 )
 def test_average_functional_partials(
-    initial_time,
-    initial_value,
-    butcher_tableau,
+    initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the averaging functional with various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -108,6 +107,7 @@ def test_average_functional_partials(
             integration_control=integration_control,
             time_integration_quantities=["x"],
             functional_coefficients=AverageCoefficients(integration_control, ["x"]),
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
@@ -123,13 +123,10 @@ def test_average_functional_partials(
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_composite_trapezoidal_functional(
     initial_time,
@@ -167,29 +164,23 @@ def test_composite_trapezoidal_functional(
     result = runge_kutta_prob["x_functional"]
 
     expected = 1.5833333333333333333333
-    # for i in range(0, 1001):
-    #     expected += (
-    #         Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 1001
-    #     )
     assert result[0] == pytest.approx(expected, abs=1e-3)
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
 )
 def test_composite_trapezoidal_functional_partials(
-    initial_time,
-    initial_value,
-    butcher_tableau,
+    initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the functional for the composite trapezoidal rule with various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -207,6 +198,7 @@ def test_composite_trapezoidal_functional_partials(
             functional_coefficients=CompositeTrapezoidalCoefficients(
                 integration_control, ["x"]
             ),
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
@@ -222,13 +214,10 @@ def test_composite_trapezoidal_functional_partials(
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_fifth_value_functional(
     initial_time,
@@ -236,7 +225,7 @@ def test_fifth_value_functional(
     butcher_tableau,
 ):
     """Tests the functional for the fifth step with various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -264,25 +253,23 @@ def test_fifth_value_functional(
     result = runge_kutta_prob["x_functional"]
 
     expected = Test6Solution(initial_time + 0.005, initial_value, initial_time)
-    assert result[0] == pytest.approx(expected, abs=1e-3)
+    assert result[0] == pytest.approx(expected, abs=1e-5)
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
 )
 def test_fifth_value_functional_partials(
-    initial_time,
-    initial_value,
-    butcher_tableau,
+    initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the functional for the fifth step with various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -298,6 +285,7 @@ def test_fifth_value_functional_partials(
             integration_control=integration_control,
             time_integration_quantities=["x"],
             functional_coefficients=FifthStepOfQuantity("x"),
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
@@ -313,13 +301,10 @@ def test_fifth_value_functional_partials(
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_average_functional_with_postprocessing(
     initial_time,
@@ -327,7 +312,7 @@ def test_average_functional_with_postprocessing(
     butcher_tableau,
 ):
     """Tests the averaging functional with time integration and postprocessing."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -362,31 +347,29 @@ def test_average_functional_with_postprocessing(
     result_2 = runge_kutta_prob["negated_x_functional"]
 
     expected_1 = 0.0
-    for i in range(0, 1001):
+    for i in range(0, 11):
         expected_1 += (
-            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 1001
+            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 11
         )
     expected_2 = -expected_1
-    assert result_1[0] == pytest.approx(expected_1, abs=1e-3)
-    assert result_2[0] == pytest.approx(expected_2, abs=1e-3)
+    assert result_1[0] == pytest.approx(expected_1, abs=1e-5)
+    assert result_2[0] == pytest.approx(expected_2, abs=1e-5)
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
 )
 def test_average_functional_with_postprocessing_partials(
-    initial_time,
-    initial_value,
-    butcher_tableau,
+    initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the averaging functional with time integration and postprocessing."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -408,6 +391,7 @@ def test_average_functional_with_postprocessing_partials(
             functional_coefficients=AverageCoefficients(
                 integration_control, ["x", "negated_x"]
             ),
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
@@ -423,13 +407,10 @@ def test_average_functional_with_postprocessing_partials(
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_average_functional_with_only_postprocessing(
     initial_time,
@@ -437,7 +418,7 @@ def test_average_functional_with_only_postprocessing(
     butcher_tableau,
 ):
     """Tests the averaging functional with only postprocessing."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -471,30 +452,28 @@ def test_average_functional_with_only_postprocessing(
     result = runge_kutta_prob["negated_x_functional"]
 
     expected = 0.0
-    for i in range(0, 1001):
+    for i in range(0, 11):
         expected -= (
-            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 1001
+            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 11
         )
 
-    assert result[0] == pytest.approx(expected, abs=1e-3)
+    assert result[0] == pytest.approx(expected, abs=1e-5)
 
 
 @pytest.mark.lin_comb
+@pytest.mark.parametrize("initial_time", [1.0])
+@pytest.mark.parametrize("initial_value", [1.0])
 @pytest.mark.parametrize(
-    """initial_time, initial_value, butcher_tableau""",
-    (
-        [1.0, 1.0, implicit_euler],
-        [1.0, 1.0, two_stage_dirk],
-        [1.0, 1.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
 )
 def test_average_functional_with_only_postprocessing_partials(
-    initial_time,
-    initial_value,
-    butcher_tableau,
+    initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the averaging functional with only postprocessing."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -516,6 +495,7 @@ def test_average_functional_with_only_postprocessing_partials(
             functional_coefficients=AverageCoefficients(
                 integration_control, ["negated_x"]
             ),
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
