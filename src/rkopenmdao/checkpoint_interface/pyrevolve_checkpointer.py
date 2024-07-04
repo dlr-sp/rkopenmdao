@@ -73,7 +73,9 @@ class PyrevolveCheckpointer(CheckpointInterface):
         self.revolver_options["n_timesteps"] = kwargs["num_steps"]
         if "n_checkpoints" not in self.revolver_options:
             if revolver_type not in ["MultiLevel", "Base"]:
-                self.revolver_options["n_checkpoints"] = None
+                self.revolver_options["n_checkpoints"] = (
+                    1 if kwargs["num_steps"] == 1 else None
+                )
 
         self.revolver_options["fwd_operator"] = RungeKuttaForwardOperator(
             self._serialized_old_state_symbol,
@@ -111,8 +113,11 @@ class PyrevolveCheckpointer(CheckpointInterface):
             )
 
     def iterate_forward(self, initial_state):
+        print("starting iterate_forward")
         self._serialized_new_state_symbol.data = initial_state.copy()
+        print("data copied")
         self._revolver.apply_forward()
+        print("iteration done")
 
     def iterate_reverse(self, final_state_perturbation):
         self.revolver_options["rev_operator"].serialized_state_perturbations = (

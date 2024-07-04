@@ -7,11 +7,9 @@ import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import IntegrationControl
-from rkopenmdao.butcher_tableaux import (
-    third_order_four_stage_esdirk,
-    implicit_euler,
-    explicit_euler,
-)
+from rkopenmdao.butcher_tableaux import implicit_euler, second_order_two_stage_sdirk
+from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
+from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
 
 class Test1Component1(om.ImplicitComponent):
@@ -348,7 +346,7 @@ class AccumulatingComponent(om.ExplicitComponent):
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("initial_values", [[1, 1], [0, 0]])
 def test_parallel_single_distributed_time_integration(
@@ -407,10 +405,15 @@ def test_parallel_single_distributed_time_integration(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-def test_parallel_single_distributed_totals(num_steps, butcher_tableau, test_direction):
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
+)
+def test_parallel_single_distributed_totals(
+    num_steps, butcher_tableau, test_direction, checkpointing_implementation
+):
     """Tests totals of time integration with distributed variables for a single component."""
     integration_control = IntegrationControl(0.0, num_steps, 0.1)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -453,6 +456,7 @@ def test_parallel_single_distributed_totals(num_steps, butcher_tableau, test_dir
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
         time_integration_quantities=["x"],
+        checkpointing_type=checkpointing_implementation,
     )
 
     time_test_prob = om.Problem()
@@ -484,7 +488,7 @@ def test_parallel_single_distributed_totals(num_steps, butcher_tableau, test_dir
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
 def test_parallel_two_distributed_time_integration(
@@ -553,7 +557,7 @@ def test_parallel_two_distributed_time_integration(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
 def test_parallel_two_distributed_time_integration_with_postprocessing(
@@ -625,10 +629,15 @@ def test_parallel_two_distributed_time_integration_with_postprocessing(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-def test_parallel_two_distributed_totals(num_steps, butcher_tableau, test_direction):
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
+)
+def test_parallel_two_distributed_totals(
+    num_steps, butcher_tableau, test_direction, checkpointing_implementation
+):
     """Tests totals of time integration with distributed variables for a problem with two components."""
     integration_control = IntegrationControl(0.0, num_steps, 0.1)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -677,6 +686,7 @@ def test_parallel_two_distributed_totals(num_steps, butcher_tableau, test_direct
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
         time_integration_quantities=["x12", "x43"],
+        checkpointing_type=checkpointing_implementation,
     )
 
     time_test_prob = om.Problem()
@@ -711,11 +721,14 @@ def test_parallel_two_distributed_totals(num_steps, butcher_tableau, test_direct
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
+)
 def test_parallel_two_distributed_totals_with_postprocessing(
-    num_steps, butcher_tableau, test_direction
+    num_steps, butcher_tableau, test_direction, checkpointing_implementation
 ):
     """Tests totals of postprocessing after time integration with distributed variables."""
     delta_t = 0.1
@@ -758,6 +771,7 @@ def test_parallel_two_distributed_totals_with_postprocessing(
         integration_control=integration_control,
         time_integration_quantities=["x12", "x43"],
         postprocessing_quantities=["x_sum"],
+        checkpointing_type=checkpointing_implementation,
     )
 
     time_test_prob = om.Problem()
