@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class CheckpointInterface(ABC):
+    """Abstract interface for checkpointing implementations."""
 
     @abstractmethod
     def setup(self, **kwargs):

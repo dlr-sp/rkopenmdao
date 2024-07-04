@@ -13,7 +13,8 @@ from .runge_kutta_integrator_pyrevolve_classes import (
 
 class PyrevolveCheckpointer(CheckpointInterface):
     """Checkpointer where checkpointing is done via pyRevolve. Most memory efficient version,
-    but doesn't support online checkpointing (i.e. unknown number of time steps)."""
+    but doesn't support online checkpointing (i.e. unknown number of time steps), and never will
+    unless it is implemented in PyRevolve."""
 
     def __init__(self):
         self.revolver_class_type = None
