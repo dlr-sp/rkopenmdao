@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import warnings
 
 import pyrevolve as pr
@@ -11,30 +12,18 @@ from .runge_kutta_integrator_pyrevolve_classes import (
 )
 
 
+@dataclass
 class PyrevolveCheckpointer(CheckpointInterface):
     """Checkpointer where checkpointing is done via pyRevolve. Most memory efficient version,
     but doesn't support online checkpointing (i.e. unknown number of time steps), and never will
     unless it is implemented in PyRevolve."""
 
-    def __init__(self):
-        self.revolver_class_type = None
+    revolver_type: str = "Memory"
+    revolver_options: dict = field(default_factory=dict)
 
-        self._serialized_old_state_symbol = None
-        self._serialized_new_state_symbol = None
-        self._forward_operator = None
-        self._reverse_operator = None
-        self.revolver_options = {}
-
-        self.revolver = None
-
-    def setup(self, **kwargs):
-
-        self._serialized_old_state_symbol = RungeKuttaIntegratorSymbol(
-            kwargs["array_size"]
-        )
-        self._serialized_new_state_symbol = RungeKuttaIntegratorSymbol(
-            kwargs["array_size"]
-        )
+    def __post_init__(self):
+        self._serialized_old_state_symbol = RungeKuttaIntegratorSymbol(self.array_size)
+        self._serialized_new_state_symbol = RungeKuttaIntegratorSymbol(self.array_size)
 
         checkpoint = RungeKuttaCheckpoint(
             {
@@ -43,51 +32,40 @@ class PyrevolveCheckpointer(CheckpointInterface):
             }
         )
 
-        if "revolver_type" in kwargs:
-            revolver_type = kwargs["revolver_type"]
-        else:
-            revolver_type = "Memory"
+        self.revolver_class_type = self._setup_revolver_class_type(self.revolver_type)
 
-        self.revolver_class_type = self._setup_revolver_class_type(revolver_type)
-
-        if "revolver_options" in kwargs:
-            for key, value in kwargs["revolver_options"].items():
-                if revolver_type == "MultiLevel" and key == "storage_list":
-                    storage_list = []
-                    for storage_type, options in value.items():
-                        if storage_type == "Numpy":
-                            storage_list.append(
-                                pr.NumpyStorage(checkpoint.size, **options)
-                            )
-                        elif storage_type == "Disk":
-                            storage_list.append(
-                                pr.DiskStorage(checkpoint.size, **options)
-                            )
-                        elif storage_type == "Bytes":
-                            storage_list.append(
-                                pr.BytesStorage(checkpoint.size, **options)
-                            )
-                    self.revolver_options[key] = storage_list
-                else:
-                    self.revolver_options[key] = value
+        for key, value in self.revolver_options.items():
+            if self.revolver_type == "MultiLevel" and key == "storage_list":
+                storage_list = []
+                for storage_type, options in value.items():
+                    if storage_type == "Numpy":
+                        storage_list.append(pr.NumpyStorage(checkpoint.size, **options))
+                    elif storage_type == "Disk":
+                        storage_list.append(pr.DiskStorage(checkpoint.size, **options))
+                    elif storage_type == "Bytes":
+                        storage_list.append(pr.BytesStorage(checkpoint.size, **options))
+                self.revolver_options[key] = storage_list
+            else:
+                self.revolver_options[key] = value
         self.revolver_options["checkpoint"] = checkpoint
-        self.revolver_options["n_timesteps"] = kwargs["num_steps"]
+        self.revolver_options["n_timesteps"] = self.num_steps
         if "n_checkpoints" not in self.revolver_options:
-            if revolver_type not in ["MultiLevel", "Base"]:
+            if self.revolver_type not in ["MultiLevel", "Base"]:
                 self.revolver_options["n_checkpoints"] = (
-                    1 if kwargs["num_steps"] == 1 else None
+                    1 if self.num_steps == 1 else None
                 )
 
         self.revolver_options["fwd_operator"] = RungeKuttaForwardOperator(
             self._serialized_old_state_symbol,
             self._serialized_new_state_symbol,
-            kwargs["run_step_func"],
+            self.run_step_func,
         )
         self.revolver_options["rev_operator"] = RungeKuttaReverseOperator(
             self._serialized_old_state_symbol,
-            kwargs["array_size"],
-            kwargs["run_step_jacvec_rev_func"],
+            self.array_size,
+            self.run_step_jacvec_rev_func,
         )
+        self._revolver = None
 
     def create_checkpointer(self):
         self._revolver = self.revolver_class_type(**self.revolver_options)
@@ -114,11 +92,8 @@ class PyrevolveCheckpointer(CheckpointInterface):
             )
 
     def iterate_forward(self, initial_state):
-        print("starting iterate_forward")
         self._serialized_new_state_symbol.data = initial_state.copy()
-        print("data copied")
         self._revolver.apply_forward()
-        print("iteration done")
 
     def iterate_reverse(self, final_state_perturbation):
         self.revolver_options["rev_operator"].serialized_state_perturbations = (

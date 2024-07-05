@@ -687,8 +687,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     self.comm.Barrier()
 
     def _setup_checkpointing(self):
-        self._checkpointer = self.options["checkpointing_type"]()
-        self._checkpointer.setup(
+        self._checkpointer = self.options["checkpointing_type"](
             array_size=self._numpy_array_size,
             num_steps=self.options["integration_control"].num_steps,
             run_step_func=self._run_step,
