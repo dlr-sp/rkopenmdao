@@ -16,12 +16,12 @@ class CheckpointInterface(ABC):
 
     @abstractmethod
     def create_checkpointer(self):
-        pass
+        """Routine for creating an object that actually creates checkpoints, if necessary."""
 
     @abstractmethod
     def iterate_forward(self, initial_state):
-        pass
+        """Routine for the forward iteration from start to finish."""
 
     @abstractmethod
     def iterate_reverse(self, final_state_perturbation):
-        pass
+        """Routine for the reverse iteration, from finish to start."""

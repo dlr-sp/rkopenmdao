@@ -1,6 +1,5 @@
-# pylint: disable=missing-module-docstring
+# pylint: disable=missing-module-docstring, protected-access
 
-import warnings
 from typing import Optional
 import h5py
 import numpy as np
@@ -23,8 +22,8 @@ from .postprocessing_computation_functors import (
     PostprocessingProblemComputeJacvecFunctor,
     PostprocessingProblemComputeTransposeJacvecFunctor,
 )
-from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInterface
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
+from .checkpoint_interface.checkpoint_interface import CheckpointInterface
+from .checkpoint_interface.no_checkpointer import NoCheckpointer
 from .errors import SetupError
 
 
@@ -221,6 +220,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     @staticmethod
     def check_checkpointing_type(name, value):
+        """Checks whether the passed checkpointing type for the options is an actual subclass of CheckpointInterface"""
+        # pylint: disable=unused-argument
+        # OpenMDAO needs that specific interface, even if we don't need everything from it.
         if not issubclass(value, CheckpointInterface):
             raise TypeError(f"{value} is not a subclass of CheckpointInterface")
 
@@ -780,8 +782,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                             metadata["global_shape"],
                         )
                         access_list = []
-                        for i in range(len(start_tuple)):
-                            access_list.append(slice(start_tuple[i], end_tuple[i] + 1))
+                        for start_index, end_index in zip(start_tuple, end_tuple):
+                            access_list.append(slice(start_index, end_index + 1))
                         f[quantity][str(step)][tuple(access_list)] = serialized_state[
                             start:end
                         ].reshape(metadata["shape"])
@@ -805,8 +807,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                             metadata["global_shape"],
                         )
                         access_list = []
-                        for i in range(len(start_tuple)):
-                            access_list.append(slice(start_tuple[i], end_tuple[i] + 1))
+                        for start_index, end_index in zip(start_tuple, end_tuple):
+                            access_list.append(slice(start_index, end_index + 1))
                         f[quantity][str(step)][tuple(access_list)] = (
                             postprocessing_state[start:end].reshape(metadata["shape"])
                         )
