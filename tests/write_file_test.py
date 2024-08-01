@@ -58,6 +58,7 @@ def test_monodisciplinary(write_out_distance, write_file):
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
 @pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
 def test_time_attribute(write_out_distance, write_file):
+    """Checks that the time attribute in the written out file is correct."""
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 

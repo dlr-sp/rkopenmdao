@@ -144,7 +144,8 @@ def test_postprocessing_after_time_integration(
 
 @pytest.mark.postporc
 @pytest.mark.parametrize(
-    """postprocessing_problem_creator, postprocessing_quantity_1, postprocessing_quantities_2""",
+    """postprocessing_problem_creator, postprocessing_quantity_1,
+    postprocessing_quantities_2""",
     (
         [create_negating_problem, ["negated_x"], ["negated_x", "negated_y"]],
         [create_accumulating_problem, ["accumulated"], ["accumulated"]],
@@ -161,7 +162,8 @@ def test_postprocessing_after_time_integration_split(
     postprocessing_quantities_2,
     butcher_tableau,
 ):
-    """Tests whether postprocessing works the same when split over multiple components."""
+    """Tests whether postprocessing works the same when split over multiple
+    components."""
     integration_control_1 = IntegrationControl(0.0, 10, 0.001)
     integration_control_2 = IntegrationControl(0.0, 10, 0.001)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])
@@ -241,7 +243,8 @@ def test_postprocessing_after_time_integration_split(
 
 @pytest.mark.postporc
 @pytest.mark.parametrize(
-    "postprocessing_problem_creator, quantity_list, test_class, postprocessing_quantities",
+    """postprocessing_problem_creator, quantity_list, test_class,
+    postprocessing_quantities""",
     (
         [create_negating_problem, [("x", 2)], TestComp4, ["negated_x"]],
         [create_negating_problem, [("x", 1)], TestComp6, ["negated_x"]],
@@ -304,7 +307,8 @@ def test_postprocessing_after_time_integration_partials(
 
 @pytest.mark.postporc
 @pytest.mark.parametrize(
-    """postprocessing_problem_creator, postprocessing_quantity_1, postprocessing_quantities_2""",
+    """postprocessing_problem_creator, postprocessing_quantity_1,
+    postprocessing_quantities_2""",
     (
         [create_negating_problem, ["negated_x"], ["negated_x", "negated_y"]],
         [create_accumulating_problem, ["accumulated"], ["accumulated"]],
@@ -323,7 +327,8 @@ def test_postprocessing_after_time_integration_split_partials(
     butcher_tableau,
     checkpointing_implementation,
 ):
-    """Tests whether the partials of the postprocessing are the same for a split and unsplit problem."""
+    """Tests whether the partials of the postprocessing are the same for a split and
+    unsplit problem."""
     integration_control_1 = IntegrationControl(0.0, 10, 0.01)
     integration_control_2 = IntegrationControl(0.0, 10, 0.01)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])

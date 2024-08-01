@@ -25,8 +25,8 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
         ["SingleLevel", {"diskstorage": True}],
         ["SingleLevel", {"n_checkpoints": 2, "diskstorage": True}],
         ["SingleLevel", {"n_checkpoints": 10, "diskstorage": True}],
-        # something is strange here. For certain checkpoint numbers, the MultiLevelRevolver works,
-        # but for others it doesn't. We skip this for now
+        # something is strange here. For certain checkpoint numbers, the
+        # MultiLevelRevolver works, but for others it doesn't. We skip this for now
         # TODO: investigate this
         # [
         #     "MultiLevel",
@@ -55,7 +55,8 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
     ),
 )
 def test_rk_integrator_revolver_options(revolver_type, revolver_options):
-    """Tests that the options given to the RungeKuttaIntegrator are passed through to the Revolver."""
+    """Tests that the options given to the RungeKuttaIntegrator are passed through to
+    the Revolver."""
     integration_control = IntegrationControl(0.0, 10, 0.01)
 
     inner_prob = om.Problem()

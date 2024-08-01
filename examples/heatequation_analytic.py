@@ -1,4 +1,5 @@
-"""A short script that calculates the analytic solution of the heat equation for comparison with numerical results."""
+"""A short script that calculates the analytic solution of the heat equation for
+comparison with numerical results."""
 
 import numpy as np
 import h5py
@@ -7,9 +8,13 @@ from numba import vectorize, float64
 
 @vectorize([float64(float64, float64, float64)])
 def analytic_solution_to_example_heat_equation(t, x, y):
-    return (
-        np.exp(-8 * np.pi**2 * t) * np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1
-    )
+    """analytical solution to the heat equation
+    partial_t u = Delta u
+    u(0, x, y) = cos(2 pi x)cos(2 pi y) + 1
+    partial_n u = 0
+    on the unit square.
+    """
+    return np.exp(-8 * np.pi**2 * t) * np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1
 
 
 points_per_direction = 51

@@ -1,4 +1,5 @@
-"""Test to make sure that rkopenmdao works with problems containing distributed variables."""
+"""Test to make sure that rkopenmdao works with problems containing distributed
+variables."""
 
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_totals
@@ -102,7 +103,8 @@ def ode_1_analytical_solution(time, initial_values):
 #   x_3' = x_2
 #   x_4' = x_3
 class Test2Component1(om.ImplicitComponent):
-    """Models the first two equations from above, with the first being on rank 0 and the second on rank 1"""
+    """Models the first two equations from above, with the first being on rank 0 and the
+    second on rank 1"""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -183,7 +185,8 @@ class Test2Component1(om.ImplicitComponent):
 
 
 class Test2Component2(om.ImplicitComponent):
-    """Models the last two equations from above, with the first being on rank 1 and the second on rank 0"""
+    """Models the last two equations from above, with the first being on rank 1 and the
+    second on rank 0"""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -281,7 +284,6 @@ def ode_2_analytical_solution(time, initial_values):
 
 
 class AccumulatingComponent(om.ExplicitComponent):
-    # TODO: see if this still works with openMDAO 3.25
     """A component that accumulates its inputs. To be used as postprocessing."""
 
     def setup(self):
@@ -414,7 +416,8 @@ def test_parallel_single_distributed_time_integration(
 def test_parallel_single_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
 ):
-    """Tests totals of time integration with distributed variables for a single component."""
+    """Tests totals of time integration with distributed variables for a single
+    component."""
     integration_control = IntegrationControl(0.0, num_steps, 0.1)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
@@ -494,7 +497,8 @@ def test_parallel_single_distributed_totals(
 def test_parallel_two_distributed_time_integration(
     num_steps, butcher_tableau, initial_values
 ):
-    """Tests time integration with distributed variables for a problem with two components."""
+    """Tests time integration with distributed variables for a problem with two
+    components."""
     delta_t = 0.0001
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -638,7 +642,8 @@ def test_parallel_two_distributed_time_integration_with_postprocessing(
 def test_parallel_two_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
 ):
-    """Tests totals of time integration with distributed variables for a problem with two components."""
+    """Tests totals of time integration with distributed variables for a problem with
+    two components."""
     integration_control = IntegrationControl(0.0, num_steps, 0.1)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
@@ -730,7 +735,8 @@ def test_parallel_two_distributed_totals(
 def test_parallel_two_distributed_totals_with_postprocessing(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
 ):
-    """Tests totals of postprocessing after time integration with distributed variables."""
+    """Tests totals of postprocessing after time integration with distributed
+    variables."""
     delta_t = 0.1
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[

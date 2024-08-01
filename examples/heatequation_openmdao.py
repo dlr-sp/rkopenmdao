@@ -3,12 +3,6 @@
 import numpy as np
 import openmdao.api as om
 
-from heatequation.boundary import BoundaryCondition
-from heatequation.domain import Domain
-from heatequation.heatequation import HeatEquation
-from heatequation.heatequation_stage_component import (
-    HeatEquationStageComponent,
-)
 from rkopenmdao.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
@@ -16,6 +10,14 @@ from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
+
+from .heatequation.boundary import BoundaryCondition
+from .heatequation.domain import Domain
+from .heatequation.heatequation import HeatEquation
+from .heatequation.heatequation_stage_component import (
+    HeatEquationStageComponent,
+)
+
 
 if __name__ == "__main__":
     points_per_direction = 51

@@ -1,4 +1,6 @@
-"""Contains several problems used to test the postprocessing capabilities of the RungeKuttaIntegrator"""
+"""Contains several problems used to test the postprocessing capabilities of the
+RungeKuttaIntegrator."""
+
 import numpy as np
 import openmdao.api as om
 
@@ -198,5 +200,6 @@ def create_phase_problem(quantity_list):
 
 
 def phase_function(array):
-    """Function that applies a pseudo-phasefield its inputs (as analytical solution to the above)"""
+    """Function that applies a pseudo-phasefield its inputs (as analytical solution to
+    the above)."""
     return np.tanh(array)

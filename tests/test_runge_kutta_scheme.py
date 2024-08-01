@@ -36,40 +36,96 @@ class RkFunctionProvider:
         )
 
 
-identity_ode_provider = RkFunctionProvider(
-    lambda old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element: (
-        old_state + delta_t * acc_stages
+def identity_ode_function(
+    old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element
+):
+    """Solution for the stage update for the identity ode"""
+    # pylint: disable=unused-argument
+    return (old_state + delta_t * acc_stages) / (1 - delta_t * butcher_diagonal_element)
+
+
+def identity_ode_jacvec(
+    old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element
+):
+    """Jacvec for the stage update for the identity ode"""
+    # pylint: disable=unused-argument
+    return (old_state_perturb + delta_t * acc_stage_perturb) / (
+        1 - delta_t * butcher_diagonal_element
     )
-    / (1 - delta_t * butcher_diagonal_element),
-    lambda old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element: (
-        old_state_perturb + delta_t * acc_stage_perturb
-    )
-    / (1 - delta_t * butcher_diagonal_element),
-    lambda stage_perturb, stage_time, delta_t, butcher_diagonal_element: (
+
+
+def identity_ode_transposed_jacvec(
+    stage_perturb, stage_time, delta_t, butcher_diagonal_element
+):
+    """Transposed jacvec for the stage update for the identity ode"""
+    # pylint: disable=unused-argument
+    return (
         stage_perturb / (1 - delta_t * butcher_diagonal_element),
         delta_t * stage_perturb / (1 - delta_t * butcher_diagonal_element),
-    ),
+    )
+
+
+identity_ode_provider = RkFunctionProvider(
+    identity_ode_function, identity_ode_jacvec, identity_ode_transposed_jacvec
 )
+
+
+def time_ode_solution(
+    old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element
+):
+    """Solution for the stage update for the time ode"""
+    # pylint: disable=unused-argument
+    return stage_time
+
+
+def time_ode_jacvec(
+    old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element
+):
+    """Jacvec for the stage update for the time ode"""
+    # pylint: disable=unused-argument
+    return np.zeros(1)
+
+
+def time_ode_tranposed_jacvec(
+    stage_perturb, stage_time, delta_t, butcher_diagonal_element
+):
+    """Transposed jacvec for the stage update for the time ode"""
+    # pylint: disable=unused-argument
+    return np.zeros(1), np.zeros(1)
+
 
 time_ode_provider = RkFunctionProvider(
-    lambda old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element: stage_time,
-    lambda old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element: np.zeros(
-        1
-    ),
-    lambda stage_perturb, stage_time, delta_t, butcher_diagonal_element: (
-        np.zeros(1),
-        np.zeros(1),
-    ),
+    time_ode_solution, time_ode_jacvec, time_ode_tranposed_jacvec
 )
 
-time_scaled_identity_ode_provider = RkFunctionProvider(
-    lambda old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element: stage_time
-    * (old_state + delta_t * acc_stages)
-    / (1 - stage_time * delta_t * butcher_diagonal_element),
-    lambda old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element: stage_time
-    * (old_state_perturb + delta_t * acc_stage_perturb)
-    / (1 - stage_time * delta_t * butcher_diagonal_element),
-    lambda stage_perturb, stage_time, delta_t, butcher_diagonal_element: (
+
+def time_scaled_identity_ode_solution(
+    old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element
+):
+    """Solution for the stage update for the time scaled identity ode"""
+    return (
+        stage_time
+        * (old_state + delta_t * acc_stages)
+        / (1 - stage_time * delta_t * butcher_diagonal_element)
+    )
+
+
+def time_scaled_identity_ode_jacvec(
+    old_state_perturb, acc_stage_perturb, stage_time, delta_t, butcher_diagonal_element
+):
+    """Jacvec for the stage update for the time scaled identity ode"""
+    return (
+        stage_time
+        * (old_state_perturb + delta_t * acc_stage_perturb)
+        / (1 - stage_time * delta_t * butcher_diagonal_element)
+    )
+
+
+def time_scaled_identity_ode_transposed_jacvec(
+    stage_perturb, stage_time, delta_t, butcher_diagonal_element
+):
+    """Transposed jacvec for the stage update for the time scaled identity ode"""
+    return (
         stage_time
         * stage_perturb
         / (1 - stage_time * delta_t * butcher_diagonal_element),
@@ -77,7 +133,13 @@ time_scaled_identity_ode_provider = RkFunctionProvider(
         * delta_t
         * stage_perturb
         / (1 - stage_time * delta_t * butcher_diagonal_element),
-    ),
+    )
+
+
+time_scaled_identity_ode_provider = RkFunctionProvider(
+    time_scaled_identity_ode_solution,
+    time_scaled_identity_ode_jacvec,
+    time_scaled_identity_ode_transposed_jacvec,
 )
 
 
@@ -154,9 +216,7 @@ root_ode_provider = RkFunctionProvider(
     * butcher_diagonal_element
     / 2
     + np.sqrt(
-        delta_t**2 * butcher_diagonal_element**2 / 4
-        + old_state
-        + delta_t * acc_stages
+        delta_t**2 * butcher_diagonal_element**2 / 4 + old_state + delta_t * acc_stages
     ),
     root_ode_jacvec,
     root_ode_jacvec_transposed,
@@ -193,7 +253,8 @@ root_ode_two_stage_dirk_scheme = RungeKuttaScheme(
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "rk_scheme, stage, delta_t, old_time, old_state, accumulated_stages, expected_stage",
+    """rk_scheme, stage, delta_t, old_time, old_state, accumulated_stages, 
+    expected_stage""",
     (
         [identity_ode_rk4_scheme, 0, 0.1, 0.0, 1.0, 1.0, 1.1],
         [identity_ode_rk4_scheme, 3, 0.01, 0.0, 2.0, 10.0, 2.1],
@@ -327,8 +388,8 @@ def test_compute_step(
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    """rk_scheme, stage, delta_t, old_time, old_state_perturbation, accumulated_stages_perturbation, 
-    linearization_args, expected_jacvec_product""",
+    """rk_scheme, stage, delta_t, old_time, old_state_perturbation,
+    accumulated_stages_perturbation, linearization_args, expected_jacvec_product""",
     (
         [identity_ode_rk4_scheme, 0, 0.1, 0.0, 1.0, 1.0, {}, 1.1],
         [identity_ode_rk4_scheme, 3, 0.01, 0.0, 2.0, 10.0, {}, 2.1],
@@ -407,7 +468,8 @@ def test_compute_stage_jacvec(
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "rk_scheme, stage, delta_t, old_time, joined_perturbation, linearization_args, expected_jacvec_product",
+    """rk_scheme, stage, delta_t, old_time, joined_perturbation, linearization_args,
+    expected_jacvec_product""",
     (
         [identity_ode_rk4_scheme, 0, 0.1, 0.0, 1.0, {}, (1.0, 0.1)],
         [identity_ode_rk4_scheme, 3, 0.01, 0.0, 2.0, {}, (2.0, 0.02)],
@@ -475,7 +537,8 @@ def test_compute_stage_transposed_jacvec(
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "rk_scheme, stage, new_state_perturbation, accumulated_stages_perturbation_field, expected_joined_perturbation",
+    """rk_scheme, stage, new_state_perturbation, accumulated_stages_perturbation_field,
+    expected_joined_perturbation""",
     (
         [
             identity_ode_rk4_scheme,
@@ -508,7 +571,7 @@ def test_join_new_state_and_accumulated_stages_perturbations(
     expected_joined_perturbation: np.ndarray,
 ):
     """Tests the join_new_state_and_accumulated_stages_perturbations function"""
-    assert rk_scheme.join_new_state_and_accumulated_stages_perturbations(
+    assert rk_scheme.join_perturbations(
         stage, new_state_perturbation, accumulated_stages_perturbation_field
     ) == pytest.approx(expected_joined_perturbation)
 
@@ -516,7 +579,8 @@ def test_join_new_state_and_accumulated_stages_perturbations(
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "rk_scheme, delta_t, new_state_perturbation, stage_perturbation_field, expected_old_state_perturbation",
+    """rk_scheme, delta_t, new_state_perturbation, stage_perturbation_field,
+    expected_old_state_perturbation""",
     (
         [
             identity_ode_rk4_scheme,

@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable
@@ -16,7 +17,8 @@ class CheckpointInterface(ABC):
 
     @abstractmethod
     def create_checkpointer(self):
-        """Routine for creating an object that actually creates checkpoints, if necessary."""
+        """Routine for creating an object that actually creates checkpoints, if
+        necessary."""
 
     @abstractmethod
     def iterate_forward(self, initial_state):

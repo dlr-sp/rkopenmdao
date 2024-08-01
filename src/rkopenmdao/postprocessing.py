@@ -5,9 +5,8 @@ import numpy as np
 
 
 class Postprocessor:
-    """
-    Wrapper to make the postprocessing in the Runge-Kutta-integrator more abstract.
-    """
+    """Wrapper to make the postprocessing in the Runge-Kutta-integrator more
+    abstract."""
 
     def __init__(
         self,
@@ -32,11 +31,9 @@ class Postprocessor:
     def postprocess_jacvec(
         self, input_perturbation, **linearization_args
     ) -> np.ndarray:
-        """
-        Applies the matrix-vector-product with the jacobian of the postprocessing, given by the
-        postprocessing_computation_functor_jacvec, to the input_perturbation. Also does some linearization beforehand,
-        if applicable.
-        """
+        """Applies the matrix-vector-product with the jacobian of the postprocessing,
+        given by the postprocessing_computation_functor_jacvec, to the
+        input_perturbation. Also does some linearization beforehand, if applicable."""
         if hasattr(self.postprocessing_computation_functor_jacvec, "linearize"):
             self.postprocessing_computation_functor_jacvec.linearize(
                 **linearization_args
@@ -46,11 +43,9 @@ class Postprocessor:
     def postprocess_jacvec_transposed(
         self, output_perturbation, **linearization_args
     ) -> np.ndarray:
-        """
-        Applies the matrix-vector-product with the transposed jacobian of the postprocessing, given by the
-        postprocessing_computation_functor_jacvec, to the input_perturbation. Also does some linearization beforehand,
-        if applicable.
-        """
+        """Applies the matrix-vector-product with the transposed jacobian of the
+        postprocessing, given by the postprocessing_computation_functor_jacvec, to the
+        input_perturbation. Also does some linearization beforehand, if applicable."""
         if hasattr(self.postprocessing_computation_functor_jacvec, "linearize"):
             self.postprocessing_computation_functor_jacvec.linearize(
                 **linearization_args

@@ -9,4 +9,4 @@ good-names=ax, im, x, y, i, j, f, g, t
 
 [FORMAT]
 
-max-line-length=120
+max-line-length=88

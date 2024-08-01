@@ -1,13 +1,13 @@
 """
-Solving the heat equation in openMDAO via the Runge-Kutta-integrator.In this version, the heat equation is split in two
-via a domain decomposition two emulate a multidisciplinary problem.
+Solving the heat equation in openMDAO via the Runge-Kutta-integrator. In this version,
+the heat equation is split in two via a domain decomposition two emulate a
+multidisciplinary problem.
 """
 
 import numpy as np
 import openmdao.api as om
 
-from heatequation.boundary import BoundaryCondition
-from heatequation.split_heat_group import create_split_heat_group
+
 from rkopenmdao.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
@@ -19,8 +19,12 @@ from rkopenmdao.butcher_tableaux import (
 
 from rkopenmdao.functional_coefficients import CompositeTrapezoidalCoefficients
 
+from .heatequation.boundary import BoundaryCondition
+from .heatequation.split_heat_group import create_split_heat_group
+
 
 class HeatAverageOnSplit(om.ExplicitComponent):
+    """Component that calculates the average of heat along the split line"""
     def initialize(self):
         self.options.declare("points_per_direction", types=int)
 
@@ -107,7 +111,7 @@ if __name__ == "__main__":
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         integration_control,
-        {"tol": 1e-15, "atol": "legacy"},
+        {"tol": 1e-10, "atol": "legacy"},
     )
 
     inner_prob.model.add_subsystem("heat_group", heat_group)

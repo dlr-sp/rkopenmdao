@@ -1,7 +1,5 @@
-"""
-Wrapper classes to make a openMDAO problem used for postprocessing in the Runge-Kutta integrator usable with the
-Postprocessor class.
-"""
+"""Wrapper classes to make a OpenMDAO problem used for postprocessing in the
+RungeKuttaIntegrator usable with the Postprocessor class."""
 
 import numpy as np
 import openmdao.api as om
@@ -10,10 +8,8 @@ from .errors import PostprocessingError
 
 
 class PostprocessingProblemComputeFunctor:
-    """
-    Wraps an openMDAO problem (specifically its models run_solve_nonlinear method) to a functor usable in the
-    Postprocessor class.
-    """
+    """Wraps an OpenMDAO problem (specifically its models run_solve_nonlinear method)
+    to a functor usable in the Postprocessor class."""
 
     def __init__(
         self,
@@ -63,10 +59,9 @@ class PostprocessingProblemComputeFunctor:
 
 
 class PostprocessingProblemComputeJacvecFunctor:
-    """
-    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
-    Postprocessor class. Uses the 'fwd'-mode of said function.
-    """
+    """Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to
+    a functor usable in the Postprocessor class. Uses the 'fwd'-mode of said
+    function."""
 
     def __init__(
         self,
@@ -127,7 +122,8 @@ class PostprocessingProblemComputeJacvecFunctor:
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
-        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
+        """Sets inputs and outputs of the owned problem to prepare for a different
+        linearization point."""
         if inputs is not None and outputs is not None:
             (
                 prob_inputs,
@@ -143,10 +139,9 @@ class PostprocessingProblemComputeJacvecFunctor:
 
 
 class PostprocessingProblemComputeTransposeJacvecFunctor:
-    """
-    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
-    Postprocessor class. Uses the 'rev'-mode of said function.
-    """
+    """Wraps an OpenMDAO problem (specifically its compute_jacvec_problem function) to
+    a functor usable in the Postprocessor class. Uses the 'rev'-mode of said
+    function."""
 
     def __init__(
         self,
@@ -207,7 +202,8 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
-        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
+        """Sets inputs and outputs of the owned problem to prepare for a different
+        linearization point."""
         if inputs is not None and outputs is not None:
             (
                 prob_inputs,

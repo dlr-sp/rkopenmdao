@@ -9,9 +9,9 @@ from rkopenmdao.integration_control import IntegrationControl
 
 
 class KapsComponent1(om.ImplicitComponent):
-    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
-    Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016). section 10
-    """
+    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter.
+    “Diagonally Implicit Runge-Kutta Methods for Ordinary Differential Equations. A
+    Review.” (2016). section 10"""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -143,9 +143,9 @@ class KapsComponent1(om.ImplicitComponent):
 
 
 class KapsComponent2(om.ImplicitComponent):
-    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
-    Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016). section 10
-    """
+    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter.
+    “Diagonally Implicit Runge-Kutta Methods for Ordinary Differential Equations. A
+    Review.” (2016). section 10"""
 
     y_2: float
 

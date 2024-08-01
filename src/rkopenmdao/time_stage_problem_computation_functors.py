@@ -1,7 +1,5 @@
-"""
-Wrapper classes to make a openMDAO problem modelling a time stage for the Runge-Kutta integrator usable with the
-RungeKuttaScheme class.
-"""
+"""Wrapper classes to make a openMDAO problem modelling a time stage for the
+RungeKuttaIntegrator usable with the RungeKuttaScheme class."""
 
 from typing import Tuple
 
@@ -13,10 +11,8 @@ from .errors import TimeStageError
 
 
 class TimeStageProblemComputeFunctor:
-    """
-    Wraps an openMDAO problem (specifically its models run_solve_nonlinear method) to a functor usable in the
-    RungeKuttaScheme class.
-    """
+    """Wraps an openMDAO problem (specifically its models run_solve_nonlinear method) to
+    a functor usable in the RungeKuttaScheme class."""
 
     def __init__(
         self,
@@ -77,10 +73,9 @@ class TimeStageProblemComputeFunctor:
 
 
 class TimeStageProblemComputeJacvecFunctor:
-    """
-    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
-    RungeKuttaScheme class. Uses the 'fwd'-mode of said function.
-    """
+    """Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a
+    functor usable in the RungeKuttaScheme class. Uses the 'fwd'-mode of said
+    function."""
 
     def __init__(
         self,
@@ -148,7 +143,8 @@ class TimeStageProblemComputeJacvecFunctor:
                     )
 
     def get_problem_data(self, stage_perturbation: np.ndarray):
-        """Extracts the result of the jacvec product from d_outputs of the time_stage_problem."""
+        """Extracts the result of the jacvec product from d_outputs of the
+        time_stage_problem."""
         _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
         for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
@@ -159,7 +155,8 @@ class TimeStageProblemComputeJacvecFunctor:
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
-        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
+        """Sets inputs and outputs of the owned problem to prepare for a different
+        linearization point."""
         if inputs is not None and outputs is not None:
             (
                 prob_inputs,
@@ -175,10 +172,9 @@ class TimeStageProblemComputeJacvecFunctor:
 
 
 class TimeStageProblemComputeTransposeJacvecFunctor:
-    """
-    Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a functor usable in the
-    RungeKuttaScheme class. Uses the 'rev'-mode of said function.
-    """
+    """Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a
+    functor usable in the RungeKuttaScheme class. Uses the 'rev'-mode of said
+    function."""
 
     def __init__(
         self,
@@ -235,7 +231,8 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         old_state_perturbation: np.ndarray,
         accumulated_stage_perturbation: np.ndarray,
     ):
-        """Extracts the result of the jacvec product from d_residuals of the time_stage_problem."""
+        """Extracts the result of the jacvec product from d_residuals of the
+        time_stage_problem."""
         _, _, d_residuals = self.time_stage_problem.model.get_linear_vectors()
         for metadata in self.quantity_metadata.values():
             if metadata["type"] == "time_integration":
@@ -254,7 +251,8 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
                     ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
-        """Sets inputs and outputs of the owned problem to prepare for a different linearization point."""
+        """Sets inputs and outputs of the owned problem to prepare for a different
+        linearization point."""
         if inputs is not None and outputs is not None:
             (
                 prob_inputs,

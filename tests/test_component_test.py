@@ -1,6 +1,5 @@
 """Tests the time integration with the various components of test_components.py"""
 
-import itertools
 from itertools import product
 
 import openmdao.api as om
@@ -156,7 +155,8 @@ def test_component_integration(
     "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_component_splitting(initial_time, initial_values, butcher_tableau):
-    """Tests the time integration of the problem that is split over multiple components."""
+    """Tests the time integration of the problem that is split over multiple
+    components."""
     integration_control_1 = IntegrationControl(initial_time, 10, 0.001)
     integration_control_2 = IntegrationControl(initial_time, 10, 0.001)
 
@@ -221,13 +221,12 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
 @pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, initial_time",
-    [
-        x
-        for x in product(
+    list(
+        product(
             [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
             [0.0, 1.0],
         )
-    ]
+    )
     + [[TestComp7, 1.0]]
     + [[TestComp7, 2.0]],
 )
@@ -270,7 +269,7 @@ def test_time_integration_partials(
 
     runge_kutta_prob.run_model()
     if checkpointing_implementation == NoCheckpointer:
-        with pytest.raises(NotImplementedError) as excinfo:
+        with pytest.raises(NotImplementedError):
             runge_kutta_prob.check_partials()
 
     else:
@@ -291,7 +290,8 @@ def test_time_integration_partials(
 def test_component_splitting_partials(
     initial_time, butcher_tableau, checkpointing_implementation
 ):
-    """Tests the partials of the time integration of the problem that is split into multiple components."""
+    """Tests the partials of the time integration of the problem that is split into
+    multiple components."""
     integration_control_1 = IntegrationControl(initial_time, 10, 0.001)
     integration_control_2 = IntegrationControl(initial_time, 10, 0.001)
 

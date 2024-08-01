@@ -384,7 +384,8 @@ class ThirdComponent(om.ExplicitComponent):
 
 
 def ode_system_solution(time: float, initial_values: np.ndarray):
-    """Analytical solution to the above ODE system. Expects in order d to a, and returns in the same order"""
+    """Analytical solution to the above ODE system. Expects in order d to a, and returns
+    in the same order"""
     return np.array(
         [
             initial_values[0] * np.exp(time),
@@ -397,6 +398,8 @@ def ode_system_solution(time: float, initial_values: np.ndarray):
 
 
 class CosPostprocComp(om.ExplicitComponent):
+    """To be used in postprocessing. Applies cosine on input quantity."""
+
     def initialize(self):
         self.options.declare("quantity_name", types=str)
 
@@ -429,6 +432,8 @@ class CosPostprocComp(om.ExplicitComponent):
 
 
 class PostprocSumComp(om.ExplicitComponent):
+    """To be used in postprocessing. Sums it's to inputs up."""
+
     def setup(self):
         self.add_input("cos_b")
         self.add_input("cos_c")
@@ -553,7 +558,8 @@ def test_parallel_group_time_integration(
 def test_parallel_group_time_integration_with_postprocessing(
     num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
 ):
-    """Tests the postprocessing of the time integration for a problem with parallel groups."""
+    """Tests the postprocessing of the time integration for a problem with parallel
+    groups."""
     delta_t = 0.0001
     prob = om.Problem()
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
@@ -736,8 +742,9 @@ def test_parallel_group_time_integration_totals(
     time_integration_prob.setup(mode=test_direction)
     time_integration_prob.run_model()
 
-    # we omit b and c here, since they can't be tested one by one (at least not with functionality already provided by
-    # OpenMDAO, and testing them together gives (expectedly) wrong results
+    # we omit b and c here, since they can't be tested one by one (at least not with
+    # functionality already provided by OpenMDAO, and testing them together gives
+    # (expectedly) wrong results
     if prob.comm.rank == 0:
         data = time_integration_prob.check_totals(
             ["a_final", "d_final"],
@@ -774,7 +781,8 @@ def test_parallel_group_time_integration_totals_with_postprocessing(
     test_direction: str,
     checkpointing_implementation,
 ):
-    """Tests the totals of the postprocessing after the time integration for a problem with parallel groups."""
+    """Tests the totals of the postprocessing after the time integration for a problem
+    with parallel groups."""
     prob = om.Problem()
     integration_control = IntegrationControl(0.0, num_steps, 0.1)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -863,8 +871,9 @@ def test_parallel_group_time_integration_totals_with_postprocessing(
     time_integration_prob.setup(mode=test_direction)
     time_integration_prob.run_model()
 
-    # we omit b and c, since they can't be tested one by one (at least not with functionality already provided by
-    # OpenMDAO, and testing them together gives (expectedly) wrong results
+    # we omit b and c, since they can't be tested one by one (at least not with
+    # functionality already provided by OpenMDAO, and testing them together gives
+    # (expectedly) wrong results
     if prob.comm.rank == 0:
         data = time_integration_prob.check_totals(
             ["sum_final"],

@@ -1,4 +1,5 @@
-"""Tests to make sure that FunctionalCoefficients in the RungeKuttaIntegrator work correctly."""
+"""Tests to make sure that FunctionalCoefficients in the RungeKuttaIntegrator work
+correctly."""
 
 import pytest
 
@@ -90,7 +91,8 @@ def test_average_functional(
 def test_average_functional_partials(
     initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
-    """Tests the partials of the averaging functional with various time integration schemes."""
+    """Tests the partials of the averaging functional with various time
+    integration schemes."""
     integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
@@ -133,7 +135,8 @@ def test_composite_trapezoidal_functional(
     initial_value,
     butcher_tableau,
 ):
-    """Tests the functional for the composite trapezoidal rule with various time integration schemes."""
+    """Tests the functional for the composite trapezoidal rule with various time
+    integration schemes."""
     integration_control = IntegrationControl(initial_time, 1000, 0.001)
 
     time_integration_prob = om.Problem()
@@ -179,7 +182,8 @@ def test_composite_trapezoidal_functional(
 def test_composite_trapezoidal_functional_partials(
     initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
-    """Tests the partials of the functional for the composite trapezoidal rule with various time integration schemes."""
+    """Tests the partials of the functional for the composite trapezoidal rule with
+    various time integration schemes."""
     integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
@@ -268,7 +272,8 @@ def test_fifth_value_functional(
 def test_fifth_value_functional_partials(
     initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
-    """Tests the partials of the functional for the fifth step with various time integration schemes."""
+    """Tests the partials of the functional for the fifth step with various time
+    integration schemes."""
     integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()
@@ -368,7 +373,8 @@ def test_average_functional_with_postprocessing(
 def test_average_functional_with_postprocessing_partials(
     initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
-    """Tests the partials of the averaging functional with time integration and postprocessing."""
+    """Tests the partials of the averaging functional with time integration and
+    postprocessing."""
     integration_control = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob = om.Problem()

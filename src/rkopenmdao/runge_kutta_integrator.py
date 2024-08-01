@@ -28,10 +28,10 @@ from .errors import SetupError
 
 
 class RungeKuttaIntegrator(om.ExplicitComponent):
-    """
-    Outer component for solving time-dependent problems with explicit or diagonally implicit Runge-Kutta schemes. One
-    stage of the scheme is modelled by an inner openMDAO-problem. Optionally, time-step postprocessing and calculation
-    of linear combinations of quantities can be done.
+    """Outer component for solving time-dependent problems with explicit or diagonally
+    implicit Runge-Kutta schemes. One stage of the scheme is modelled by an inner
+    OpenMDAO-problem. Optionally, time-step postprocessing and calculationof linear
+    combinations of quantities can be done.
     OpenMDAO inputs: - initial values of the quantities for the time integration
     OpenMDAO output: - final values of the quantities for the time integration
                      - (optional) postprocessed final values
@@ -109,76 +109,94 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare(
             "time_stage_problem",
             types=om.Problem,
-            desc="""openMDAO problem used to model one Runge-Kutta stage. All variables relevant to the time-integration
-             need to have two tags. One to declare to which quantity the variable belongs, and a second to differentiate
-             between their roles in the time integration. For inputs, there is the tag 'step_input_var' specifying the 
-             state at the start of the time step, and there is the tag 'accumulated_stage_var' used for specifying a 
-             variable that contains the weighted sum (according to the butcher matrix) of the stage values up to the 
-             previous stage. For outputs, there is only the tag 'stage_output_var', which marks the variable whose value 
-             is used at the end of the time step to calculate the new state. 
-             Per quantity, there needs to be either three variables which cover all of the time integration tags, or 
-             just one output variable with the 'stage_output_var' tag (this should be used for quantities that only
-             depend on time and the state of other quantities, but not its own previous state).""",
+            desc="""openMDAO problem used to model one Runge-Kutta stage. All variables
+            relevant to the time-integration need to have two tags. One to declare to
+            which quantity the variable belongs, and a second to differentiate between
+            their roles in the time integration. For inputs, there is the tag
+            'step_input_var' specifying the state at the start of the time step, and
+            there is the tag 'accumulated_stage_var' used for specifying a variable that
+            contains the weighted sum (according to the butcher matrix) of the stage
+            updates up to the previous stage. For outputs, there is only the tag
+            'stage_output_var', which marks the variable whose value is used at the end
+            of the time step to calculate the new state. Per quantity, there needs to be
+            either three variables which cover all of the time integration tags, or just
+            one output variable with the 'stage_output_var' tag (this should be used for
+            quantities that only depend on time and the state of other quantities,
+            but not its own previous state).""",
         )
 
         self.options.declare(
             "postprocessing_problem",
             types=(om.Problem, None),
-            desc="""An optional openMDAO problem used to calculate derived quantities based on the results of the time
-            steps. All variables relevant to the outside need to have two tags, one as name for the own quantity, and
-            one to declare their role in the time stepping. For inputs, the quantity tag needs to be the same as one
-            quantity of the time_stage_problem, and the second tag needs to be 'postproc_input_var'. For outputs,
-            the quantity tags can be chosen freely to best describe the quantity (but shouldn't be one already used in 
-            the time integration), while the other tag needs to be 'postproc_output_var'.""",
+            desc="""An optional openMDAO problem used to calculate derived quantities
+            based on the results of the time steps. All variables relevant to the
+            outside need to have two tags, one as name for the own quantity, and one to 
+            declare their role in the time stepping. For inputs, the quantity tag needs
+            to be the same as one quantity of the time_stage_problem, and the second tag
+            needs to be 'postproc_input_var'. For outputs, the quantity tags can be
+            chosen freely to best describe the quantity (but shouldn't be one already
+            used in the time integration), while the other tag needs to be
+            'postproc_output_var'.""",
             default=None,
         )
 
         self.options.declare(
             "butcher_tableau",
             types=ButcherTableau,
-            desc="""The butcher tableau for the RK-scheme. Needs to be explicit or diagonally implicit (i.e all zeros in
-            the upper triangle of the butcher matrix).""",
+            desc="""The butcher tableau for the RK-scheme. Needs to be explicit or
+            diagonally implicit (i.e all zeros in the upper triangle of the butcher
+            matrix).""",
         )
         self.options.declare(
             "integration_control",
             types=IntegrationControl,
-            desc="""Object used to exchange (meta)data between the inner and outer problems. In particular, this class
-            modifies the (meta)data like the current diagonal element of the butcher tableau, or the current time step 
-            and stage, which then can be read by anyone else holding the same instance (like e.g. components in the 
-            time_stage_problem).""",
+            desc="""Object used to exchange (meta)data between the inner and outer
+            problems. In particular, this class modifies the (meta)data like the current
+            diagonal element of the butcher tableau, or the current time step and stage,
+            which then can be read by anyone else holding the same instance (like e.g.
+            components in the time_stage_problem).""",
         )
 
         self.options.declare(
             "write_out_distance",
             types=int,
             default=0,
-            desc="""Toggles the write out of data of the quantities. If write_out_distance == 0, no data is written out.
-            Else, every ... time steps the data of the quantities are written out to the write_file, starting with the
-            initial values. The data at the end of the last time step is written out even if the last time step is not a
-            ...th time step.""",
+            desc="""Toggles the write out of data of the quantities. If
+            write_out_distance == 0, no data is written out. Else, every
+            "write_out_distance"th time step the data of the quantities are written out
+            to the write_file, starting with the initial values. The data at the end of
+            the last time step is written out even if the last time step is not a
+            "write_out_distance"th time step.""",
         )
 
         self.options.declare(
             "write_file",
             types=str,
             default="data.h5",
-            desc="The file where the results of each time steps are written if write_out_distance != 0.",
+            desc="""The file where the results of each time steps are written if
+            write_out_distance != 0.""",
         )
 
         self.options.declare(
             "time_integration_quantities",
             types=list,
-            desc="""List of tags used to describe the quantities that are time integrated by the RK integrator. These
-            tags fulfil multiple roles, and need to be set at different points in the inner problems:
-                1. Based on these tags, inputs and outputs are added to the RK integrator. Per tag there will be 
-                *tag*_initial as input and *tag*_final as output.
-                2. Inputs and outputs with these tags need to be present in the time_stage_problem. In detail, per tag
-                there need to be either both inputs tagged with [*tag*,"step_input_var", ...] and 
-                [*tag*, "accumulated_stage_var", ...] as well as an output with [*tag*, "stage_output_var", ...], or 
-                just an output with [*tag*, "stage_output_var"] (in case where there is no dependence on the previous 
-                state of the quantity in the ODE)
-                3. If you use postprocessing, and if the postprocessing should use the quantity, than there needs to be
-                an input with the tags [*tag*, "postproc_input_var", ...] somewhere in the postprocessing_problem.
+            desc="""List of tags used to describe the quantities that are time
+            integrated by the RK integrator. These tags fulfil multiple roles, and need
+            to be set at different points in the inner problems:
+                1. Based on these tags, inputs and outputs are added to the
+                RungeKuttaIntegrator. Per tag there will be *tag*_initial as input and
+                *tag*_final as output.
+                2. Inputs and outputs with these tags need to be present in the
+                time_stage_problem. In detail, per tag there need to be either both
+                inputs tagged with [*tag*,"step_input_var", ...] and 
+                [*tag*, "accumulated_stage_var", ...] as well as an output with
+                [*tag*, "stage_output_var", ...], or just an output with 
+                [*tag*, "stage_output_var"] (in case where there is no dependence on the
+                previous state of the quantity in the ODE)
+                3. If you use postprocessing, and if the postprocessing should use the
+                quantity, than there needs to be an input with the tags
+                [*tag*, "postproc_input_var", ...] somewhere in
+                the postprocessing_problem.
                 """,
         )
 
@@ -186,43 +204,50 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             "postprocessing_quantities",
             types=list,
             default=[],
-            desc="""List of tags used to describe the quantities computed by the postprocessing. These tags fulfil
-            multiple roles:
-                1. Based on these tags, outputs are added to the RK integrator. Per tag there will be *tag*_final as 
-                output, containing the postprocessing of the final state of the time integration.
-                2. Outputs with these tags need to be present in the postprocessing_problem. In detail, per tag there 
-                needs to be an output with the tags [*tag*, "postproc_output_var].""",
+            desc="""List of tags used to describe the quantities computed by the
+            postprocessing. These tags fulfil multiple roles:
+                1. Based on these tags, outputs are added to the RUngeKuttaIntegrator.
+                Per tag there will be *tag*_final as output, containing the
+                postprocessing of the final state of the time integration.
+                2. Outputs with these tags need to be present in the
+                postprocessing_problem. In detail, per tag there needs to be an output
+                with the tags [*tag*, "postproc_output_var].""",
         )
 
         self.options.declare(
             "functional_coefficients",
             types=FunctionalCoefficients,
-            default=EmptyFunctionalCoefficients(),  # By default, don't compute any linear combination.
-            desc="""A FunctionalCoefficients object that can return a list of quantities (which needs to be a subset of
-            the time integration and postprocessing ones) over which linear combinations are evaluated, as well as a 
-            coefficient given a time step and a quantity. Per quantity returned by the object, an output is added, named
-            *quantity*_functional.""",
+            default=EmptyFunctionalCoefficients(),  # By default, don't compute any
+            # linear combination.
+            desc="""A FunctionalCoefficients object that can return a list of quantities
+            (which needs to be a subset of the time integration and postprocessing ones)
+            over which linear combinations are evaluated, as well as a coefficient given
+            a time step and a quantity. Per quantity returned by the object, an output
+            is added, named *quantity*_functional.""",
         )
 
         self.options.declare(
             "checkpointing_type",
             check_valid=self.check_checkpointing_type,
             default=NoCheckpointer,
-            desc="""Type of checkpointing used. Must be a subclass of CheckpointInterface""",
+            desc="""Type of checkpointing used. Must be a subclass of
+            CheckpointInterface""",
         )
 
         self.options.declare(
             "checkpoint_options",
             types=dict,
             default={},
-            desc="""Additional options passed the the checkpointer. Valid options depend on the checkpointing_type""",
+            desc="""Additional options passed the the checkpointer. Valid options depend
+            on the used checkpointing_type""",
         )
 
     @staticmethod
     def check_checkpointing_type(name, value):
-        """Checks whether the passed checkpointing type for the options is an actual subclass of CheckpointInterface"""
+        """Checks whether the passed checkpointing type for the options is an actual
+        subclass of CheckpointInterface"""
         # pylint: disable=unused-argument
-        # OpenMDAO needs that specific interface, even if we don't need everything from it.
+        # OpenMDAO needs that specific interface, even if we don't need it fully.
         if not issubclass(value, CheckpointInterface):
             raise TypeError(f"{value} is not a subclass of CheckpointInterface")
 
@@ -296,7 +321,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 quantity, old_step_input_vars, acc_stage_input_vars, stage_output_vars
             )
             if postprocessing_problem is not None:
-                self._extract_time_integration_quantity_metadata_from_postprocessing_problem(
+                self._extract_time_integration_metadata_from_postprocessing_problem(
                     quantity, postproc_input_vars
                 )
             if not (
@@ -322,10 +347,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 )
             ):
                 raise SetupError(
-                    f"""Warning! The time integration problem contains a nonworking combination of variables for
-                    quantity {quantity} on rank {self.comm.rank}. Check that there is an output with the tags 
+                    f"""Warning! The time integration problem contains a nonworking
+                    combination of variables for quantity {quantity} on rank
+                    {self.comm.rank}. Check that there is an output with the tags
                     'stage_output_var' and {quantity} and either both or no inputs with 
-                    tags=['step_input_var', {quantity}] and tags=['accumulated_stage_var', {quantity}]."""
+                    tags=['step_input_var', {quantity}] and 
+                    tags=['accumulated_stage_var', {quantity}]."""
                 )
             self._quantity_metadata[quantity][
                 "numpy_start_index"
@@ -340,7 +367,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._add_time_integration_inputs_and_outputs(quantity)
         if postprocessing_problem is not None:
             for quantity in self.options["postprocessing_quantities"]:
-                self._extract_postprocessing_quantity_metadata_from_postprocessing_problem(
+                self._extract_postprocessing_metadata_from_postprocessing_problem(
                     quantity, postproc_output_vars
                 )
                 self._add_functional_quantity_metadata(quantity)
@@ -430,7 +457,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 == self._quantity_metadata[quantity]["global_shape"]
             )
 
-    def _extract_time_integration_quantity_metadata_from_postprocessing_problem(
+    def _extract_time_integration_metadata_from_postprocessing_problem(
         self, quantity, postproc_input_vars
     ):
         postprocessing_problem: om.Problem = self.options["postprocessing_problem"]
@@ -449,7 +476,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     == self._quantity_metadata[quantity]["global_shape"]
                 )
 
-    def _extract_postprocessing_quantity_metadata_from_postprocessing_problem(
+    def _extract_postprocessing_metadata_from_postprocessing_problem(
         self, quantity, postproc_output_vars
     ):
         postprocessing_problem: om.Problem = self.options["postprocessing_problem"]
@@ -668,7 +695,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                                 num_steps,
                                 self.options["write_out_distance"],
                             ):
-                                # check whether dataset was already created by other process
+                                # check whether dataset was already created by other
+                                # process
                                 path = quantity + "/" + str(j)
                                 if path not in f:
                                     dataset = f.create_dataset(
@@ -764,7 +792,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 if metadata["type"] == "time_integration":
                     start = metadata["numpy_start_index"]
                     end = metadata["numpy_end_index"]
-                    # check whether data has already been written on dataset by checking first element
+                    # check whether data has already been written on dataset by checking
+                    # first element
                     if np.isnan(
                         f[quantity][str(step)][
                             np.unravel_index(
@@ -941,10 +970,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
     def _stage_computation(self, stage):
-        if self.comm.rank == 0:
-            print(f"Starting stage {stage} of compute.")
         delta_t = self.options["integration_control"].delta_t
         time = self.options["integration_control"].step_time_old
+        step = self.options["integration_control"].step
+        if self.comm.rank == 0:
+            print(f"Starting stage {stage} of compute in step {step}.")
         self.options["integration_control"].stage = stage
         if stage != 0:
             self._accumulated_stages = (
@@ -958,7 +988,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             stage, delta_t, time, self._serialized_state, self._accumulated_stages
         )
         if self.comm.rank == 0:
-            print(f"Finished stage {stage} of compute.")
+            print(f"Finished stage {stage} of compute in step {step}.")
 
     def _run_step_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
@@ -1004,14 +1034,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_jacvec_product_fwd(self, inputs, d_inputs, d_outputs):
         if self.comm.rank == 0:
-            print("\n\nStarting forward-mode jacvec product\n\n")
+            print("\n\nStarting fwd-mode jacvec product\n\n")
         self._compute_jacvec_fwd_preparation_phase(inputs, d_inputs)
         self._compute_jacvec_fwd_postprocessing_phase()
         self._compute_jacvec_fwd_functional_phase()
         self._compute_jacvec_fwd_run_steps()
         self._compute_jacvec_fwd_translate_to_om_vector_phase(d_outputs)
         if self.comm.rank == 0:
-            print("\n\nFinished forward-mode jacvec product\n\n")
+            print("\n\nFinished fwd-mode jacvec product\n\n")
 
     def _compute_jacvec_fwd_preparation_phase(self, inputs, d_inputs):
         self._to_numpy_array(inputs, self._serialized_state)
@@ -1047,13 +1077,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         num_steps = self.options["integration_control"].num_steps
         for step in range(1, num_steps + 1):
             if self.comm.rank == 0:
-                print(f"\nStarting step {step} of forward-mode jacvec product.\n")
+                print(f"\nStarting step {step} of fwd-mode jacvec product.\n")
             self._compute_jacvec_fwd_run_steps_preparation_phase(step)
             self._compute_jacvec_fwd_run_steps_time_integration_phase()
             self._compute_jacvec_fwd_run_steps_postprocessing_phase()
             self._compute_jacvec_fwd_run_steps_functional_phase()
             if self.comm.rank == 0:
-                print(f"\nFinished step {step} of forward-mode jacvec product.\n")
+                print(f"\nFinished step {step} of fwd-mode jacvec product.\n")
 
     def _compute_jacvec_fwd_run_steps_preparation_phase(self, step):
         self._update_integration_control_step(step)
@@ -1062,9 +1092,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         delta_t = self.options["integration_control"].delta_t
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         time = self.options["integration_control"].step_time_old
+        step = self.options["integration_control"].step
         for stage in range(butcher_tableau.number_of_stages()):
             if self.comm.rank == 0:
-                print(f"Starting stage {stage} of forward-mode jacvec product.")
+                print(
+                    f"Starting stage {stage} of fwd-mode jacvec productin step {step}."
+                )
             if stage != 0:
                 self._accumulated_stages = (
                     self._runge_kutta_scheme.compute_accumulated_stages(
@@ -1092,7 +1125,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 )
             )
             if self.comm.rank == 0:
-                print(f"Finished stage {stage} of forward-mode jacvec product.")
+                print(
+                    f"Finished stage {stage} of fwd-mode jacvec product in step {step}."
+                )
         self._serialized_state = self._runge_kutta_scheme.compute_step(
             delta_t, self._serialized_state, self._stage_cache
         )
@@ -1147,7 +1182,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
         if self.comm.rank == 0:
-            print("\n\nStarting reverse-mode jacvec product\n\n")
+            print("\n\nStarting rev-mode jacvec product\n\n")
         self._disable_write_out = True
         self._to_numpy_array(inputs, self._serialized_state)
         if not np.array_equal(self._cached_input, self._serialized_state):
@@ -1187,7 +1222,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._cached_input = np.full(0, np.nan)
 
         if self.comm.rank == 0:
-            print("\n\nFinished reverse-mode jacvec product\n\n")
+            print("\n\nFinished rev-mode jacvec product\n\n")
 
     def _to_numpy_array_postprocessing(
         self, om_vector: OMVector, np_postproc_array: np.ndarray
@@ -1265,7 +1300,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self, step, serialized_state, serialized_state_perturbations
     ):
         if self.comm.rank == 0:
-            print(f"\nStarting step {step} of reverse-mode jacvec product.\n")
+            print(f"\nStarting step {step} of rev-mode jacvec product.\n")
         self._serialized_state = serialized_state
         self._serialized_state_perturbations = serialized_state_perturbations
         new_serialized_state_perturbations = serialized_state_perturbations.copy()
@@ -1286,27 +1321,30 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ].model.get_nonlinear_vectors()
             if self.comm.rank == 0:
                 print(
-                    f"Starting stage {stage} of the forward iteration of reverse-mode jacvec product."
+                    f"Starting stage {stage} of the fwd iteration of rev-mode jvp in\n"
+                    f"step {step}."
                 )
             self._stage_computation(stage)
             inputs_cache[stage] = prob_inputs.asarray(copy=True)
             outputs_cache[stage] = prob_outputs.asarray(copy=True)
             if self.comm.rank == 0:
                 print(
-                    f"Finished stage {stage} of the forward iteration of reverse-mode jacvec product."
+                    f"Finished stage {stage} of the fwd iteration of rev-mode jvp in\n"
+                    f"step {step}."
                 )
         # backward iteration
 
         for stage in reversed(range(butcher_tableau.number_of_stages())):
             if self.comm.rank == 0:
                 print(
-                    f"Starting stage {stage} of the reverse iteration of reverse-mode jacvec product."
+                    f"Starting stage {stage} of the rev iteration of rev-mode jvp in\n"
+                    f"step {step}."
                 )
             linearization_args = {
                 "inputs": inputs_cache[stage],
                 "outputs": outputs_cache[stage],
             }
-            joined_perturbations = self._runge_kutta_scheme.join_new_state_and_accumulated_stages_perturbations(
+            joined_perturbations = self._runge_kutta_scheme.join_perturbations(
                 stage,
                 self._serialized_state_perturbations,
                 self._stage_perturbations_cache,
@@ -1320,7 +1358,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             new_serialized_state_perturbations += delta_t * wrt_old_state
             if self.comm.rank == 0:
                 print(
-                    f"Finished stage {stage} of the reverse iteration of reverse-mode jacvec product."
+                    f"Finished stage {stage} of the rev iteration of reve-mode jvp in\n"
+                    f"step {step}."
                 )
         self._serialized_state_perturbations = new_serialized_state_perturbations
         if self.options["postprocessing_problem"] is not None:
@@ -1329,5 +1368,5 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._add_functional_perturbations_to_state_perturbations(step - 1)
 
         if self.comm.rank == 0:
-            print(f"\nFinishing step {step} of forward-mode jacvec product.\n")
+            print(f"\nFinishing step {step} of rev-mode jacvec product.\n")
         return self._serialized_state_perturbations

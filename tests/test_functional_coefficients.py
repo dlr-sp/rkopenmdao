@@ -10,7 +10,8 @@ from rkopenmdao.functional_coefficients import (
 
 
 class FifthStepOfQuantity(FunctionalCoefficients):
-    """A functional that only takes the state at time step five of the given quantity."""
+    """A functional that only takes the state at time step five of the given
+    quantity."""
 
     def __init__(self, quantity: str):
         self._quantity_list = [quantity]
