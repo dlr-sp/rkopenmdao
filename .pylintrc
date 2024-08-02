@@ -1,6 +1,7 @@
 [MASTER]
-max-args = 7
-disable=C0103, R1705
+max-args = 10
+max-attributes=10
+disable=no-else-return
 
 [BASIC]
 

@@ -1,3 +1,5 @@
+"""Tests for the domain class for the heat equation."""
+
 import numpy as np
 import pytest
 
@@ -15,6 +17,7 @@ from .. import domain
     ],
 )
 def test_domain_init(x_range, y_range, n_x, n_y, delta_x, delta_y):
+    """Tests of the initializer."""
     if n_x == 1 or n_y == 1:
         with pytest.raises(ZeroDivisionError, match=r"division by zero"):
             domain.Domain(x_range, y_range, n_x, n_y)
@@ -55,6 +58,7 @@ def test_domain_init(x_range, y_range, n_x, n_y, delta_x, delta_y):
 def test_domain_boundary_coordinates(
     test_domain: domain.Domain, left_coord, right_coord, upper_coord, lower_coord
 ):
+    """Tests correctness of coordinates for the boundary of domain."""
     generated_left = test_domain.boundary_coordinates("left")
     generated_right = test_domain.boundary_coordinates("right")
     generated_upper = test_domain.boundary_coordinates("upper")
@@ -97,6 +101,7 @@ def test_domain_boundary_coordinates(
 def test_domain_boundary_indices(
     test_domain: domain.Domain, left_ind, right_ind, upper_ind, lower_ind
 ):
+    """Tests correctness of boundary indices."""
     generated_left = test_domain.boundary_indices("left")
     generated_right = test_domain.boundary_indices("right")
     generated_upper = test_domain.boundary_indices("upper")
@@ -119,6 +124,7 @@ def test_domain_boundary_indices(
     ],
 )
 def test_ij_coordinates(test_domain, i, j, coord):
+    """Tests mapping between x-y-indices and coordinates."""
     generated_coord = test_domain.ij_coordinates(i, j)
 
     assert np.array_equal(generated_coord, coord)
@@ -135,6 +141,7 @@ def test_ij_coordinates(test_domain, i, j, coord):
     ],
 )
 def test_ij_to_index(test_domain, i, j, index):
+    """Tests mapping between x-y-indices and their serialization."""
     generated_index = test_domain.ij_to_index(i, j)
 
     assert index == generated_index
@@ -151,6 +158,7 @@ def test_ij_to_index(test_domain, i, j, index):
     ],
 )
 def test_index_to_ij(test_domain, index, indices):
+    """Tests reverse of mapping between x-y-indices and their serialization."""
     generated_indices = test_domain.index_to_ij(index)
 
     assert np.array_equal(generated_indices, indices)

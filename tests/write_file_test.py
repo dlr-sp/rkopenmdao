@@ -10,7 +10,7 @@ from rkopenmdao.butcher_tableaux import (
     third_order_four_stage_esdirk,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from .test_components import TestComp1, TestComp5_1, TestComp5_2
+from .test_components import TestComp1, Testcomp51, Testcomp52
 from .test_postprocessing_problems import SquaringComponent
 
 
@@ -102,12 +102,12 @@ def test_multidisciplinary(write_out_distance, write_file):
 
     test_prob.model.add_subsystem(
         "test_comp_1",
-        TestComp5_1(integration_control=integration_control),
+        Testcomp51(integration_control=integration_control),
         promotes=["*"],
     )
     test_prob.model.add_subsystem(
         "test_comp_2",
-        TestComp5_2(integration_control=integration_control),
+        Testcomp52(integration_control=integration_control),
         promotes=["*"],
     )
 

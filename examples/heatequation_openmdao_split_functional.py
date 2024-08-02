@@ -25,6 +25,7 @@ from .heatequation.split_heat_group import create_split_heat_group
 
 class HeatAverageOnSplit(om.ExplicitComponent):
     """Component that calculates the average of heat along the split line"""
+
     def initialize(self):
         self.options.declare("points_per_direction", types=int)
 
@@ -48,7 +49,7 @@ class HeatAverageOnSplit(om.ExplicitComponent):
             tags=["postproc_output_var", "heat_split_line_average"],
         )
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         points_per_direction = self.options["points_per_direction"]
         points_x = points_per_direction // 2 + 1
         split_line = 0.5 * (
@@ -57,7 +58,9 @@ class HeatAverageOnSplit(om.ExplicitComponent):
         )
         outputs["heat_split_line_average"] = np.mean(split_line)
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(
+        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
+    ):
         points_per_direction = self.options["points_per_direction"]
         points_x = points_per_direction // 2 + 1
 
@@ -79,9 +82,9 @@ class HeatAverageOnSplit(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    points_per_direction = 51
-    delta_x = (points_per_direction - 1) ** -1
-    points_x = points_per_direction // 2 + 1
+    POINTS_PER_DIRECTION = 51
+    DELTA_X = (POINTS_PER_DIRECTION - 1) ** -1
+    POINTS_X = POINTS_PER_DIRECTION // 2 + 1
 
     boundary_condition_1 = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
@@ -101,7 +104,7 @@ if __name__ == "__main__":
     inner_prob = om.Problem()
 
     heat_group = create_split_heat_group(
-        points_per_direction,
+        POINTS_PER_DIRECTION,
         boundary_condition_1,
         boundary_condition_2,
         lambda t, x, y: 0.0,
@@ -126,7 +129,7 @@ if __name__ == "__main__":
 
     postproc_problem.model.add_subsystem(
         "HeatSplitLineAverager",
-        HeatAverageOnSplit(points_per_direction=points_per_direction),
+        HeatAverageOnSplit(points_per_direction=POINTS_PER_DIRECTION),
     )
 
     outer_prob = om.Problem()

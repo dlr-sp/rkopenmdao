@@ -1,16 +1,20 @@
-import pytest
+"""Tests operator component for the flux around an internal boundary of split heat
+equations."""
+
 import itertools
+import pytest
 import numpy as np
 
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
+from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.integration_control import IntegrationControl
+
 from ..flux_integral_operator_component import (
     FluxIntegralOperatorComponent,
 )
 
-from rkopenmdao.butcher_tableau import ButcherTableau
-from rkopenmdao.integration_control import IntegrationControl
 
 implicit_euler = ButcherTableau(np.array([[0.5]]), np.array([1.0]), np.array([0.5]))
 
@@ -54,6 +58,7 @@ runge_kutta_four = ButcherTableau(
 def test_flux_component_partials(
     delta, shape, delta_t, butcher_tableau: ButcherTableau
 ):
+    """Tests partials of component."""
     test_prob = om.Problem()
 
     integration_control = IntegrationControl(0.0, 1, 1, delta_t)

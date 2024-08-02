@@ -1,12 +1,15 @@
+"""Tests the creator function for the split heat group."""
+
 from typing import Callable
 import pytest
 
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
+from rkopenmdao.integration_control import IntegrationControl
 from ..boundary import BoundaryCondition
 from ..split_heat_group import create_split_heat_group
-from rkopenmdao.integration_control import IntegrationControl
+
 
 zero_boundary_left = BoundaryCondition(
     upper=lambda t, x, y: 0.0,
@@ -32,7 +35,9 @@ gmres_args_without_precon = {
 @pytest.mark.heatequ
 @pytest.mark.heatequ_split_heat_group
 @pytest.mark.parametrize(
-    "points_per_direction, boundary_condition_1, boundary_condition_2, inhomogeneity, diffusivity, initial_condition, integration_control, delta_t, butcher_diagonal_element, gmres_args",
+    """points_per_direction, boundary_condition_1, boundary_condition_2, inhomogeneity,
+    diffusivity, initial_condition, integration_control, delta_t,
+    butcher_diagonal_element, gmres_args""",
     (
         [
             11,
@@ -120,6 +125,7 @@ def test_split_heat_group_partials(
     butcher_diagonal_element: float,
     gmres_args: dict,
 ):
+    """Tests the partials of the split heat group components."""
     integration_control.delta_t = delta_t
     integration_control_1.butcher_diagonal_element = butcher_diagonal_element
     split_heat_group = create_split_heat_group(
@@ -134,8 +140,8 @@ def test_split_heat_group_partials(
         initial_condition,
         integration_control,
         gmres_args,
-        # Need to specify the solver here again for some reason, using the default solvers doesn't work after the first
-        # test
+        # Need to specify the solver here again for some reason, using the default
+        # solvers doesn't work after the first test
         nonlinear_solver=om.NewtonSolver(solve_subsystems=True),
         linear_solver=om.PETScKrylov(),
     )

@@ -50,7 +50,7 @@ class TestComp1(om.ExplicitComponent):
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
 
 
-def Test1Solution(time, initial_value, initial_time):
+def solution_test1(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return initial_value * np.exp(time - initial_time)
 
@@ -85,7 +85,7 @@ class TestComp2(om.ExplicitComponent):
         pass
 
 
-def Test2Solution(time, initial_value, initial_time):
+def solution_test2(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return initial_value + 0.5 * (time**2 - initial_time**2)
 
@@ -147,7 +147,7 @@ class TestComp3(om.ExplicitComponent):
             )
 
 
-def Test3Solution(time, initial_value, initial_time):
+def solution_test3(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return initial_value * np.exp(0.5 * (time**2 - initial_time**2))
 
@@ -239,7 +239,7 @@ class TestComp4(om.ExplicitComponent):
             )
 
 
-def Test4Solution(time, initial_value, initial_time):
+def solution_test4(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return np.array(
         [
@@ -258,7 +258,7 @@ def Test4Solution(time, initial_value, initial_time):
 # ways (one or two components) work the same.
 
 
-class TestComp5_1(om.ExplicitComponent):
+class Testcomp51(om.ExplicitComponent):
     """
     Models the stage of the ODE x' = y. The following formula for the stage
     results:
@@ -309,7 +309,7 @@ class TestComp5_1(om.ExplicitComponent):
             )
 
 
-class TestComp5_2(om.ExplicitComponent):
+class Testcomp52(om.ExplicitComponent):
     """
     Models the stage of the ODE y' = x. The following formula for the stage
     results:
@@ -360,7 +360,7 @@ class TestComp5_2(om.ExplicitComponent):
             )
 
 
-def Test5Solution(time, initial_value, initial_time):
+def solution_test5(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above components."""
     return np.array(
         [
@@ -512,7 +512,7 @@ class TestComp6a(om.ImplicitComponent):
             d_inputs["acc_stages"] += self.dr_dacc_stages * d_residuals["x_stage"]
 
 
-def Test6Solution(time, initial_value, initial_time):
+def solution_test6(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return (0.5 * (time - initial_time) + np.sqrt(initial_value)) ** 2
 
@@ -580,7 +580,7 @@ class TestComp7(om.ExplicitComponent):
             )
 
 
-def Test7Solution(time, initial_value, initial_time):
+def solution_test7(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return (
         np.sqrt(initial_value) + (np.sqrt(time**3) - np.sqrt(initial_time**3)) / 3

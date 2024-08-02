@@ -1,4 +1,5 @@
-"""Example to show how the RungeKuttaIntegrator works with MPI using distributed components in the time_stage_problem"""
+"""Example to show how the RungeKuttaIntegrator works with MPI using distributed
+components in the time_stage_problem"""
 
 import openmdao.api as om
 import numpy as np
@@ -11,7 +12,8 @@ from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
 # pylint: disable=arguments-differ
 class SimpleDistributedComponent(om.ExplicitComponent):
-    """Component for the ODE system x' = -y, y' = x. The equations are distributed over two ranks."""
+    """Component for the ODE system x' = -y, y' = x. The equations are distributed over
+    two ranks."""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)

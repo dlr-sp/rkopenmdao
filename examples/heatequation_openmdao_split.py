@@ -20,9 +20,9 @@ from .heatequation.boundary import BoundaryCondition
 from .heatequation.split_heat_group import create_split_heat_group
 
 if __name__ == "__main__":
-    points_per_direction = 51
-    delta_x = (points_per_direction - 1) ** -1
-    points_x = points_per_direction // 2 + 1
+    POINTS_PER_DIRECTION = 51
+    DELTA_X = (POINTS_PER_DIRECTION - 1) ** -1
+    POINTS_X = POINTS_PER_DIRECTION // 2 + 1
 
     boundary_condition_1 = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     inner_prob = om.Problem()
 
     heat_group = create_split_heat_group(
-        points_per_direction,
+        POINTS_PER_DIRECTION,
         boundary_condition_1,
         boundary_condition_2,
         lambda t, x, y: 0.0,

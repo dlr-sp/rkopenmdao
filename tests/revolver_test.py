@@ -27,7 +27,7 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
         ["SingleLevel", {"n_checkpoints": 10, "diskstorage": True}],
         # something is strange here. For certain checkpoint numbers, the
         # MultiLevelRevolver works, but for others it doesn't. We skip this for now
-        # TODO: investigate this
+        # TODO: investigate this problem
         # [
         #     "MultiLevel",
         #     {

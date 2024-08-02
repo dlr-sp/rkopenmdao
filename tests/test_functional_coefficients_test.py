@@ -26,7 +26,7 @@ from .test_functional_coefficients import (
     FifthStepOfQuantity,
 )
 from .test_components import TestComp6
-from .test_components import Test6Solution
+from .test_components import solution_test6
 from .test_postprocessing_problems import (
     create_negating_problem,
 )
@@ -74,7 +74,7 @@ def test_average_functional(
     expected = 0.0
     for i in range(0, 11):
         expected += (
-            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 11
+            solution_test6(initial_time + i / 1000, initial_value, initial_time) / 11
         )
     assert result[0] == pytest.approx(expected, abs=1e-5)
 
@@ -256,7 +256,7 @@ def test_fifth_value_functional(
 
     result = runge_kutta_prob["x_functional"]
 
-    expected = Test6Solution(initial_time + 0.005, initial_value, initial_time)
+    expected = solution_test6(initial_time + 0.005, initial_value, initial_time)
     assert result[0] == pytest.approx(expected, abs=1e-5)
 
 
@@ -354,7 +354,7 @@ def test_average_functional_with_postprocessing(
     expected_1 = 0.0
     for i in range(0, 11):
         expected_1 += (
-            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 11
+            solution_test6(initial_time + i / 1000, initial_value, initial_time) / 11
         )
     expected_2 = -expected_1
     assert result_1[0] == pytest.approx(expected_1, abs=1e-5)
@@ -460,7 +460,7 @@ def test_average_functional_with_only_postprocessing(
     expected = 0.0
     for i in range(0, 11):
         expected -= (
-            Test6Solution(initial_time + i / 1000, initial_value, initial_time) / 11
+            solution_test6(initial_time + i / 1000, initial_value, initial_time) / 11
         )
 
     assert result[0] == pytest.approx(expected, abs=1e-5)

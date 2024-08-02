@@ -24,20 +24,20 @@ from .test_components import (
     TestComp2,
     TestComp3,
     TestComp4,
-    TestComp5_1,
-    TestComp5_2,
+    Testcomp51,
+    Testcomp52,
     TestComp6,
     TestComp6a,
     TestComp7,
 )
 
 from .test_components import (
-    Test1Solution,
-    Test2Solution,
-    Test3Solution,
-    Test4Solution,
-    Test6Solution,
-    Test7Solution,
+    solution_test1,
+    solution_test2,
+    solution_test3,
+    solution_test4,
+    solution_test6,
+    solution_test7,
 )
 
 test_comp_class_list = [
@@ -45,8 +45,8 @@ test_comp_class_list = [
     TestComp2,
     TestComp3,
     TestComp4,
-    TestComp5_1,
-    TestComp5_2,
+    Testcomp51,
+    Testcomp52,
     TestComp6,
     TestComp6a,
     TestComp7,
@@ -81,20 +81,20 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
 @pytest.mark.parametrize(
     "test_class, test_functor, initial_time, initial_values",
     (
-        [TestComp1, Test1Solution, 0.0, np.array([1.0])],
-        [TestComp1, Test1Solution, 1.0, np.array([1.0])],
-        [TestComp2, Test2Solution, 0.0, np.array([1.0])],
-        [TestComp2, Test2Solution, 1.0, np.array([1.0])],
-        [TestComp3, Test3Solution, 0.0, np.array([1.0])],
-        [TestComp3, Test3Solution, 1.0, np.array([1.0])],
-        [TestComp4, Test4Solution, 0.0, np.array([[1.0, 1.0]])],
-        [TestComp4, Test4Solution, 1.0, np.array([[1.0, 1.0]])],
-        [TestComp6, Test6Solution, 0.0, np.array([1.0])],
-        [TestComp6, Test6Solution, 1.0, np.array([1.0])],
-        [TestComp6a, Test6Solution, 0.0, np.array([1.0])],
-        [TestComp6a, Test6Solution, 1.0, np.array([1.0])],
-        [TestComp7, Test7Solution, 1.0, np.array([1.0])],
-        [TestComp7, Test7Solution, 2.0, np.array([1.0])],
+        [TestComp1, solution_test1, 0.0, np.array([1.0])],
+        [TestComp1, solution_test1, 1.0, np.array([1.0])],
+        [TestComp2, solution_test2, 0.0, np.array([1.0])],
+        [TestComp2, solution_test2, 1.0, np.array([1.0])],
+        [TestComp3, solution_test3, 0.0, np.array([1.0])],
+        [TestComp3, solution_test3, 1.0, np.array([1.0])],
+        [TestComp4, solution_test4, 0.0, np.array([[1.0, 1.0]])],
+        [TestComp4, solution_test4, 1.0, np.array([[1.0, 1.0]])],
+        [TestComp6, solution_test6, 0.0, np.array([1.0])],
+        [TestComp6, solution_test6, 1.0, np.array([1.0])],
+        [TestComp6a, solution_test6, 0.0, np.array([1.0])],
+        [TestComp6a, solution_test6, 1.0, np.array([1.0])],
+        [TestComp7, solution_test7, 1.0, np.array([1.0])],
+        [TestComp7, solution_test7, 2.0, np.array([1.0])],
     ),
 )
 @pytest.mark.parametrize(
@@ -168,12 +168,12 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
     time_integration_prob_2 = om.Problem()
     time_integration_prob_2.model.add_subsystem(
         "first_comp",
-        TestComp5_1(integration_control=integration_control_2),
+        Testcomp51(integration_control=integration_control_2),
         promotes=["x_stage", "y_stage"],
     )
     time_integration_prob_2.model.add_subsystem(
         "second_comp",
-        TestComp5_2(integration_control=integration_control_2),
+        Testcomp52(integration_control=integration_control_2),
         promotes=["x_stage", "y_stage"],
     )
 
@@ -303,12 +303,12 @@ def test_component_splitting_partials(
     time_integration_prob_2 = om.Problem()
     time_integration_prob_2.model.add_subsystem(
         "first_comp",
-        TestComp5_1(integration_control=integration_control_2),
+        Testcomp51(integration_control=integration_control_2),
         promotes=["*"],
     )
     time_integration_prob_2.model.add_subsystem(
         "second_comp",
-        TestComp5_2(integration_control=integration_control_2),
+        Testcomp52(integration_control=integration_control_2),
         promotes=["*"],
     )
 

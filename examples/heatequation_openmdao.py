@@ -20,11 +20,11 @@ from .heatequation.heatequation_stage_component import (
 
 
 if __name__ == "__main__":
-    points_per_direction = 51
-    delta_x = (points_per_direction - 1) ** -1
-    delta_t = 1e-3
+    POINTS_PER_DIRECTION = 51
+    DELTA_X = (POINTS_PER_DIRECTION - 1) ** -1
+    DELTA_T = 1e-3
 
-    domain = Domain([0, 1], [0, 1], points_per_direction, points_per_direction)
+    domain = Domain([0, 1], [0, 1], POINTS_PER_DIRECTION, POINTS_PER_DIRECTION)
 
     boundary_condition = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         {"tol": 1e-10, "atol": 1e-10},
     )
 
-    integration_control = IntegrationControl(0.0, 100, delta_t)
+    integration_control = IntegrationControl(0.0, 100, DELTA_T)
 
     inner_prob = om.Problem()
 

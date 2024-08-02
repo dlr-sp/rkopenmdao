@@ -1,4 +1,5 @@
-"""Classes for the usage of the modernized interface of pyrevolve in the Runge-Kutta-integrator."""
+"""Classes for the usage of the modernized interface of pyrevolve in the
+RungeKuttaIntegrator."""
 
 from collections.abc import Mapping
 from typing import Callable
@@ -7,7 +8,7 @@ import pyrevolve as pr
 import numpy as np
 
 
-# basically the same as the one from use_modernised.py in the pyrevolve examples
+# More or less the same as the one from use_modernised.py in the pyrevolve examples
 class RungeKuttaIntegratorSymbol:
     """One atomic part of the checkpointed data."""
 
@@ -17,10 +18,12 @@ class RungeKuttaIntegratorSymbol:
 
     @property
     def data(self):
+        """Property for the internal storage vector."""
         return self._storage
 
     @data.setter
     def data(self, value):
+        """Setter for the internal storage vector."""
         if isinstance(value, np.ndarray):
             self._storage = value
         else:
@@ -28,6 +31,7 @@ class RungeKuttaIntegratorSymbol:
 
     @property
     def size(self):
+        """Gets the size of the internal storage vector."""
         return self._storage.size
 
 
@@ -44,6 +48,10 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
             )
 
     def get_data_location(self, timestep):
+        """Gets location for data at given time step."""
+        # pylint: disable=unused-argument
+        # Here the method of getting the data is independent of the time step, but the
+        # interface requires the argument.
         return [x.data for x in list(self.symbols.values())]
 
     def get_data(self, timestep):
@@ -63,7 +71,11 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
 
 
 class RungeKuttaForwardOperator(pr.Operator):
-    """Forward operator of the Runge-Kutta-integrator (i.e. the normal time integration)."""
+    """Forward operator of the RungeKuttaIntegrator (i.e. the normal time
+    integration)."""
+
+    # pylint: disable=too-few-public-methods
+    # The interface is controlled by PyRevolve, and more methods are not needed.
 
     serialized_old_state_symbol: RungeKuttaIntegratorSymbol
     serialized_new_state_symbol: RungeKuttaIntegratorSymbol
@@ -82,7 +94,11 @@ class RungeKuttaForwardOperator(pr.Operator):
         self.serialized_new_state_symbol = serialized_new_state_symbol
         self.fwd_operation = fwd_operation
 
-    def apply(self, t_start: int, t_end: int):
+    def apply(self, **kwargs):
+        # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
+        # how it is.
+        t_start = kwargs["t_start"]
+        t_end = kwargs["t_end"]
         for step in range(t_start + 1, t_end + 1):
             self.serialized_old_state_symbol.data = (
                 self.serialized_new_state_symbol.data
@@ -95,6 +111,9 @@ class RungeKuttaForwardOperator(pr.Operator):
 
 class RungeKuttaReverseOperator(pr.Operator):
     """Backward operator of the Runge-Kutta-integrator (i.e. one reverse step)."""
+
+    # pylint: disable=too-few-public-methods
+    # The interface is controlled by PyRevolve, and more methods are not needed.
 
     serialized_old_state_symbol: RungeKuttaIntegratorSymbol
     serialized_state_perturbations: np.ndarray
@@ -113,7 +132,11 @@ class RungeKuttaReverseOperator(pr.Operator):
         self.serialized_state_perturbations = np.zeros(state_size)
         self.rev_operation = rev_operation
 
-    def apply(self, t_start: int, t_end: int):
+    def apply(self, **kwargs):
+        # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
+        # how it is.
+        t_start = kwargs["t_start"]
+        t_end = kwargs["t_end"]
         for step in reversed(range(t_start + 1, t_end + 1)):
             self.serialized_state_perturbations = self.rev_operation(
                 step,

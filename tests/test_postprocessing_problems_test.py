@@ -15,9 +15,9 @@ from rkopenmdao.butcher_tableaux import (
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
-from .test_components import TestComp4, TestComp5_1, TestComp5_2, TestComp6
+from .test_components import TestComp4, Testcomp51, Testcomp52, TestComp6
 
-from .test_components import Test4Solution, Test6Solution
+from .test_components import solution_test4, solution_test6
 
 from .test_postprocessing_problems import (
     create_negating_problem,
@@ -88,8 +88,8 @@ def test_postprocessing_problem_partials(problem_creator, quantity_list):
 @pytest.mark.parametrize(
     "test_class, test_functor, quantity_size, initial_values",
     [
-        [TestComp6, Test6Solution, 1, np.array([1.0])],
-        [TestComp4, Test4Solution, 2, np.array([1.0, 1.0])],
+        [TestComp6, solution_test6, 1, np.array([1.0])],
+        [TestComp4, solution_test4, 2, np.array([1.0, 1.0])],
     ],
 )
 @pytest.mark.parametrize("butcher_tableau", [implicit_euler, two_stage_dirk])
@@ -200,12 +200,12 @@ def test_postprocessing_after_time_integration_split(
     time_stage_problem_2 = om.Problem()
     time_stage_problem_2.model.add_subsystem(
         "stage_comp_1",
-        TestComp5_1(integration_control=integration_control_2),
+        Testcomp51(integration_control=integration_control_2),
         promotes=["*"],
     )
     time_stage_problem_2.model.add_subsystem(
         "stage_comp_2",
-        TestComp5_2(integration_control=integration_control_2),
+        Testcomp52(integration_control=integration_control_2),
         promotes=["*"],
     )
 
@@ -365,12 +365,12 @@ def test_postprocessing_after_time_integration_split_partials(
     time_stage_problem_2 = om.Problem()
     time_stage_problem_2.model.add_subsystem(
         "stage_comp_1",
-        TestComp5_1(integration_control=integration_control_2),
+        Testcomp51(integration_control=integration_control_2),
         promotes=["*"],
     )
     time_stage_problem_2.model.add_subsystem(
         "stage_comp_2",
-        TestComp5_2(integration_control=integration_control_2),
+        Testcomp52(integration_control=integration_control_2),
         promotes=["*"],
     )
 

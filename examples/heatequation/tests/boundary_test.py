@@ -1,3 +1,5 @@
+"""Tests the functionality of the boundary for the heat equation."""
+
 from contextlib import nullcontext as does_not_raise
 
 import numpy as np
@@ -56,6 +58,8 @@ from .. import boundary
     ],
 )
 def test_boundary_update_kind(test_boundary, kind_dict):
+    """Tests whether update_kind_dict of BoundaryCondition gets created as expected from
+    its constructor arguments."""
     assert test_boundary.boundary_update_kind() == kind_dict
 
 
@@ -86,6 +90,7 @@ def test_boundary_update_kind(test_boundary, kind_dict):
     ],
 )
 def test_boundary_get_function(test_boundary, left, right, upper, lower):
+    """Tests whether a function is returned only when it should be."""
     assert (test_boundary.get_function("left") is None and left is None) or (
         test_boundary.get_function("left") is not None and left is not None
     )
@@ -103,7 +108,8 @@ def test_boundary_get_function(test_boundary, left, right, upper, lower):
 @pytest.mark.heatequ
 @pytest.mark.heatequ_boundary
 @pytest.mark.parametrize(
-    "test_boundary, time_1, coordinate_1, result_1, expect_upper, expect_lower, expect_left, expect_right",
+    """test_boundary, time_1, coordinate_1, result_1, expect_upper, expect_lower,
+    expect_left, expect_right""",
     [
         (
             boundary.BoundaryCondition(),
@@ -162,6 +168,7 @@ def test_boundary_self_update(
     expect_left,
     expect_right,
 ):
+    """Tests updater of BoundaryCondition to work correctly."""
     with expect_upper:
         assert np.array_equal(
             test_boundary.self_update("upper", time_1, coordinate_1), result_1
