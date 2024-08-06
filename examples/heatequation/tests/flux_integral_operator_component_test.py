@@ -1,6 +1,7 @@
 """Tests operator component for the flux around an internal boundary of split heat
 equations."""
 
+# pylint: disable=duplicate-code
 import itertools
 import pytest
 import numpy as np

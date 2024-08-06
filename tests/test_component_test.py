@@ -352,28 +352,21 @@ def test_component_splitting_partials(
 
     data_2 = runge_kutta_prob_2.check_partials()
 
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        0, 0
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "x_initial")]["J_fwd"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        0, 1
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "y_initial")]["J_fwd"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        1, 0
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "x_initial")]["J_fwd"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        1, 1
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "y_initial")]["J_fwd"][0, 0])
+    compare_split_and_unsplit_jacobian(data_1, data_2)
 
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        0, 0
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "x_initial")]["J_rev"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        0, 1
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "y_initial")]["J_rev"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        1, 0
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "x_initial")]["J_rev"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        1, 1
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "y_initial")]["J_rev"][0, 0])
+
+def compare_split_and_unsplit_jacobian(unsplit_jac_data, split_jac_data):
+    """Compares data obtained from check_partials of a time integration between an
+    unsplit and split version of the stage problem."""
+    # row/column 0 in jacobian of matrix 1 corresponds to quantity "x" in problem 2
+    # row/column 1 in jacobian of matrix 1 corresponds to quantity "y" in problem 2
+    for i, name_i in enumerate(["x", "y"]):
+        for j, name_j in enumerate(["x", "y"]):
+            for mode in ["fwd", "rev"]:
+                assert unsplit_jac_data["rk_integrator"][("x_final", "x_initial")][
+                    f"J_{mode}"
+                ][i, j] == pytest.approx(
+                    split_jac_data["rk_integrator"][
+                        (f"{name_i}_final", f"{name_j}_initial")
+                    ][f"J_{mode}"][0, 0]
+                )

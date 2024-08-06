@@ -11,3 +11,7 @@ good-names=ax, im, x, y, i, j, f, g, t
 [FORMAT]
 
 max-line-length=88
+
+[SIMILARITIES]
+
+min-similarity-lines = 10

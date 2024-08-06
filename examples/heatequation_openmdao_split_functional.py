@@ -4,6 +4,7 @@ the heat equation is split in two via a domain decomposition two emulate a
 multidisciplinary problem.
 """
 
+# pylint: disable=duplicate-code
 import numpy as np
 import openmdao.api as om
 

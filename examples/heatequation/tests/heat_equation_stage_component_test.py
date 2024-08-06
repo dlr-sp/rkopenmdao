@@ -1,5 +1,6 @@
 """Tests for the stage component of the heat equation."""
 
+# pylint: disable=duplicate-code
 import itertools
 import numpy as np
 import pytest

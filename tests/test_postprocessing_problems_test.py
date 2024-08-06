@@ -398,143 +398,36 @@ def test_postprocessing_after_time_integration_split_partials(
 
     data_2 = runge_kutta_prob_2.check_partials()
 
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        0, 0
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "x_initial")]["J_fwd"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        0, 1
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "y_initial")]["J_fwd"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        1, 0
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "x_initial")]["J_fwd"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        1, 1
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "y_initial")]["J_fwd"][0, 0])
+    compare_split_and_unsplit_jacobian_with_postproc(
+        data_1, data_2, postprocessing_quantity_1, postprocessing_quantities_2
+    )
 
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        0, 0
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "x_initial")]["J_rev"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        0, 1
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "y_initial")]["J_rev"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        1, 0
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "x_initial")]["J_rev"][0, 0])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        1, 1
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "y_initial")]["J_rev"][0, 0])
 
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        0, 0
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "x_initial")]["J_fwd"])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        0, 1
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "y_initial")]["J_fwd"])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        1, 0
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "x_initial")]["J_fwd"])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_fwd"][
-        1, 1
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "y_initial")]["J_fwd"])
-
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        0, 0
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "x_initial")]["J_rev"])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        0, 1
-    ] == pytest.approx(data_2["rk_integrator"][("x_final", "y_initial")]["J_rev"])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        1, 0
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "x_initial")]["J_rev"])
-    assert data_1["rk_integrator"][("x_final", "x_initial")]["J_rev"][
-        1, 1
-    ] == pytest.approx(data_2["rk_integrator"][("y_final", "y_initial")]["J_rev"])
-
-    if len(postprocessing_quantities_2) > 1:
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_fwd"][0, 0] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "x_initial")
-            ]["J_fwd"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_fwd"][0, 1] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "y_initial")
-            ]["J_fwd"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_fwd"][1, 0] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[1] + "_final", "x_initial")
-            ]["J_fwd"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_fwd"][1, 1] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[1] + "_final", "y_initial")
-            ]["J_fwd"]
-        )
-
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_rev"][0, 0] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "x_initial")
-            ]["J_rev"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_rev"][0, 1] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "y_initial")
-            ]["J_rev"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_rev"][1, 0] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[1] + "_final", "x_initial")
-            ]["J_rev"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_rev"][1, 1] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[1] + "_final", "y_initial")
-            ]["J_rev"]
-        )
-    else:
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_fwd"][0, 0] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "x_initial")
-            ]["J_fwd"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_fwd"][0, 1] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "y_initial")
-            ]["J_fwd"]
-        )
-
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_rev"][0, 0] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "x_initial")
-            ]["J_rev"]
-        )
-        assert data_1["rk_integrator"][
-            (postprocessing_quantity_1[0] + "_final", "x_initial")
-        ]["J_rev"][0, 1] == pytest.approx(
-            data_2["rk_integrator"][
-                (postprocessing_quantities_2[0] + "_final", "y_initial")
-            ]["J_rev"]
-        )
+def compare_split_and_unsplit_jacobian_with_postproc(
+    unsplit_jac_data,
+    split_jac_data,
+    unsplit_postproc_quantities,
+    split_postproc_quantities,
+):
+    """Compares data obtained from check_partials of a time integration between an
+    unsplit and split version of the stage problem, in a case with postprocessing."""
+    # row/column 0 in jacobian of matrix 1 corresponds to quantity "x" in problem 2
+    # row/column 1 in jacobian of matrix 1 corresponds to quantity "y" in problem 2
+    for mode in ["fwd", "rev"]:
+        for j, name_j in enumerate(["x", "y"]):
+            for i, name_i in enumerate(["x", "y"]):
+                assert unsplit_jac_data["rk_integrator"][("x_final", "x_initial")][
+                    f"J_{mode}"
+                ][i, j] == pytest.approx(
+                    split_jac_data["rk_integrator"][
+                        (f"{name_i}_final", f"{name_j}_initial")
+                    ][f"J_{mode}"][0, 0]
+                )
+            for i, name_i in enumerate(split_postproc_quantities):
+                assert unsplit_jac_data["rk_integrator"][
+                    (f"{unsplit_postproc_quantities[0]}_final", "x_initial")
+                ][f"J_{mode}"][i, j] == pytest.approx(
+                    split_jac_data["rk_integrator"][
+                        (f"{name_i}_final", f"{name_j}_initial")
+                    ][f"J_{mode}"][0, 0]
+                )
