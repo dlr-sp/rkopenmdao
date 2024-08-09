@@ -15,19 +15,8 @@ from .test_postprocessing_problems import SquaringComponent
 
 
 @pytest.mark.rk
-@pytest.mark.parametrize(
-    "write_out_distance, write_file",
-    (
-        [1, "file.h5"],
-        [10, "file.h5"],
-        [20, "file.h5"],
-        [30, "file.h5"],
-        [1, "other_file.h5"],
-        [10, "other_file.h5"],
-        [20, "other_file.h5"],
-        [30, "other_file.h5"],
-    ),
-)
+@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
+@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
 def test_monodisciplinary(write_out_distance, write_file):
     """Tests write-out for monodisciplinary problems."""
     test_prob = om.Problem()
@@ -66,19 +55,8 @@ def test_monodisciplinary(write_out_distance, write_file):
 
 
 @pytest.mark.rk
-@pytest.mark.parametrize(
-    "write_out_distance, write_file",
-    (
-        [1, "file.h5"],
-        [10, "file.h5"],
-        [20, "file.h5"],
-        [30, "file.h5"],
-        [1, "other_file.h5"],
-        [10, "other_file.h5"],
-        [20, "other_file.h5"],
-        [30, "other_file.h5"],
-    ),
-)
+@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
+@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
 def test_time_attribute(write_out_distance, write_file):
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
@@ -112,19 +90,8 @@ def test_time_attribute(write_out_distance, write_file):
 
 
 @pytest.mark.rk
-@pytest.mark.parametrize(
-    "write_out_distance, write_file",
-    (
-        [1, "file.h5"],
-        [10, "file.h5"],
-        [20, "file.h5"],
-        [30, "file.h5"],
-        [1, "other_file.h5"],
-        [10, "other_file.h5"],
-        [20, "other_file.h5"],
-        [30, "other_file.h5"],
-    ),
-)
+@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
+@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
 def test_multidisciplinary(write_out_distance, write_file):
     """Tests write-out for multidisciplinary problems."""
     test_prob = om.Problem()
@@ -175,19 +142,8 @@ def test_multidisciplinary(write_out_distance, write_file):
 
 
 @pytest.mark.rk
-@pytest.mark.parametrize(
-    "write_out_distance, write_file",
-    (
-        [1, "file.h5"],
-        [10, "file.h5"],
-        [20, "file.h5"],
-        [30, "file.h5"],
-        [1, "other_file.h5"],
-        [10, "other_file.h5"],
-        [20, "other_file.h5"],
-        [30, "other_file.h5"],
-    ),
-)
+@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
+@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
 def test_postprocessing(write_out_distance, write_file):
     """Tests write out when postprocessing is involved."""
     test_prob = om.Problem()

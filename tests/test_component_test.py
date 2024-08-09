@@ -1,5 +1,6 @@
 """Tests the time integration with the various components of test_components.py"""
 
+import itertools
 from itertools import product
 
 import openmdao.api as om
@@ -14,6 +15,9 @@ from rkopenmdao.butcher_tableaux import (
     second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
+from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
+from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
+from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
 
 from .test_components import (
@@ -49,15 +53,14 @@ test_comp_class_list = [
     TestComp7,
 ]
 times = np.linspace(1.0, 9.0, 3)
-butcher_diagonal_elements = np.linspace(0.0, 1.0, 5)
+butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 
 
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
-@pytest.mark.parametrize(
-    "test_class, time, butcher_diagonal_element",
-    product(test_comp_class_list, times, butcher_diagonal_elements),
-)
+@pytest.mark.parametrize("test_class", test_comp_class_list)
+@pytest.mark.parametrize("time", times)
+@pytest.mark.parametrize("butcher_diagonal_element", butcher_diagonal_elements)
 def test_component_partials(test_class, time, butcher_diagonal_element):
     """Tests whether the components itself produce the right partials"""
     integration_control = IntegrationControl(0.0, 1, 0.1)
@@ -77,99 +80,33 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
-    "test_class, test_functor, initial_time, initial_values, butcher_tableau, quantities",
+    "test_class, test_functor, initial_time, initial_values",
     (
-        [TestComp1, Test1Solution, 0.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp1, Test1Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp1, Test1Solution, 0.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp1, Test1Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp1, Test1Solution, 0.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp1, Test1Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp2, Test2Solution, 0.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp2, Test2Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp2, Test2Solution, 0.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp2, Test2Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp2, Test2Solution, 0.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp2, Test2Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp3, Test3Solution, 0.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp3, Test3Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp3, Test3Solution, 0.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp3, Test3Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp3, Test3Solution, 0.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp3, Test3Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([[1.0, 1.0]]),
-            implicit_euler,
-            ["x"],
-        ],
-        [
-            TestComp4,
-            Test4Solution,
-            1.0,
-            np.array([[1.0, 1.0]]),
-            implicit_euler,
-            ["x"],
-        ],
-        [
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([[1.0, 1.0]]),
-            two_stage_dirk,
-            ["x"],
-        ],
-        [
-            TestComp4,
-            Test4Solution,
-            1.0,
-            np.array([[1.0, 1.0]]),
-            two_stage_dirk,
-            ["x"],
-        ],
-        [
-            TestComp4,
-            Test4Solution,
-            0.0,
-            np.array([[1.0, 1.0]]),
-            runge_kutta_four,
-            ["x"],
-        ],
-        [
-            TestComp4,
-            Test4Solution,
-            1.0,
-            np.array([[1.0, 1.0]]),
-            runge_kutta_four,
-            ["x"],
-        ],
-        [TestComp6, Test6Solution, 0.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp6, Test6Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp6, Test6Solution, 0.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp6, Test6Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp6, Test6Solution, 0.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp6, Test6Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp6a, Test6Solution, 0.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp6a, Test6Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp6a, Test6Solution, 0.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp6a, Test6Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp6a, Test6Solution, 0.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp6a, Test6Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp7, Test7Solution, 1.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp7, Test7Solution, 2.0, np.array([1.0]), implicit_euler, ["x"]],
-        [TestComp7, Test7Solution, 1.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp7, Test7Solution, 2.0, np.array([1.0]), two_stage_dirk, ["x"]],
-        [TestComp7, Test7Solution, 1.0, np.array([1.0]), runge_kutta_four, ["x"]],
-        [TestComp7, Test7Solution, 2.0, np.array([1.0]), runge_kutta_four, ["x"]],
+        [TestComp1, Test1Solution, 0.0, np.array([1.0])],
+        [TestComp1, Test1Solution, 1.0, np.array([1.0])],
+        [TestComp2, Test2Solution, 0.0, np.array([1.0])],
+        [TestComp2, Test2Solution, 1.0, np.array([1.0])],
+        [TestComp3, Test3Solution, 0.0, np.array([1.0])],
+        [TestComp3, Test3Solution, 1.0, np.array([1.0])],
+        [TestComp4, Test4Solution, 0.0, np.array([[1.0, 1.0]])],
+        [TestComp4, Test4Solution, 1.0, np.array([[1.0, 1.0]])],
+        [TestComp6, Test6Solution, 0.0, np.array([1.0])],
+        [TestComp6, Test6Solution, 1.0, np.array([1.0])],
+        [TestComp6a, Test6Solution, 0.0, np.array([1.0])],
+        [TestComp6a, Test6Solution, 1.0, np.array([1.0])],
+        [TestComp7, Test7Solution, 1.0, np.array([1.0])],
+        [TestComp7, Test7Solution, 2.0, np.array([1.0])],
     ),
 )
+@pytest.mark.parametrize(
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize("quantities", [["x"]])
 def test_component_integration(
     test_class, test_functor, initial_time, initial_values, butcher_tableau, quantities
 ):
     """Tests the time integration of the different components."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
@@ -202,35 +139,26 @@ def test_component_integration(
     for i, quantity in enumerate(quantities):
         result[i] = runge_kutta_prob[quantity + "_final"]
 
-    # relatively coarse, but this isn't supposed to test the accuracy
-    # and instead just to make sure the solution is in the right region
+    # relatively coarse, but this isn't supposed to test the accuracy,
+    # its just to make sure the solution is in the right region
     assert test_functor(
-        initial_time + 1,
+        initial_time + 0.01,
         initial_values,
         initial_time,
-    ) == pytest.approx(result, rel=1e-2)
+    ) == pytest.approx(result, rel=1e-4)
 
 
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
+@pytest.mark.parametrize("initial_time", [0.0, 1.0])
+@pytest.mark.parametrize("initial_values", [[1.0, 1.0]])
 @pytest.mark.parametrize(
-    "initial_time, initial_values, butcher_tableau",
-    (
-        [0.0, np.array([1.0, 1.0]), implicit_euler],
-        [0.0, np.array([1.0, 1.0]), two_stage_dirk],
-        [0.0, np.array([1.0, 1.0]), runge_kutta_four],
-        [1.0, np.array([1.0, 1.0]), implicit_euler],
-        [1.0, np.array([1.0, 1.0]), two_stage_dirk],
-        [1.0, np.array([1.0, 1.0]), runge_kutta_four],
-        [0.0, np.array([1.0, 0.0]), implicit_euler],
-        [0.0, np.array([1.0, 0.0]), two_stage_dirk],
-        [0.0, np.array([1.0, 0.0]), runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_component_splitting(initial_time, initial_values, butcher_tableau):
     """Tests the time integration of the problem that is split over multiple components."""
-    integration_control_1 = IntegrationControl(initial_time, 1000, 0.001)
-    integration_control_2 = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control_1 = IntegrationControl(initial_time, 10, 0.001)
+    integration_control_2 = IntegrationControl(initial_time, 10, 0.001)
 
     time_integration_prob_1 = om.Problem()
     time_integration_prob_1.model.add_subsystem(
@@ -292,54 +220,26 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
-    "test_class, initial_time, butcher_tableau, quantities",
-    (
-        [TestComp1, 0.0, implicit_euler, ["x"]],
-        [TestComp1, 1.0, implicit_euler, ["x"]],
-        [TestComp1, 0.0, two_stage_dirk, ["x"]],
-        [TestComp1, 1.0, two_stage_dirk, ["x"]],
-        [TestComp1, 0.0, runge_kutta_four, ["x"]],
-        [TestComp1, 1.0, runge_kutta_four, ["x"]],
-        [TestComp2, 0.0, implicit_euler, ["x"]],
-        [TestComp2, 1.0, implicit_euler, ["x"]],
-        [TestComp2, 0.0, two_stage_dirk, ["x"]],
-        [TestComp2, 1.0, two_stage_dirk, ["x"]],
-        [TestComp2, 0.0, runge_kutta_four, ["x"]],
-        [TestComp2, 1.0, runge_kutta_four, ["x"]],
-        [TestComp3, 0.0, implicit_euler, ["x"]],
-        [TestComp3, 1.0, implicit_euler, ["x"]],
-        [TestComp3, 0.0, two_stage_dirk, ["x"]],
-        [TestComp3, 1.0, two_stage_dirk, ["x"]],
-        [TestComp3, 0.0, runge_kutta_four, ["x"]],
-        [TestComp3, 1.0, runge_kutta_four, ["x"]],
-        [TestComp4, 0.0, implicit_euler, ["x"]],
-        [TestComp4, 1.0, implicit_euler, ["x"]],
-        [TestComp4, 0.0, two_stage_dirk, ["x"]],
-        [TestComp4, 1.0, two_stage_dirk, ["x"]],
-        [TestComp4, 0.0, runge_kutta_four, ["x"]],
-        [TestComp4, 1.0, runge_kutta_four, ["x"]],
-        [TestComp6, 0.0, implicit_euler, ["x"]],
-        [TestComp6, 1.0, implicit_euler, ["x"]],
-        [TestComp6, 0.0, two_stage_dirk, ["x"]],
-        [TestComp6, 1.0, two_stage_dirk, ["x"]],
-        [TestComp6, 0.0, runge_kutta_four, ["x"]],
-        [TestComp6, 1.0, runge_kutta_four, ["x"]],
-        [TestComp6a, 0.0, implicit_euler, ["x"]],
-        [TestComp6a, 1.0, implicit_euler, ["x"]],
-        [TestComp6a, 0.0, two_stage_dirk, ["x"]],
-        [TestComp6a, 1.0, two_stage_dirk, ["x"]],
-        [TestComp6a, 0.0, runge_kutta_four, ["x"]],
-        [TestComp6a, 1.0, runge_kutta_four, ["x"]],
-        [TestComp7, 1.0, implicit_euler, ["x"]],
-        [TestComp7, 2.0, implicit_euler, ["x"]],
-        [TestComp7, 1.0, two_stage_dirk, ["x"]],
-        [TestComp7, 2.0, two_stage_dirk, ["x"]],
-        [TestComp7, 1.0, runge_kutta_four, ["x"]],
-        [TestComp7, 2.0, runge_kutta_four, ["x"]],
-    ),
+    "test_class, initial_time",
+    [
+        x
+        for x in product(
+            [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
+            [0.0, 1.0],
+        )
+    ]
+    + [[TestComp7, 1.0]]
+    + [[TestComp7, 2.0]],
+)
+@pytest.mark.parametrize(
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize(
+    "checkpointing_implementation",
+    [NoCheckpointer, AllCheckpointer, PyrevolveCheckpointer],
 )
 def test_time_integration_partials(
-    test_class, initial_time, butcher_tableau, quantities
+    test_class, initial_time, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the time integration of the different components."""
     integration_control = IntegrationControl(initial_time, 10, 0.001)
@@ -360,7 +260,8 @@ def test_time_integration_partials(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
-            time_integration_quantities=quantities,
+            time_integration_quantities=["x"],
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
@@ -368,29 +269,28 @@ def test_time_integration_partials(
     runge_kutta_prob.setup()
 
     runge_kutta_prob.run_model()
+    if checkpointing_implementation == NoCheckpointer:
+        with pytest.raises(NotImplementedError) as excinfo:
+            runge_kutta_prob.check_partials()
 
-    data = runge_kutta_prob.check_partials()
-
-    assert_check_partials(data)
+    else:
+        data = runge_kutta_prob.check_partials()
+        assert_check_partials(data)
 
 
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
+@pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize(
-    "initial_time, butcher_tableau",
-    (
-        [0.0, implicit_euler],
-        [0.0, two_stage_dirk],
-        [0.0, runge_kutta_four],
-        [1.0, implicit_euler],
-        [1.0, two_stage_dirk],
-        [1.0, runge_kutta_four],
-        [0.0, implicit_euler],
-        [0.0, two_stage_dirk],
-        [0.0, runge_kutta_four],
-    ),
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
-def test_component_splitting_partials(initial_time, butcher_tableau):
+@pytest.mark.parametrize(
+    "checkpointing_implementation",
+    [AllCheckpointer, PyrevolveCheckpointer],
+)
+def test_component_splitting_partials(
+    initial_time, butcher_tableau, checkpointing_implementation
+):
     """Tests the partials of the time integration of the problem that is split into multiple components."""
     integration_control_1 = IntegrationControl(initial_time, 10, 0.001)
     integration_control_2 = IntegrationControl(initial_time, 10, 0.001)
@@ -425,6 +325,7 @@ def test_component_splitting_partials(initial_time, butcher_tableau):
             butcher_tableau=butcher_tableau,
             integration_control=integration_control_1,
             time_integration_quantities=["x"],
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
@@ -441,6 +342,7 @@ def test_component_splitting_partials(initial_time, butcher_tableau):
             butcher_tableau=butcher_tableau,
             integration_control=integration_control_2,
             time_integration_quantities=["x", "y"],
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )

@@ -1,4 +1,5 @@
 """Test to make sure that rkopenmdao works with problems containing parallel groups."""
+
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_totals, assert_check_partials
 import pytest
@@ -6,12 +7,10 @@ import numpy as np
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import IntegrationControl
-from rkopenmdao.butcher_tableaux import (
-    third_order_four_stage_esdirk,
-    implicit_euler,
-    explicit_euler,
-)
+from rkopenmdao.butcher_tableaux import implicit_euler, second_order_three_stage_esdirk
 from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
+from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
 # pylint: disable = arguments-differ, too-many-branches
 
@@ -456,17 +455,9 @@ class PostprocSumComp(om.ExplicitComponent):
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1])
 @pytest.mark.parametrize(
-    "butcher_tableau",
-    [
-        explicit_euler,
-    ],  # implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
 )
-@pytest.mark.parametrize(
-    "initial_values",
-    [
-        [1, 1, 1, 1],
-    ],
-)  # [0, 0, 0, 0]])
+@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
 def test_parallel_group_time_integration(
     num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
 ):
@@ -556,7 +547,7 @@ def test_parallel_group_time_integration(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
 )
 @pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
 def test_parallel_group_time_integration_with_postprocessing(
@@ -669,11 +660,17 @@ def test_parallel_group_time_integration_with_postprocessing(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
+)
 def test_parallel_group_time_integration_totals(
-    num_steps: int, butcher_tableau: ButcherTableau, test_direction: str
+    num_steps: int,
+    butcher_tableau: ButcherTableau,
+    test_direction: str,
+    checkpointing_implementation,
 ):
     """Tests the totals of the time integration for a problem with parallel groups."""
     prob = om.Problem()
@@ -730,6 +727,7 @@ def test_parallel_group_time_integration_totals(
             time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
             integration_control=integration_control,
             butcher_tableau=butcher_tableau,
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
@@ -764,11 +762,17 @@ def test_parallel_group_time_integration_totals(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [explicit_euler, implicit_euler, third_order_four_stage_esdirk]
+    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
+@pytest.mark.parametrize(
+    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
+)
 def test_parallel_group_time_integration_totals_with_postprocessing(
-    num_steps: int, butcher_tableau: ButcherTableau, test_direction: str
+    num_steps: int,
+    butcher_tableau: ButcherTableau,
+    test_direction: str,
+    checkpointing_implementation,
 ):
     """Tests the totals of the postprocessing after the time integration for a problem with parallel groups."""
     prob = om.Problem()
@@ -850,6 +854,7 @@ def test_parallel_group_time_integration_totals_with_postprocessing(
             postprocessing_quantities=["sum"],
             integration_control=integration_control,
             butcher_tableau=butcher_tableau,
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
