@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 from typing import Callable
 import numpy as np
 
@@ -21,7 +22,8 @@ class BoundaryCondition:
         self.right = right
 
     def boundary_update_kind(self) -> dict:
-        """Returns a dict containing the update kinds of the different boundary segments."""
+        """Returns a dict containing the update kinds of the different boundary
+        segments."""
         boundary_types_dict = {}
         if self.upper is None:
             boundary_types_dict["upper"] = "user_updating"
@@ -49,17 +51,22 @@ class BoundaryCondition:
         """Returns the updater of the requested boundary segment."""
         if segment == "upper":
             return self.upper
-        if segment == "lower":
+        elif segment == "lower":
             return self.lower
-        if segment == "left":
+        elif segment == "left":
             return self.left
-        if segment == "right":
+        elif segment == "right":
             return self.right
+        else:
+            raise ValueError(
+                "Segment is not one of 'upper', 'lower', 'left' or 'right'"
+            )
 
     def self_update(
         self, segment: str, time: float, coordinates: np.ndarray
     ) -> np.ndarray:
-        """Returns updated values at the boundary for the requested segment, time and coordinates."""
+        """Returns updated values at the boundary for the requested segment, time and
+        coordinates."""
         result = np.zeros(coordinates.shape[0])
         for i in range(result.size):
             result[i] = self.get_function(segment)(

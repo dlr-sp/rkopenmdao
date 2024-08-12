@@ -1,4 +1,5 @@
-"""Tries out some ODEs with various DIRK schemes to assess their order under different conditions"""
+"""Tries out some ODEs with various DIRK schemes to assess their order under
+different conditions"""
 
 import numpy as np
 import openmdao.api as om
@@ -9,9 +10,9 @@ import matplotlib as mpl
 
 from rkopenmdao.utils.convergence_test_components import (
     KapsGroup,
-    KapsSolution,
+    kaps_solution,
     SimpleLinearODE,
-    SimpleLinearSolution,
+    simple_linear_solution,
 )
 
 
@@ -59,39 +60,44 @@ mpl.rcParams["figure.titlesize"] = "large"
 
 problem_dict = {
     # "Simple_linear": (SimpleLinearODE, SimpleLinearSolution, ["y"]),
-    "Kaps": (KapsGroup, KapsSolution, ["y_1", "y_2"]),
-    # "split HeatEquation": TODO,
+    "Kaps": (KapsGroup, kaps_solution, ["y_1", "y_2"]),
 }
 
 butcher_tableau_dict = {
     # "explicit_euler": explicit_euler,
-    "implicit_euler": implicit_euler,
-    "implicit_midpoint": implicit_midpoint,
-    "second_order_two_stage_sdirk": second_order_two_stage_sdirk,
+    "Implicit Euler": implicit_euler,
+    # "implicit_midpoint": implicit_midpoint,
+    "Second order two stage SDIRK": second_order_two_stage_sdirk,
     # "third_order_two_stage_sdirk": third_order_two_stage_sdirk,
     # "second_order_three_stage_esdirk": second_order_three_stage_esdirk,
-    "third_order_three_stage_esdirk": third_order_three_stage_esdirk,
-    "third_order_three_stage_sdirk": third_order_three_stage_sdirk,
+    "Third order three stage ESDIRK": third_order_three_stage_esdirk,
+    "Third order three stage SDIRK": third_order_three_stage_sdirk,
     # "third_order_four_stage_esdirk": third_order_four_stage_esdirk,
     # "third_order_four_stage_sdirk": third_order_four_stage_sdirk,
     # "third_order_five_stage_esdirk": third_order_five_stage_esdirk,
-    "fourth_order_five_stage_esdirk": fourth_order_five_stage_esdirk,
-    "fourth_order_five_stage_sdirk": fourth_order_five_stage_sdirk,
+    "Fourth order five stage ESDIRK": fourth_order_five_stage_esdirk,
+    # "fourth_order_five_stage_sdirk": fourth_order_five_stage_sdirk,
     # "fifth_order_five_stage_sdirk": fifth_order_five_stage_sdirk,
     # "fourth_order_six_stage_esdirk": fourth_order_six_stage_esdirk,
     # "fifth_order_six_stage_esdirk": fifth_order_six_stage_esdirk,
-    # "third_order_second_weak_stage_order_four_stage_dirk": third_order_second_weak_stage_order_four_stage_dirk,
-    # "third_order_third_weak_stage_order_four_stage_dirk": third_order_third_weak_stage_order_four_stage_dirk,
-    # "fourth_order_third_weak_stage_order_six_stage_dirk": fourth_order_third_weak_stage_order_six_stage_dirk,
+    # "third_order_second_weak_stage_order_four_stage_dirk": (
+    #     third_order_second_weak_stage_order_four_stage_dirk
+    # ),
+    # "third_order_third_weak_stage_order_four_stage_dirk": (
+    #     third_order_third_weak_stage_order_four_stage_dirk
+    # ),
+    # "fourth_order_third_weak_stage_order_six_stage_dirk": (
+    #     fourth_order_third_weak_stage_order_six_stage_dirk
+    # ),
     # "runge_kutta_four": runge_kutta_four,
 }
 epsilon_list = [
     1.0,
-    # 1e-1,
-    # 1e-2,
+    1e-1,
+    1e-2,
     1e-3,
-    # 1e-4,
-    # 1e-5,
+    1e-4,
+    1e-5,
     0.0,
 ]
 
@@ -106,10 +112,12 @@ for problem_name, (Class, Solution, var_list) in problem_dict.items():
         for k, (tableau_name, butcher_tableau) in enumerate(
             butcher_tableau_dict.items()
         ):
-            if butcher_tableau.butcher_matrix[0, 0] == 0.0 and epsilon == 0.0:
-                continue  # can skip esdirk for DAEs, won't work anyway with the current implementation
-            else:
+            if butcher_tableau.butcher_matrix[0, 0] != 0.0 or epsilon != 0.0:
                 inclusion_list.append(k)
+            else:
+                # can skip esdirk for DAEs, won't work anyway with the current
+                # implementation
+                continue
             for i, num_steps in enumerate(step_nums):
                 integration_control = IntegrationControl(0.0, num_steps, delta_t[i])
                 time_integration_problem = om.Problem()
@@ -143,6 +151,7 @@ for problem_name, (Class, Solution, var_list) in problem_dict.items():
                 try:
                     runge_kutta_problem.run_model()
                 except om.AnalysisError:
+                    print("Convergence failed")
                     (
                         inputs,
                         outputs,
@@ -165,16 +174,16 @@ for problem_name, (Class, Solution, var_list) in problem_dict.items():
         log_errors = np.log10(errors)
 
         fig, axes = plt.subplots(1, len(var_list), squeeze=False)
-        eps_string = r"$\epsilon$"
-        fig.suptitle(
-            problem_name
-            + (f", {eps_string} = {epsilon}" if problem_name == "Kaps" else "")
-        )
+        # eps_string = r"$\epsilon$"
+        # fig.suptitle(
+        #     problem_name
+        #     + (f", {eps_string} = {epsilon}" if problem_name == "Kaps" else "")
+        # )
         for i, var in enumerate(var_list):
-            axes[0, i].set_title(var)
+            axes[0, i].set_title(r"$y_" + str(i + 1) + "$")
 
             axes[0, i].set_xlabel("step size")
-            axes[0, i].set_ylabel("L2 error")
+            axes[0, i].set_ylabel("abs. error")
             axes[0, i].set_xlim(min(delta_t), max(delta_t))
             axes[0, i].set_ylim(
                 np.min(errors[:, i, inclusion_list]),
@@ -195,21 +204,33 @@ for problem_name, (Class, Solution, var_list) in problem_dict.items():
         fig.legend(loc="lower center", ncol=2)
 
         for i, var in enumerate(var_list):
-            axes[0, i].plot(delta_t, delta_t, "k--")
-            axes[0, i].plot(delta_t, delta_t**2, "k--")
-            axes[0, i].plot(delta_t, delta_t**3, "k--")
-            axes[0, i].plot(delta_t, delta_t**4, "k--")
+            for j in range(1, 5):
+                axes[0, i].plot(delta_t, delta_t**j, "k--")
+
+                axes[0, i].text(0.02, 0.03**j, f"$(\Delta t)^{j}$")
             # axes[0, i].plot(delta_t, 100000 * errors[0, i] * delta_t**5, "--")
 
             axes[0, i].set_xticks(
-                [0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08, 0.09], 8 * [""], minor=True
+                [
+                    0.02,
+                    0.03,
+                    0.04,
+                    0.05,
+                    0.06,
+                    0.07,
+                    0.08,
+                    0.09,
+                ],
+                8 * [""],
+                minor=True,
             )
 
         fig.tight_layout()
         fig.subplots_adjust(bottom=0.35)
 
         plt.savefig(
-            f"convergence_test/{problem_name}{'_' + str(epsilon) if problem_name == 'Kaps' else ''}.pdf"
+            f"convergence_test/{problem_name}"
+            f"{'_' + str(epsilon) if problem_name == 'Kaps' else ''}.png"
         )
 
         plt.close(fig)

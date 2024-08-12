@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 import openmdao.api as om
 
 
@@ -14,7 +15,6 @@ class FluxComponent(om.ImplicitComponent):
         )
 
     def setup(self):
-        delta = self.options["delta"]
         if self.options["orientation"] == "vertical":
             self.add_input("left_side", shape=self.options["shape"])
             self.add_input("right_side", shape=self.options["shape"])
@@ -30,7 +30,9 @@ class FluxComponent(om.ImplicitComponent):
             shape=self.options["shape"],
         )
 
-    def apply_nonlinear(self, inputs, outputs, residuals):
+    def apply_nonlinear(
+        self, inputs, outputs, residuals, discrete_inputs=None, discrete_outputs=None
+    ):
         positive_side = (
             "right_side" if self.options["orientation"] == "vertical" else "upper_side"
         )
@@ -65,6 +67,9 @@ class FluxComponent(om.ImplicitComponent):
         )
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
+        # pylint: disable=too-many-branches
+        # splitting this into two function wouldn't really make it easier to follow than
+        # with the upper if-elif
         positive_side = (
             "right_side" if self.options["orientation"] == "vertical" else "upper_side"
         )
@@ -80,7 +85,7 @@ class FluxComponent(om.ImplicitComponent):
                 if "flux" in d_outputs:
                     d_residuals["flux"] -= self.options["delta"] * d_outputs["flux"]
 
-            if "reverse_flux":
+            if "reverse_flux" in d_residuals:
                 if positive_side in d_inputs:
                     d_residuals["reverse_flux"] += 0.5 * d_inputs[positive_side]
                 if negative_side in d_inputs:
@@ -99,7 +104,7 @@ class FluxComponent(om.ImplicitComponent):
                 if "flux" in d_outputs:
                     d_outputs["flux"] -= self.options["delta"] * d_residuals["flux"]
 
-            if "reverse_flux":
+            if "reverse_flux" in d_residuals:
                 if positive_side in d_inputs:
                     d_inputs[positive_side] += 0.5 * d_residuals["reverse_flux"]
                 if negative_side in d_inputs:

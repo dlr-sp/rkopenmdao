@@ -9,9 +9,9 @@ from rkopenmdao.integration_control import IntegrationControl
 
 
 class KapsComponent1(om.ImplicitComponent):
-    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
-    Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016). section 10
-    """
+    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter.
+    “Diagonally Implicit Runge-Kutta Methods for Ordinary Differential Equations. A
+    Review.” (2016). section 10"""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -143,9 +143,9 @@ class KapsComponent1(om.ImplicitComponent):
 
 
 class KapsComponent2(om.ImplicitComponent):
-    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter. “Diagonally
-    Implicit Runge-Kutta Methods for Ordinary Differential Equations. A Review.” (2016). section 10
-    """
+    """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter.
+    “Diagonally Implicit Runge-Kutta Methods for Ordinary Differential Equations. A
+    Review.” (2016). section 10"""
 
     y_2: float
 
@@ -393,11 +393,11 @@ class SimpleLinearODE(om.ExplicitComponent):
             d_inputs["y_accumulated_stages"] -= delta_t * factor * d_outputs["y_stage"]
 
 
-def KapsSolution(time):
+def kaps_solution(time):
     "Analytical solution to Kaps problem to compare with the components above."
     return np.array([np.exp(-2 * time), np.exp(-time)])
 
 
-def SimpleLinearSolution(time):
+def simple_linear_solution(time):
     """Analytical solution to y' = -y, y(0) = 1"""
     return np.array([np.exp(-time)])

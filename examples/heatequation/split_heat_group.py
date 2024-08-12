@@ -1,7 +1,14 @@
+"""Creation routine for an OpenMDAO problem that models a heat equation split along the
+middle of its domain."""
+
 from typing import Callable
 
+import numpy as np
 import openmdao.api as om
 from openmdao.solvers.solver import NonlinearSolver, LinearSolver
+
+from rkopenmdao.utils.utility_components import StageValueComponent
+from rkopenmdao.integration_control import IntegrationControl
 
 from .boundary import BoundaryCondition
 from .domain import Domain
@@ -10,8 +17,6 @@ from .heatequation import HeatEquation
 from .heatequation_stage_component import (
     HeatEquationStageComponent,
 )
-from rkopenmdao.utils.utility_components import StageValueComponent
-from rkopenmdao.integration_control import IntegrationControl
 
 
 def create_split_heat_group(
@@ -27,9 +32,11 @@ def create_split_heat_group(
     integration_control: IntegrationControl,
     gmres_args: dict,
     nonlinear_solver: NonlinearSolver = om.NewtonSolver(solve_subsystems=True),
-    linear_solver: LinearSolver = om.PETScKrylov(),
+    linear_solver: LinearSolver = om.LinearRunOnce(),
 ) -> om.Group:
-    """Creates openMDAO group that contains everything necessary to model two heat equations on a split domain."""
+    """Creates openMDAO group that contains everything necessary to model two heat
+    equations on a split domain."""
+    # pylint: disable=too-many-arguments, too-many-locals
     points_x = points_per_direction // 2 + 1
     delta_x = 1.0 / (points_per_direction - 1)
     domain_half_1 = Domain([0.0, 0.5], [0.0, 1.0], points_x, points_per_direction)
@@ -82,6 +89,9 @@ def create_split_heat_group(
         promotes_outputs=[("stage_value", "stage_heat_1")],
     )
     heat_group_1.set_input_defaults("heat_1", val=heat_equation_1.initial_vector)
+    heat_group_1.set_input_defaults(
+        "accumulated_stages_1", val=np.zeros_like(heat_equation_1.initial_vector)
+    )
     heat_group_1.nonlinear_solver = om.NonlinearRunOnce()
     heat_group_1.linear_solver = om.LinearRunOnce()
     split_heat_group.add_subsystem("heat_1", heat_group_1, promotes=["*"])
@@ -114,6 +124,9 @@ def create_split_heat_group(
         promotes_outputs=[("stage_value", "stage_heat_2")],
     )
     heat_group_2.set_input_defaults("heat_2", val=heat_equation_2.initial_vector)
+    heat_group_2.set_input_defaults(
+        "accumulated_stages_2", np.zeros_like(heat_equation_2.initial_vector)
+    )
     heat_group_2.nonlinear_solver = om.NonlinearRunOnce()
     heat_group_2.linear_solver = om.LinearRunOnce()
 

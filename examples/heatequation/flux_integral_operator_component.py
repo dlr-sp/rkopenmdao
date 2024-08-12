@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 import numpy as np
 import openmdao.api as om
 
@@ -16,7 +17,6 @@ class FluxIntegralOperatorComponent(om.ExplicitComponent):
         self.options.declare("heat_coefficient", default=1e-5)
 
     def setup(self):
-        delta_t = self.options["integration_control"].delta_t
         self.add_input("flux", shape=self.options["shape"])
         self.add_input(
             "initial_flux", val=0.0, shape=1, tags=["step_input_var", "heat_integral"]

@@ -1,13 +1,13 @@
+# pylint: disable=missing-module-docstring
+
 import numpy as np
 
 from .domain import Domain
 
 
 class FdmMatrix:
-    """
-    Matrix free implementation of the discretization matrix for the heatequation class (i.e. implements functions for
-    the product with the matrix.
-    """
+    """Matrix free implementation of the discretization matrix for the heatequation
+    class (i.e. implements functions for the product with the matrix."""
 
     def __init__(self, domain: Domain, diffusivity: float) -> None:
         self.domain = domain
@@ -56,7 +56,8 @@ class FdmMatrix:
         return new_vector.reshape(self.vector_size)
 
     def mat_vec_prod_transpose(self, old_vector: np.ndarray) -> np.ndarray:
-        """Matrix-vector-product with the transposed FDM-matrix (which is the same since its symmetric)"""
+        """Matrix-vector-product with the transposed FDM-matrix (which is the same since
+        its symmetric)"""
         return self.mat_vec_prod(old_vector)
 
     def mat_mat_prod(self, old_matrix: np.ndarray) -> np.ndarray:
@@ -70,7 +71,8 @@ class FdmMatrix:
         return new_matrix
 
     def mat_mat_prod_transpose(self, old_matrix: np.ndarray) -> np.ndarray:
-        """Matrix-matrix-product with the transposed FDM-matrix (which is the same since its symmetric)"""
+        """Matrix-matrix-product with the transposed FDM-matrix (which is the same since
+        its symmetric)"""
         new_matrix = np.zeros_like(old_matrix)
         for i in range(new_matrix.shape[1]):
             new_matrix[:, i] = self.mat_vec_prod_transpose(old_matrix[:, i])

@@ -1,13 +1,13 @@
 """
-Solving the heat equation in openMDAO via the Runge-Kutta-integrator.In this version, the heat equation is split in two
-via a domain decomposition two emulate a multidisciplinary problem.
+Solving the heat equation in openMDAO via the Runge-Kutta-integrator. In this version,
+the heat equation is split in two via a domain decomposition two emulate a
+multidisciplinary problem.
 """
 
+# pylint: disable=duplicate-code
 import numpy as np
 import openmdao.api as om
 
-from heatequation.boundary import BoundaryCondition
-from heatequation.split_heat_group import create_split_heat_group
 from rkopenmdao.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
@@ -17,11 +17,13 @@ from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
 
+from .heatequation.boundary import BoundaryCondition
+from .heatequation.split_heat_group import create_split_heat_group
 
 if __name__ == "__main__":
-    points_per_direction = 51
-    delta_x = (points_per_direction - 1) ** -1
-    points_x = points_per_direction // 2 + 1
+    POINTS_PER_DIRECTION = 51
+    DELTA_X = (POINTS_PER_DIRECTION - 1) ** -1
+    POINTS_X = POINTS_PER_DIRECTION // 2 + 1
 
     boundary_condition_1 = BoundaryCondition(
         upper=lambda t, x, y: 0.0,
@@ -41,7 +43,7 @@ if __name__ == "__main__":
     inner_prob = om.Problem()
 
     heat_group = create_split_heat_group(
-        points_per_direction,
+        POINTS_PER_DIRECTION,
         boundary_condition_1,
         boundary_condition_2,
         lambda t, x, y: 0.0,
@@ -51,7 +53,7 @@ if __name__ == "__main__":
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         integration_control,
-        {"tol": 1e-15, "atol": "legacy"},
+        {"tol": 1e-10, "atol": "legacy"},
     )
 
     inner_prob.model.add_subsystem("heat_group", heat_group)
@@ -59,7 +61,7 @@ if __name__ == "__main__":
     inner_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=False, iprint=2
     )
-    inner_prob.model.linear_solver = om.PETScKrylov(maxiter=100, restart=10)
+    inner_prob.model.linear_solver = om.PETScKrylov(maxiter=100, restart=10, iprint=2)
     inner_prob.model.linear_solver.precon = om.LinearBlockJac(iprint=-1, maxiter=2)
 
     outer_prob = om.Problem()

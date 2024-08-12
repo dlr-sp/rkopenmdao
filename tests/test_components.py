@@ -1,4 +1,6 @@
-"""Components for various ODEs with which the RungeKuttaIntegrator gets tested in test_component_test.py"""
+"""Components for various ODEs with which the RungeKuttaIntegrator gets tested in
+test_component_test.py"""
+
 import openmdao.api as om
 import numpy as np
 
@@ -17,7 +19,8 @@ class TestComp1(om.ExplicitComponent):
     (rev) dx_n = dk_i / (1 - dt * a_ii)
     (rev) ds_i = dt * dk_i / (1 - dt * a_ii)
 
-    This is the simplest linear ODE (apart from x' = const), so this is the least that has to work.
+    This is the simplest linear ODE (apart from x' = const), so this is the least that
+    has to work.
     """
 
     def initialize(self):
@@ -47,7 +50,7 @@ class TestComp1(om.ExplicitComponent):
             d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
 
 
-def Test1Solution(time, initial_value, initial_time):
+def solution_test1(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return initial_value * np.exp(time - initial_time)
 
@@ -62,9 +65,10 @@ class TestComp2(om.ExplicitComponent):
     (rev) dx_n = 0
     (rev) ds_i = 0
 
-    This ODE could be solved by simple (numerically) integrating, since there is no actual
-    dependence between the searched for function and its derivative. However, even such a
-    simple case needs to work. This is also the simplest non-autonomous test case.
+    This ODE could be solved by simple (numerically) integrating, since there is no
+    actual dependence between the searched for function and its derivative. However,
+    even such a simple case needs to work. This is also the simplest non-autonomous
+    test case.
     """
 
     def initialize(self):
@@ -81,7 +85,7 @@ class TestComp2(om.ExplicitComponent):
         pass
 
 
-def Test2Solution(time, initial_value, initial_time):
+def solution_test2(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return initial_value + 0.5 * (time**2 - initial_time**2)
 
@@ -143,29 +147,34 @@ class TestComp3(om.ExplicitComponent):
             )
 
 
-def Test3Solution(time, initial_value, initial_time):
+def solution_test3(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return initial_value * np.exp(0.5 * (time**2 - initial_time**2))
 
 
 class TestComp4(om.ExplicitComponent):
     """
-    Models the stage of the ODE system  x' = y, y'=x. The following formula for the stage
+    Models the stage of the ODE system  x' = y, y'=x. The following formula for the
+    stage
     results:
-    k_i^1 = (x_n^2 + dt * s_i^2 + dt * a_ii * (x_n^1 + dt * s_i^1)) / (1-dt**2 * a_ii**2)
-    k_i^2 = (x_n^1 + dt * s_i^1 + dt * a_ii * (x_n^2 + dt * s_i^2)) / (1-dt**2 * a_ii**2)
+    k_i^1 = (x_n^2 + dt * s_i^2 + dt * a_ii * (x_n^1 + dt * s_i^1))
+            / (1-dt**2 * a_ii**2)
+    k_i^2 = (x_n^1 + dt * s_i^1 + dt * a_ii * (x_n^2 + dt * s_i^2))
+            / (1-dt**2 * a_ii**2)
     The formulas for the fwd/rev derivatives are:
     (fwd)
-    dk_i^1 = (dx_n^2 + dt * ds_i^2 + dt * a_ii * (dx_n^1 + dt * ds_i^1)) / (1-dt**2 * a_ii**2)
-    dk_i^2 = (dx_n^1 + dt * ds_i^1 + dt * a_ii * (dx_n^2 + dt * ds_i^2)) / (1-dt**2 * a_ii**2)
+    dk_i^1 = (dx_n^2 + dt * ds_i^2 + dt * a_ii * (dx_n^1 + dt * ds_i^1))
+             / (1-dt**2 * a_ii**2)
+    dk_i^2 = (dx_n^1 + dt * ds_i^1 + dt * a_ii * (dx_n^2 + dt * ds_i^2))
+             /(1-dt**2 * a_ii**2)
     (rev)
     dx_n^1 = ((dt * a_ii) * dk_i^1 + dk_i^2)/(1-dt**2 * a_ii**2)
     ds_i^1 = dt * ((dt * a_ii) * dk_i^1 + dk_i^2)/(1-dt**2 * a_ii**2)
     dx_n^2 = ((dt * a_ii) * dk_i^2 + dk_i^1)/(1-dt**2 * a_ii**2)
     ds_i^2 = dt * ((dt * a_ii) * dk_i^2 + dk_i^1)/(1-dt**2 * a_ii**2)
 
-    This is one of the simplest multi-dimensional ODEs. This is necessary to make sure that
-    the RK-Integrator can work with such multidimensional problems.
+    This is one of the simplest multi-dimensional ODEs. This is necessary to make sure
+    that the RK-Integrator can work with such multidimensional problems.
     """
 
     def initialize(self):
@@ -230,7 +239,7 @@ class TestComp4(om.ExplicitComponent):
             )
 
 
-def Test4Solution(time, initial_value, initial_time):
+def solution_test4(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return np.array(
         [
@@ -249,7 +258,7 @@ def Test4Solution(time, initial_value, initial_time):
 # ways (one or two components) work the same.
 
 
-class TestComp5_1(om.ExplicitComponent):
+class Testcomp51(om.ExplicitComponent):
     """
     Models the stage of the ODE x' = y. The following formula for the stage
     results:
@@ -300,7 +309,7 @@ class TestComp5_1(om.ExplicitComponent):
             )
 
 
-class TestComp5_2(om.ExplicitComponent):
+class Testcomp52(om.ExplicitComponent):
     """
     Models the stage of the ODE y' = x. The following formula for the stage
     results:
@@ -351,7 +360,7 @@ class TestComp5_2(om.ExplicitComponent):
             )
 
 
-def Test5Solution(time, initial_value, initial_time):
+def solution_test5(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above components."""
     return np.array(
         [
@@ -373,7 +382,8 @@ class TestComp6(om.ExplicitComponent):
     results:
     k_i = 0.5 * dt * a_ii + (0.25 * dt**2 * a_ii**2 + x_n + dt * s_i)**0.5
     The formulas for the fwd/rev derivatives are:
-    (fwd) dk_i = 0.5 * (dx_n + dt * ds_i) * (0.25 * dt**2 * a_ii**2 + x_n + dt * s_i)**-0.5
+    (fwd) dk_i = 0.5 * (dx_n + dt * ds_i)
+                 * (0.25 * dt**2 * a_ii**2 + x_n + dt * s_i)**-0.5
     (rev) dx_n = 0.5 * dk_i * (0.25 * dt**2 * a_ii**2 + x_n + dt * s_i)**-0.5
     (rev) ds_i = 0.5 * dt * dk_i * (0.25 * dt**2 * a_ii**2 + x_n + dt * s_i)**-0.5
 
@@ -421,6 +431,10 @@ class TestComp6(om.ExplicitComponent):
 
 class TestComp6a(om.ImplicitComponent):
     """Same as test 6, but as an implicit component with linearize"""
+
+    dr_dx_stage: float
+    dr_dx: float
+    dr_dacc_stages: float
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -488,10 +502,6 @@ class TestComp6a(om.ImplicitComponent):
         )
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         if mode == "fwd":
             d_residuals["x_stage"] += self.dr_dx_stage * d_outputs["x_stage"]
             d_residuals["x_stage"] += self.dr_dx * d_inputs["x"]
@@ -502,7 +512,7 @@ class TestComp6a(om.ImplicitComponent):
             d_inputs["acc_stages"] += self.dr_dacc_stages * d_residuals["x_stage"]
 
 
-def Test6Solution(time, initial_value, initial_time):
+def solution_test6(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return (0.5 * (time - initial_time) + np.sqrt(initial_value)) ** 2
 
@@ -511,14 +521,18 @@ class TestComp7(om.ExplicitComponent):
     """
     Models the stage of the ODE x' = (t*x)**0.5. The following formula for the stage
     results:
-    k_i = 0.5 * dt * a_ii * t_n^i + (0.25 * dt**2 * a_ii**2 * t_n^i**2 +t_n_i * (x_n + dt * s_i))**0.5
+    k_i = 0.5 * dt * a_ii * t_n^i + (0.25 * dt**2 * a_ii**2 * t_n^i**2 +t_n_i
+         * (x_n + dt * s_i))**0.5
     The formulas for the fwd/rev derivatives are:
-    (fwd) dk_i = 0.5 * t_n^i * (dx_n + dt * ds_i) * (0.25 * dt**2 * a_ii**2 * t_n^i**2 +t_n_i * (x_n + dt * s_i))**-0.5
-    (rev) dx_n = 0.5 * t_n^i * dk_i * (0.25 * dt**2 * a_ii**2 * t_n^i**2 +t_n_i * (x_n + dt * s_i))**-0.5
-    (rev) ds_i = 0.5 * t_n^i * dt * dk_i * (0.25 * dt**2 * a_ii**2 * t_n^i**2 +t_n_i * (x_n + dt * s_i))**-0.5
+    (fwd) dk_i = 0.5 * t_n^i * (dx_n + dt * ds_i) * (0.25 * dt**2 * a_ii**2 * t_n^i**2
+                 + t_n_i * (x_n + dt * s_i))**-0.5
+    (rev) dx_n = 0.5 * t_n^i * dk_i * (0.25 * dt**2 * a_ii**2 * t_n^i**2
+                 + t_n_i * (x_n + dt * s_i))**-0.5
+    (rev) ds_i = 0.5 * t_n^i * dt * dk_i * (0.25 * dt**2 * a_ii**2 * t_n^i**2
+                 + t_n_i * (x_n + dt * s_i))**-0.5
 
-    This is a non-autonomous version of the last nonlinear ODE. with that we also have a non-autonomous nonlinear
-    testcase.
+    This is a non-autonomous version of the last nonlinear ODE. with that we also have a
+    non-autonomous nonlinear testcase.
     """
 
     def initialize(self):
@@ -535,11 +549,12 @@ class TestComp7(om.ExplicitComponent):
             "integration_control"
         ].butcher_diagonal_element
         stage_time = self.options["integration_control"].stage_time
-        outputs[
-            "x_stage"
-        ] = 0.5 * delta_t * butcher_diagonal_element * stage_time + np.sqrt(
-            0.25 * delta_t**2 * butcher_diagonal_element**2 * stage_time**2
-            + stage_time * (inputs["x"] + delta_t * inputs["acc_stages"])
+        outputs["x_stage"] = (
+            0.5 * delta_t * butcher_diagonal_element * stage_time
+            + np.sqrt(
+                0.25 * delta_t**2 * butcher_diagonal_element**2 * stage_time**2
+                + stage_time * (inputs["x"] + delta_t * inputs["acc_stages"])
+            )
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
@@ -565,7 +580,7 @@ class TestComp7(om.ExplicitComponent):
             )
 
 
-def Test7Solution(time, initial_value, initial_time):
+def solution_test7(time, initial_value, initial_time):
     """Analytical solution to the ODE of the above component."""
     return (
         np.sqrt(initial_value) + (np.sqrt(time**3) - np.sqrt(initial_time**3)) / 3

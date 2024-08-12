@@ -1,4 +1,5 @@
-"""Base class and default for the object to describe linear combinations to the Runge-Kutta-integrator."""
+"""Base class and default for the object to describe linear combinations to the
+RungeKuttaIntegrator."""
 
 from typing import List, Union
 
@@ -19,7 +20,8 @@ class FunctionalCoefficients:
     def get_coefficient(
         self, time_step: int, quantity: str
     ) -> Union[float, np.ndarray]:
-        """Given a quantity and a time step, returns the fitting coefficient for the linear combination."""
+        """Given a quantity and a time step, returns the fitting coefficient for the
+        linear combination."""
         raise NotImplementedError(
             "Method 'get_coefficient' must be implemented in child class by user."
         )
@@ -27,7 +29,8 @@ class FunctionalCoefficients:
 
 class EmptyFunctionalCoefficients(FunctionalCoefficients):
     """
-    Functional coefficients objects that has an empty quantity list and returns 0 for all times and quantities.
+    Functional coefficients objects that has an empty quantity list and returns 0 for
+    all times and quantities.
     """
 
     def list_quantities(self) -> List[str]:
@@ -61,7 +64,8 @@ class AverageCoefficients(FunctionalCoefficients):
 
 class CompositeTrapezoidalCoefficients(FunctionalCoefficients):
     """
-    Functional coefficients object that computes integrals over the given quantities via the composite trapezoidal rule.
+    Functional coefficients object that computes integrals over the given quantities
+    via the composite trapezoidal rule.
     """
 
     def __init__(

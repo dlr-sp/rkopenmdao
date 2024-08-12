@@ -1,3 +1,5 @@
+"""Tests the inhomogeneity for the heat equation."""
+
 import pytest
 import numpy as np
 
@@ -32,6 +34,7 @@ test_domain = domain.Domain([0.0, 1.0], [0.0, 1.0], 11, 11)
     ],
 )
 def test_inhom_update_pde(test_inhomogeneity, time, pde_inhom):
+    """Tests the updater for the inhomogeneity coming from the PDE."""
     test_inhomogeneity.update_pde_inhomogeneity(time)
     assert np.array_equal(test_inhomogeneity.pde_inhomogeneity, pde_inhom)
 
@@ -91,6 +94,7 @@ def test_inhom_update_pde(test_inhomogeneity, time, pde_inhom):
 def test_inhom_update_boundary(
     test_inhomogeneity, time, upper, lower, left, right, bound_inhom
 ):
+    """Tests the updater for the inhomogeneity coming from the boundary."""
     test_inhomogeneity.update_boundary_inhomogeneity(time, upper, lower, left, right)
     assert np.array_equal(
         bound_inhom,

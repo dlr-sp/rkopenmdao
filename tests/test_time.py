@@ -1,4 +1,5 @@
-"""Tests that the RungeKuttaIntegrator/IntegrationControl has the correct time at the stages/steps."""
+"""Tests that the RungeKuttaIntegrator/IntegrationControl has the correct time at the
+stages/steps."""
 
 import pytest
 import openmdao.api as om
@@ -14,7 +15,8 @@ from rkopenmdao.butcher_tableaux import (
 
 
 class DummyComponent(om.ExplicitComponent):
-    """Component that doesn't compute anything, and only checks for the expected times in IntegrationControl."""
+    """Component that doesn't compute anything, and only checks for the expected times
+    in IntegrationControl."""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)

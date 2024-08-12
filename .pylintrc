@@ -1,6 +1,7 @@
 [MASTER]
-max-args = 7
-disable=C0103, R1705
+max-args = 10
+max-attributes=10
+disable=no-else-return
 
 [BASIC]
 
@@ -9,4 +10,8 @@ good-names=ax, im, x, y, i, j, f, g, t
 
 [FORMAT]
 
-max-line-length=120
+max-line-length=88
+
+[SIMILARITIES]
+
+min-similarity-lines = 10

@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 import numpy as np
 
 
@@ -72,9 +73,8 @@ class Domain:
         return i + self.n_x * j
 
     def index_to_ij(self, index: int) -> np.ndarray:
-        """
-        Computes from an index in the global numbering scheme the indices in x- and y-direction.
-        """
+        """Computes from an index in the global numbering scheme the indices in x- and
+        y-direction."""
         ij_arr = np.zeros(2, dtype=int)
         ij_arr[1] = index // self.n_x
         ij_arr[0] = index - ij_arr[1] * self.n_x

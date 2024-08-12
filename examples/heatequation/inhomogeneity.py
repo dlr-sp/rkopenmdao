@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 from typing import Callable
 import numpy as np
 
@@ -6,7 +7,8 @@ from .boundary import BoundaryCondition
 
 
 class InhomogeneityVector:
-    """Class to present the discretized inhomogeneity of a heat equation (including inhomogeneity from boundary)."""
+    """Class to present the discretized inhomogeneity of a heat equation (including
+    inhomogeneity from boundary)."""
 
     def __init__(
         self,

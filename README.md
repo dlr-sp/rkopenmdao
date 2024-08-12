@@ -1,4 +1,4 @@
-# rkopenmdao: Runge-Kutta methods in OpenMDAO
+# RKOpenMDAO: Runge-Kutta methods in OpenMDAO
 
 Prototype for solving time-dependent problems in [OpenMDAO](https://openmdao.org/) using Runge-Kutta-schemes.
 
@@ -37,10 +37,15 @@ Then use
 
 to install the package.
 
-Note that the file-writing features of rkopenmdao use [h5py](https://docs.h5py.org/en/stable/index.html). 
+Note that the file-writing features of RKOpenMDAO use [h5py](https://docs.h5py.org/en/stable/index.html). 
 Prebuilt versions of it (like via pip) usually don't come with MPI support.
 If you want to use file-writing in conjunction with MPI, you will need to install h5py manually.
-For more information, look at https://docs.h5py.org/en/stable/build.html and https://docs.h5py.org/en/stable/mpi.html.
+When already having a parallel HDF5 install, this can in most cases be done with 
+
+    CC="mpicc" HDF5_MPI="ON" HDF5_DIR=/path/to/parallel-hdf5 pip install --no-binary=h5py h5py
+
+For more information, please have a look at https://docs.h5py.org/en/stable/build.html and https://docs.h5py.org/en/stable/mpi.html.
+
 
 If you want to also install dev-dependencies, use
 

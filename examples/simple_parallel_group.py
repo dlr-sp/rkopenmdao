@@ -1,4 +1,5 @@
-"""Example to show how the RungeKuttaIntegrator works with MPI using parallel groups in the time_stage_problem."""
+"""Example to show how the RungeKuttaIntegrator works with MPI using parallel groups in
+the time_stage_problem."""
 
 import openmdao.api as om
 
@@ -142,11 +143,11 @@ if __name__ == "__main__":
         time_stage_problem=prob,
         integration_control=integration_control,
         butcher_tableau=butcher_tableau,
-        time_integration_quantities=["x", "y"]
-        if prob.comm.size == 1
-        else ["x"]
-        if prob.comm.rank == 0
-        else ["y"],
+        time_integration_quantities=(
+            ["x", "y"]
+            if prob.comm.size == 1
+            else ["x"] if prob.comm.rank == 0 else ["y"]
+        ),
     )
 
     outer_prob.model.add_subsystem(

@@ -1,5 +1,7 @@
-import pytest
+"""Tests for the flux component that bridges two heat equations."""
+
 import itertools
+import pytest
 import numpy as np
 
 import openmdao.api as om
@@ -19,6 +21,7 @@ from ..flux_component import FluxComponent
     ),
 )
 def test_flux_component_computation(delta, vector_1, vector_2, orientation, expected):
+    """Tests the computation of the flux component."""
     assert vector_1.size == vector_2.size
     flux_comp = FluxComponent(delta=delta, shape=vector_1.size, orientation=orientation)
     flux_comp.setup()
@@ -54,6 +57,7 @@ def test_flux_component_computation(delta, vector_1, vector_2, orientation, expe
     itertools.product([1e-1, 2e-2, 5e-1], [11, 21, 51], ["vertical", "horizontal"]),
 )
 def test_flux_component_partials(delta, shape, orientation):
+    """Tests the partials of the flux component."""
     test_prob = om.Problem()
     flux_comp = FluxComponent(delta=delta, shape=shape, orientation=orientation)
     test_prob.model.add_subsystem("flux_comp", flux_comp)
@@ -75,6 +79,8 @@ def test_flux_component_partials(delta, shape, orientation):
     ),
 )
 def test_flux_component_compute_and_jacvec(delta, vector_1, vector_2, orientation):
+    """Tests linearity of flux component by comparing apply_nonlinear and
+    apply_linear."""
     assert vector_1.size == vector_2.size
     flux_comp = FluxComponent(delta=delta, shape=vector_1.size, orientation=orientation)
     flux_comp.setup()

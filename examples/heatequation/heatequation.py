@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 from typing import Union
 from typing import Callable
 import numpy as np
@@ -49,8 +50,8 @@ class HeatEquation:
         self.time = start_time
         self.solver_options = solver_options
 
-        # we use a 1d array instead of a 2d one because it is a diagonal matrix and it can be
-        # emulated via the hadamard product
+        # we use a 1d array instead of a 2d one because it is a diagonal matrix and it
+        # can be emulated via the hadamard product
         self.mass_matrix = np.ones_like(self.initial_vector)
         self.mass_matrix[0 : self.domain.n_x] /= 2
         self.mass_matrix[
@@ -123,7 +124,8 @@ class HeatEquation:
         self,
         delta_t: float,
     ):
-        """Derivative of instationary residual wrt. to accumulated previous stage variables."""
+        """Derivative of instationary residual wrt. to accumulated previous stage
+        variables."""
         return LinearOperator(
             shape=(
                 self.domain.n_x * self.domain.n_y,
@@ -134,7 +136,8 @@ class HeatEquation:
         )
 
     def d_stage_d_boundary_segment(self, delta: float, segment: str):
-        """Derivative of instationary residual wrt. to the requested boundary segment."""
+        """Derivative of instationary residual wrt. to the requested boundary
+        segment."""
 
         def boundary_mat_vec(vector):
             result = np.zeros(self.domain.n_x * self.domain.n_y)
@@ -194,7 +197,7 @@ class HeatEquation:
                 else guessed_stage
             )
 
-            result, iterstatus = gmres(
+            result, _ = gmres(
                 lhs_matrix,
                 rhs,
                 x0=guess,
@@ -234,7 +237,8 @@ class HeatEquation:
         return stage_guess
 
     def guess_d_stage(self, delta_t, butcher_diagonal_element):
-        """Provides a guess what the derivative wrt. the current stage variable based on old information."""
+        """Provides a guess what the derivative wrt. the current stage variable based on
+        old information."""
         return LinearOperator(
             shape=(
                 self.domain.n_x * self.domain.n_y,
@@ -256,18 +260,23 @@ class HeatEquation:
         rhs_slope: np.ndarray,
         guessed_result=None,
     ):
-        """Solves (M+delta_t*a_ii*A) dk_i = dR_k_i (fwd-mode) or (M+delta_t*a_ii*A)^T dR_k_i = dk_i (rev-mode)"""
+        """Solves (M+delta_t*a_ii*A) dk_i = dR_k_i (fwd-mode) or
+        (M+delta_t*a_ii*A)^T dR_k_i = dk_i (rev-mode)"""
         if butcher_diagonal_element != 0:
             matrix = self.d_stage_d_stage(delta_t, butcher_diagonal_element)
             approx_inverse = self.guess_d_stage(delta_t, butcher_diagonal_element)
-            slope_result, iterstatus = gmres(
+            slope_result, _ = gmres(
                 matrix if mode == "fwd" else matrix.transpose(),
                 rhs_slope,
-                x0=approx_inverse.matvec(rhs_slope)
-                if mode == "fwd"
-                else approx_inverse.rmatvec(rhs_slope)
-                if guessed_result is None
-                else guessed_result,
+                x0=(
+                    approx_inverse.matvec(rhs_slope)
+                    if mode == "fwd"
+                    else (
+                        approx_inverse.rmatvec(rhs_slope)
+                        if guessed_result is None
+                        else guessed_result
+                    )
+                ),
                 **self.solver_options,
             )
             return slope_result

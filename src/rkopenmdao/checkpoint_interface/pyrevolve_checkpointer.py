@@ -1,3 +1,4 @@
+# pylint: disable=missing-module-docstring
 from dataclasses import dataclass, field
 import warnings
 
@@ -14,14 +15,15 @@ from .runge_kutta_integrator_pyrevolve_classes import (
 
 @dataclass
 class PyrevolveCheckpointer(CheckpointInterface):
-    """Checkpointer where checkpointing is done via pyRevolve. Most memory efficient version,
-    but doesn't support online checkpointing (i.e. unknown number of time steps), and never will
-    unless it is implemented in PyRevolve."""
+    """Checkpointer where checkpointing is done via pyRevolve. Most memory efficient
+    version, but doesn't support online checkpointing (i.e. unknown number of time
+    steps), and never will unless it is implemented in PyRevolve."""
 
     revolver_type: str = "Memory"
     revolver_options: dict = field(default_factory=dict)
 
     def __post_init__(self):
+        """Sets up all permanent data derived from initialization arguments."""
         self._serialized_old_state_symbol = RungeKuttaIntegratorSymbol(self.array_size)
         self._serialized_new_state_symbol = RungeKuttaIntegratorSymbol(self.array_size)
 
@@ -68,15 +70,18 @@ class PyrevolveCheckpointer(CheckpointInterface):
         self._revolver = None
 
     def create_checkpointer(self):
+        """Creates the actual revolver object used for checkpointing by Pyrevolve."""
         self._revolver = self.revolver_class_type(**self.revolver_options)
 
     def _setup_revolver_class_type(self, revolver_type: str):
+        """Returns fitting class for given revolver type."""
         if revolver_type == "SingleLevel":
             return pr.SingleLevelRevolver
         elif revolver_type == "MultiLevel":
             warnings.warn(
-                """MultiLevelRevolver currently has problems where certain numbers of checkpoints work and others don't 
-                (without an obvious reason why). Use with care."""
+                """MultiLevelRevolver currently has problems where certain numbers of
+                checkpoints work and others don't (without an obvious reason why).
+                Use with care."""
             )
             return pr.MultiLevelRevolver
         elif revolver_type == "Disk":
@@ -87,15 +92,17 @@ class PyrevolveCheckpointer(CheckpointInterface):
             return pr.MemoryRevolver
         else:
             raise TypeError(
-                "Given revolver_type is invalid. Options are 'Memory', 'Disk', 'SingleLevel', 'MultiLevel' and Base. "
-                f"Given was '{revolver_type}'."
+                "Given revolver_type is invalid. Options are 'Memory', 'Disk',"
+                f"'SingleLevel', 'MultiLevel' and Base. Given was '{revolver_type}'."
             )
 
     def iterate_forward(self, initial_state):
+        """Runs forward iteration of internal Pyrevolve-Revolver"""
         self._serialized_new_state_symbol.data = initial_state.copy()
         self._revolver.apply_forward()
 
     def iterate_reverse(self, final_state_perturbation):
+        """Runs reverse iteration of internal Pyrevolve-Revolver"""
         self.revolver_options["rev_operator"].serialized_state_perturbations = (
             final_state_perturbation.copy()
         )

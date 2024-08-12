@@ -9,6 +9,7 @@ from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.butcher_tableaux import implicit_euler, second_order_three_stage_esdirk
 from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
@@ -384,7 +385,8 @@ class ThirdComponent(om.ExplicitComponent):
 
 
 def ode_system_solution(time: float, initial_values: np.ndarray):
-    """Analytical solution to the above ODE system. Expects in order d to a, and returns in the same order"""
+    """Analytical solution to the above ODE system. Expects in order d to a, and returns
+    in the same order"""
     return np.array(
         [
             initial_values[0] * np.exp(time),
@@ -397,6 +399,8 @@ def ode_system_solution(time: float, initial_values: np.ndarray):
 
 
 class CosPostprocComp(om.ExplicitComponent):
+    """To be used in postprocessing. Applies cosine on input quantity."""
+
     def initialize(self):
         self.options.declare("quantity_name", types=str)
 
@@ -429,6 +433,8 @@ class CosPostprocComp(om.ExplicitComponent):
 
 
 class PostprocSumComp(om.ExplicitComponent):
+    """To be used in postprocessing. Sums it's to inputs up."""
+
     def setup(self):
         self.add_input("cos_b")
         self.add_input("cos_c")
@@ -452,17 +458,8 @@ class PostprocSumComp(om.ExplicitComponent):
                 d_inputs["cos_c"] += d_outputs["sum"]
 
 
-@pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
-)
-@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
-def test_parallel_group_time_integration(
-    num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
-):
-    """Tests the time integration for a problem with parallel groups."""
-    delta_t = 0.0001
+def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tableau):
+    """Setup for the stage problem in the following test cases."""
     prob = om.Problem()
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
@@ -505,22 +502,95 @@ def test_parallel_group_time_integration(
     prob.model.connect("Second.Second_2.b_state", "Third.b")
 
     prob.setup()
-    prob.run_model()
 
+    return prob, integration_control
+
+
+def setup_postprocessing_problem():
+    """Setup for the postprocessing problems in the following test cases that use it."""
+    postproc_prob = om.Problem()
+
+    c_group = om.Group()
+    c_group.add_subsystem(
+        "ivc_c",
+        om.IndepVarComp("c"),
+        promotes=["*"],
+    )
+    c_group.add_subsystem("cos_c", CosPostprocComp(quantity_name="c"), promotes=["*"])
+    b_group = om.Group()
+    b_group.add_subsystem(
+        "ivc_b",
+        om.IndepVarComp("b"),
+        promotes=["*"],
+    )
+    b_group.add_subsystem("cos_b", CosPostprocComp(quantity_name="b"), promotes=["*"])
+    par_group = om.ParallelGroup()
+    par_group.add_subsystem("c_group", c_group, promotes=["*"])
+    par_group.add_subsystem("b_group", b_group, promotes=["*"])
+    postproc_prob.model.add_subsystem("par", par_group, promotes=["*"])
+
+    postproc_prob.model.add_subsystem("sum", PostprocSumComp(), promotes=["*"])
+
+    return postproc_prob
+
+
+def setup_time_integration_problem(
+    stage_prob,
+    integration_control,
+    butcher_tableau,
+    test_direction="auto",
+    postproc_problem=None,
+    postprocessing_quantities=None,
+    checkpointing_implementation=NoCheckpointer,
+):
+    """Setup for the time integrator in the following test cases."""
+    if postprocessing_quantities is None:
+        postprocessing_quantities = []
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "rk_integrator",
         RungeKuttaIntegrator(
-            time_stage_problem=prob,
-            time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
+            time_stage_problem=stage_prob,
+            postprocessing_problem=postproc_problem,
+            time_integration_quantities=[
+                "a",
+                "b" if stage_prob.comm.rank == 1 else "c",
+                "d",
+            ],
+            postprocessing_quantities=postprocessing_quantities,
             integration_control=integration_control,
             butcher_tableau=butcher_tableau,
+            checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
     time_integration_prob.model.nonlinear_solver = om.NonlinearBlockJac()
     time_integration_prob.model.linear_solver = om.LinearBlockGS()
-    time_integration_prob.setup()
+    time_integration_prob.setup(mode=test_direction)
+    return time_integration_prob
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1])
+@pytest.mark.parametrize(
+    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
+)
+@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
+def test_parallel_group_time_integration(
+    num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
+):
+    """Tests the time integration for a problem with parallel groups."""
+    delta_t = 0.0001
+    prob, integration_control = setup_stage_problem_and_integration_control(
+        num_steps, delta_t, butcher_tableau
+    )
+    prob.run_model()
+
+    time_integration_prob = setup_time_integration_problem(
+        prob,
+        integration_control,
+        butcher_tableau,
+    )
     time_integration_prob["d_initial"] = initial_values[0]
     if time_integration_prob.comm.rank == 0:
         time_integration_prob["c_initial"] = initial_values[1]
@@ -553,91 +623,23 @@ def test_parallel_group_time_integration(
 def test_parallel_group_time_integration_with_postprocessing(
     num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
 ):
-    """Tests the postprocessing of the time integration for a problem with parallel groups."""
+    """Tests the postprocessing of the time integration for a problem with parallel
+    groups."""
     delta_t = 0.0001
-    prob = om.Problem()
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    prob.model.add_subsystem(
-        "First", FirstComponent(integration_control=integration_control)
+    prob, integration_control = setup_stage_problem_and_integration_control(
+        num_steps, delta_t, butcher_tableau
     )
-    par_group = om.ParallelGroup()
-    group_1 = om.Group()
-    ivc21 = om.IndepVarComp()
-    ivc21.add_output("c_old")
-    ivc21.add_output("c_accumulated_stages")
-    group_1.add_subsystem("ivc21", ivc21, promotes=["*"])
-    group_1.add_subsystem(
-        "comp_21",
-        SecondComponent1(integration_control=integration_control),
-        promotes=["*"],
-    )
-    par_group.add_subsystem("Second_1", group_1)
-
-    group_2 = om.Group()
-    ivc22 = om.IndepVarComp()
-    ivc22.add_output("b_old")
-    ivc22.add_output("b_accumulated_stages")
-    group_1.add_subsystem("ivc22", ivc22, promotes=["*"])
-    group_2.add_subsystem(
-        "comp_22",
-        SecondComponent2(integration_control=integration_control),
-        promotes=["*"],
-    )
-    par_group.add_subsystem("Second_2", group_2)
-    prob.model.add_subsystem("Second", par_group)
-    prob.model.add_subsystem(
-        "Third", ThirdComponent(integration_control=integration_control)
-    )
-    prob.model.connect("First.d_state", "Second.Second_1.d")
-    prob.model.connect("First.d_state", "Second.Second_2.d")
-    prob.model.connect("Second.Second_1.c_state", "Third.c")
-    prob.model.connect("Second.Second_2.b_state", "Third.b")
-
-    prob.setup()
     prob.run_model()
 
-    postproc_prob = om.Problem()
+    postproc_prob = setup_postprocessing_problem()
 
-    c_group = om.Group()
-    c_group.add_subsystem(
-        "ivc_c",
-        om.IndepVarComp("c"),
-        promotes=["*"],
+    time_integration_prob = setup_time_integration_problem(
+        prob,
+        integration_control,
+        butcher_tableau,
+        postproc_problem=postproc_prob,
+        postprocessing_quantities=["sum"],
     )
-    c_group.add_subsystem("cos_c", CosPostprocComp(quantity_name="c"), promotes=["*"])
-    b_group = om.Group()
-    b_group.add_subsystem(
-        "ivc_b",
-        om.IndepVarComp("b"),
-        promotes=["*"],
-    )
-    b_group.add_subsystem("cos_b", CosPostprocComp(quantity_name="b"), promotes=["*"])
-    par_group = om.ParallelGroup()
-    par_group.add_subsystem("c_group", c_group, promotes=["*"])
-    par_group.add_subsystem("b_group", b_group, promotes=["*"])
-    postproc_prob.model.add_subsystem("par", par_group, promotes=["*"])
-
-    postproc_prob.model.add_subsystem("sum", PostprocSumComp(), promotes=["*"])
-
-    time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "rk_integrator",
-        RungeKuttaIntegrator(
-            time_stage_problem=prob,
-            postprocessing_problem=postproc_prob,
-            time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
-            postprocessing_quantities=["sum"],
-            integration_control=integration_control,
-            butcher_tableau=butcher_tableau,
-        ),
-        promotes=["*"],
-    )
-    time_integration_prob.model.nonlinear_solver = om.NonlinearBlockJac()
-    time_integration_prob.model.linear_solver = om.LinearBlockGS()
-    time_integration_prob.setup()
     time_integration_prob["d_initial"] = initial_values[0]
     if time_integration_prob.comm.rank == 0:
         time_integration_prob["c_initial"] = initial_values[1]
@@ -673,71 +675,26 @@ def test_parallel_group_time_integration_totals(
     checkpointing_implementation,
 ):
     """Tests the totals of the time integration for a problem with parallel groups."""
-    prob = om.Problem()
-    integration_control = IntegrationControl(0.0, num_steps, 0.1)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    prob.model.add_subsystem(
-        "First", FirstComponent(integration_control=integration_control)
+    delta_t = 0.1
+    prob, integration_control = setup_stage_problem_and_integration_control(
+        num_steps, delta_t, butcher_tableau
     )
-    par_group = om.ParallelGroup()
-    group_1 = om.Group()
-    ivc21 = om.IndepVarComp()
-    ivc21.add_output("c_old")
-    ivc21.add_output("c_accumulated_stages")
-    group_1.add_subsystem("ivc21", ivc21, promotes=["*"])
-    group_1.add_subsystem(
-        "comp_21",
-        SecondComponent1(integration_control=integration_control),
-        promotes=["*"],
-    )
-    par_group.add_subsystem("Second_1", group_1)
-
-    group_2 = om.Group()
-    ivc22 = om.IndepVarComp()
-    ivc22.add_output("b_old")
-    ivc22.add_output("b_accumulated_stages")
-    group_1.add_subsystem("ivc22", ivc22, promotes=["*"])
-    group_2.add_subsystem(
-        "comp_22",
-        SecondComponent2(integration_control=integration_control),
-        promotes=["*"],
-    )
-    par_group.add_subsystem("Second_2", group_2)
-    prob.model.add_subsystem("Second", par_group)
-    prob.model.add_subsystem(
-        "Third", ThirdComponent(integration_control=integration_control)
-    )
-    prob.model.connect("First.d_state", "Second.Second_1.d")
-    prob.model.connect("First.d_state", "Second.Second_2.d")
-    prob.model.connect("Second.Second_1.c_state", "Third.c")
-    prob.model.connect("Second.Second_2.b_state", "Third.b")
-
-    prob.setup()
     prob.run_model()
     data = prob.check_partials()
     assert_check_partials(data)
 
-    time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "rk_integrator",
-        RungeKuttaIntegrator(
-            time_stage_problem=prob,
-            time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
-            integration_control=integration_control,
-            butcher_tableau=butcher_tableau,
-            checkpointing_type=checkpointing_implementation,
-        ),
-        promotes=["*"],
+    time_integration_prob = setup_time_integration_problem(
+        prob,
+        integration_control,
+        butcher_tableau,
+        test_direction,
+        checkpointing_implementation=checkpointing_implementation,
     )
-    time_integration_prob.model.nonlinear_solver = om.NonlinearBlockJac()
-    time_integration_prob.model.linear_solver = om.LinearBlockGS()
-    time_integration_prob.setup(mode=test_direction)
     time_integration_prob.run_model()
 
-    # we omit b and c here, since they can't be tested one by one (at least not with functionality already provided by
-    # OpenMDAO, and testing them together gives (expectedly) wrong results
+    # we omit b and c here, since they can't be tested one by one (at least not with
+    # functionality already provided by OpenMDAO, and testing them together gives
+    # (expectedly) wrong results
     if prob.comm.rank == 0:
         data = time_integration_prob.check_totals(
             ["a_final", "d_final"],
@@ -774,97 +731,32 @@ def test_parallel_group_time_integration_totals_with_postprocessing(
     test_direction: str,
     checkpointing_implementation,
 ):
-    """Tests the totals of the postprocessing after the time integration for a problem with parallel groups."""
-    prob = om.Problem()
-    integration_control = IntegrationControl(0.0, num_steps, 0.1)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    prob.model.add_subsystem(
-        "First", FirstComponent(integration_control=integration_control)
+    """Tests the totals of the postprocessing after the time integration for a problem
+    with parallel groups."""
+    delta_t = 0.1
+    prob, integration_control = setup_stage_problem_and_integration_control(
+        num_steps, delta_t, butcher_tableau
     )
-    par_group = om.ParallelGroup()
-    group_1 = om.Group()
-    ivc21 = om.IndepVarComp()
-    ivc21.add_output("c_old")
-    ivc21.add_output("c_accumulated_stages")
-    group_1.add_subsystem("ivc21", ivc21, promotes=["*"])
-    group_1.add_subsystem(
-        "comp_21",
-        SecondComponent1(integration_control=integration_control),
-        promotes=["*"],
-    )
-    par_group.add_subsystem("Second_1", group_1)
-
-    group_2 = om.Group()
-    ivc22 = om.IndepVarComp()
-    ivc22.add_output("b_old")
-    ivc22.add_output("b_accumulated_stages")
-    group_1.add_subsystem("ivc22", ivc22, promotes=["*"])
-    group_2.add_subsystem(
-        "comp_22",
-        SecondComponent2(integration_control=integration_control),
-        promotes=["*"],
-    )
-    par_group.add_subsystem("Second_2", group_2)
-    prob.model.add_subsystem("Second", par_group)
-    prob.model.add_subsystem(
-        "Third", ThirdComponent(integration_control=integration_control)
-    )
-    prob.model.connect("First.d_state", "Second.Second_1.d")
-    prob.model.connect("First.d_state", "Second.Second_2.d")
-    prob.model.connect("Second.Second_1.c_state", "Third.c")
-    prob.model.connect("Second.Second_2.b_state", "Third.b")
-
-    prob.setup()
     prob.run_model()
     data = prob.check_partials()
     assert_check_partials(data)
 
-    postproc_prob = om.Problem()
+    postproc_prob = setup_postprocessing_problem()
 
-    c_group = om.Group()
-    c_group.add_subsystem(
-        "ivc_c",
-        om.IndepVarComp("c"),
-        promotes=["*"],
+    time_integration_prob = setup_time_integration_problem(
+        prob,
+        integration_control,
+        butcher_tableau,
+        test_direction,
+        postproc_prob,
+        ["sum"],
+        checkpointing_implementation,
     )
-    c_group.add_subsystem("cos_c", CosPostprocComp(quantity_name="c"), promotes=["*"])
-    b_group = om.Group()
-    b_group.add_subsystem(
-        "ivc_b",
-        om.IndepVarComp("b"),
-        promotes=["*"],
-    )
-    b_group.add_subsystem("cos_b", CosPostprocComp(quantity_name="b"), promotes=["*"])
-    par_group = om.ParallelGroup()
-    par_group.add_subsystem("c_group", c_group, promotes=["*"])
-    par_group.add_subsystem("b_group", b_group, promotes=["*"])
-    postproc_prob.model.add_subsystem("par", par_group, promotes=["*"])
-
-    postproc_prob.model.add_subsystem("sum", PostprocSumComp(), promotes=["*"])
-
-    time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "rk_integrator",
-        RungeKuttaIntegrator(
-            time_stage_problem=prob,
-            postprocessing_problem=postproc_prob,
-            time_integration_quantities=["a", "b" if prob.comm.rank == 1 else "c", "d"],
-            postprocessing_quantities=["sum"],
-            integration_control=integration_control,
-            butcher_tableau=butcher_tableau,
-            checkpointing_type=checkpointing_implementation,
-        ),
-        promotes=["*"],
-    )
-    time_integration_prob.model.nonlinear_solver = om.NonlinearBlockJac()
-    time_integration_prob.model.linear_solver = om.LinearBlockGS()
-    time_integration_prob.setup(mode=test_direction)
     time_integration_prob.run_model()
 
-    # we omit b and c, since they can't be tested one by one (at least not with functionality already provided by
-    # OpenMDAO, and testing them together gives (expectedly) wrong results
+    # we omit b and c, since they can't be tested one by one (at least not with
+    # functionality already provided by OpenMDAO, and testing them together gives
+    # (expectedly) wrong results
     if prob.comm.rank == 0:
         data = time_integration_prob.check_totals(
             ["sum_final"],

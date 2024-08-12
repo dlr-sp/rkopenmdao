@@ -1,9 +1,16 @@
+"""Tests for the stage component of the heat equation."""
+
+# pylint: disable=duplicate-code
+import itertools
 import numpy as np
 import pytest
-import itertools
+
 
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
+
+from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.integration_control import IntegrationControl
 
 from ..heatequation_stage_component import (
     HeatEquationStageComponent,
@@ -11,9 +18,6 @@ from ..heatequation_stage_component import (
 from ..heatequation import HeatEquation
 from ..boundary import BoundaryCondition
 from ..domain import Domain
-
-from rkopenmdao.butcher_tableau import ButcherTableau
-from rkopenmdao.integration_control import IntegrationControl
 
 
 implicit_euler = ButcherTableau(np.array([[0.5]]), np.array([1.0]), np.array([0.5]))
@@ -57,6 +61,7 @@ runge_kutta_four = ButcherTableau(
 def test_heat_equation_stage_component_zero_vector(
     points_per_direction, butcher_tableau: ButcherTableau, delta_t
 ):
+    """Tests that stage component behaves correctly when given zero inputs."""
     domain = Domain([0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction)
 
     boundary_condition = BoundaryCondition(
@@ -116,6 +121,8 @@ def test_heat_equation_stage_component_zero_vector(
 def test_heat_equation_stage_component_zero_vector_with_one_boundary(
     points_per_direction, butcher_tableau: ButcherTableau, delta_t, boundary_segment
 ):
+    """Tests that stage component behaves correctly when given zero inputs with one
+    boundary condition present"""
     domain = Domain([0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction)
 
     if boundary_segment == "upper":
@@ -141,6 +148,10 @@ def test_heat_equation_stage_component_zero_vector_with_one_boundary(
             upper=lambda t, x, y: 0.0,
             left=lambda t, x, y: 0.0,
             lower=lambda t, x, y: 0.0,
+        )
+    else:
+        raise ValueError(
+            "Given boundary_segment not in 'upper', 'lower', 'left' or 'right'"
         )
 
     heat_equation = HeatEquation(
@@ -198,6 +209,8 @@ def test_heat_equation_stage_component_zero_vector_with_one_boundary(
 def test_heat_equation_stage_component_zero_vector_with_all_boundary(
     points_per_direction, butcher_tableau: ButcherTableau, delta_t
 ):
+    """Tests that stage component behaves correctly when given zero inputs with complete
+    boundary conditions present."""
     domain = Domain([0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction)
 
     boundary_condition = BoundaryCondition()
@@ -256,7 +269,8 @@ def test_heat_equation_stage_component_zero_vector_with_all_boundary(
         ) == pytest.approx(np.zeros(points_per_direction**2))
 
 
-# TODO: think about test cases where the solution of run_model given certain inputs is known
+# TODO: think about test cases where the solution of run_model given certain inputs is
+#  known
 
 
 @pytest.mark.heatequ
@@ -272,6 +286,7 @@ def test_heat_equation_stage_component_zero_vector_with_all_boundary(
 def test_heat_equation_stage_component_partials(
     points_per_direction, butcher_tableau: ButcherTableau, delta_t
 ):
+    """Tests partials of the stage component"""
     domain = Domain([0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction)
 
     boundary_condition = BoundaryCondition(
@@ -305,8 +320,9 @@ def test_heat_equation_stage_component_partials(
             stage, stage
         ]
         test_prob.run_model()
-        # The component models a linear system, so we don't need a small step size form finite differences.
-        # This additionally prevents cancellation errors in the fd-computation.
+        # The component models a linear system, so we don't need a small step size form
+        # finite differences. This additionally prevents cancellation errors in the
+        # fd-computation.
         test_data = test_prob.check_partials(step=1e-1)
         assert_check_partials(test_data)
 
@@ -325,6 +341,7 @@ def test_heat_equation_stage_component_partials(
 def test_heat_equation_stage_component_partials_with_one_boundary(
     points_per_direction, butcher_tableau: ButcherTableau, delta_t, boundary_segment
 ):
+    """Tests partials of the stage component with one boundary condition present."""
     domain = Domain([0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction)
 
     if boundary_segment == "upper":
@@ -350,6 +367,10 @@ def test_heat_equation_stage_component_partials_with_one_boundary(
             upper=lambda t, x, y: 0.0,
             left=lambda t, x, y: 0.0,
             lower=lambda t, x, y: 0.0,
+        )
+    else:
+        raise ValueError(
+            "Given boundary_segment not in 'upper', 'lower', 'left' or 'right'"
         )
 
     heat_equation = HeatEquation(
@@ -378,7 +399,8 @@ def test_heat_equation_stage_component_partials_with_one_boundary(
             stage, stage
         ]
         test_prob.run_model()
-        # The component models a linear system, so we don't need a small step size form finite differences.
-        # This additionally prevents cancellation errors in the fd-computation.
+        # The component models a linear system, so we don't need a small step size form
+        # finite differences. This additionally prevents cancellation errors in the
+        # fd-computation.
         test_data = test_prob.check_partials(out_stream=None, step=1e-1)
         assert_check_partials(test_data)

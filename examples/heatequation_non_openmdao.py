@@ -1,20 +1,20 @@
-"""Directly solving the heat equation without openMDAO for comparison."""
+"""Directly solving the heat equation without OpenMDAO for comparison."""
 
 import numpy as np
 
-
-from heatequation import heatequation
-from heatequation.domain import Domain
-from heatequation.boundary import BoundaryCondition
 from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
 
+from .heatequation import heatequation
+from .heatequation.domain import Domain
+from .heatequation.boundary import BoundaryCondition
 
-points_per_direction = 51
-delta_x = 1.0 / (points_per_direction - 1)
+
+POINTS_PER_DIRECTION = 51
+DELTA_X = 1.0 / (POINTS_PER_DIRECTION - 1)
 example_domain = Domain(
-    [0.0, 1.0], [0.0, 1.0], points_per_direction, points_per_direction
+    [0.0, 1.0], [0.0, 1.0], POINTS_PER_DIRECTION, POINTS_PER_DIRECTION
 )
 example_boundary = BoundaryCondition(
     upper=lambda t, x, y: 0.0,
@@ -25,6 +25,7 @@ example_boundary = BoundaryCondition(
 
 
 def g(x: float):
+    # pylint: disable=missing-function-docstring
     return np.cos(2 * np.pi * x)
 
 

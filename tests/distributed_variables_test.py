@@ -1,4 +1,5 @@
-"""Test to make sure that rkopenmdao works with problems containing distributed variables."""
+"""Test to make sure that rkopenmdao works with problems containing distributed
+variables."""
 
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_totals
@@ -8,6 +9,7 @@ import pytest
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.butcher_tableaux import implicit_euler, second_order_two_stage_sdirk
+from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
@@ -102,7 +104,8 @@ def ode_1_analytical_solution(time, initial_values):
 #   x_3' = x_2
 #   x_4' = x_3
 class Test2Component1(om.ImplicitComponent):
-    """Models the first two equations from above, with the first being on rank 0 and the second on rank 1"""
+    """Models the first two equations from above, with the first being on rank 0 and the
+    second on rank 1"""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -183,7 +186,8 @@ class Test2Component1(om.ImplicitComponent):
 
 
 class Test2Component2(om.ImplicitComponent):
-    """Models the last two equations from above, with the first being on rank 1 and the second on rank 0"""
+    """Models the last two equations from above, with the first being on rank 1 and the
+    second on rank 0"""
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
@@ -281,7 +285,6 @@ def ode_2_analytical_solution(time, initial_values):
 
 
 class AccumulatingComponent(om.ExplicitComponent):
-    # TODO: see if this still works with openMDAO 3.25
     """A component that accumulates its inputs. To be used as postprocessing."""
 
     def setup(self):
@@ -296,13 +299,7 @@ class AccumulatingComponent(om.ExplicitComponent):
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         send_data = np.zeros(1)
         send_data[0] = inputs["x12"] + inputs["x43"]
-        recv_data = np.zeros(1)
-        if self.comm.rank == 0:
-            self.comm.Send(send_data, dest=1, tag=0)
-            self.comm.Recv(recv_data, source=1, tag=1)
-        else:
-            self.comm.Recv(recv_data, source=0, tag=0)
-            self.comm.Send(send_data, dest=0, tag=1)
+        recv_data = self._exchange_data(send_data)
         outputs["x_sum"] = recv_data[0] + inputs["x12"] + inputs["x43"]
 
     def compute_jacvec_product(
@@ -314,13 +311,7 @@ class AccumulatingComponent(om.ExplicitComponent):
                 send_data[0] += d_inputs["x12"]
             if "x43" in d_inputs:
                 send_data[0] += d_inputs["x43"]
-            recv_data = np.zeros(1)
-            if self.comm.rank == 0:
-                self.comm.Send(send_data, dest=1, tag=0)
-                self.comm.Recv(recv_data, source=1, tag=1)
-            else:
-                self.comm.Recv(recv_data, source=0, tag=0)
-                self.comm.Send(send_data, dest=0, tag=1)
+            recv_data = self._exchange_data(send_data)
             d_outputs["x_sum"] += recv_data[0]
             if "x12" in d_inputs:
                 d_outputs["x_sum"] += d_inputs["x12"]
@@ -328,32 +319,69 @@ class AccumulatingComponent(om.ExplicitComponent):
                 d_outputs["x_sum"] += d_inputs["x43"]
 
         elif mode == "rev":
-            # send_data = np.zeros(1)
-            # send_data = d_outputs["x_sum"]
-            # recv_data = np.zeros(1)
-            # if self.comm.rank == 0:
-            #     self.comm.Send(send_data, dest=1, tag=0)
-            #     self.comm.Recv(recv_data, source=1, tag=1)
-            # else:
-            #     self.comm.Recv(recv_data, source=0, tag=0)
-            #     self.comm.Send(send_data, dest=0, tag=1)
             if "x12" in d_inputs:
                 d_inputs["x12"] += d_outputs["x_sum"]
             if "x43" in d_inputs:
                 d_inputs["x43"] += d_outputs["x_sum"]
 
+    def _exchange_data(self, send_data):
+        recv_data = np.zeros(1)
+        if self.comm.rank == 0:
+            self.comm.Send(send_data, dest=1, tag=0)
+            self.comm.Recv(recv_data, source=1, tag=1)
+        else:
+            self.comm.Recv(recv_data, source=0, tag=0)
+            self.comm.Send(send_data, dest=0, tag=1)
+        return recv_data
 
-@pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1, 10])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
-)
-@pytest.mark.parametrize("initial_values", [[1, 1], [0, 0]])
-def test_parallel_single_distributed_time_integration(
-    num_steps, butcher_tableau, initial_values
+
+def setup_time_integration_problem(
+    stage_prob,
+    butcher_tableau,
+    integration_control,
+    time_integration_quantities,
+    initial_values=None,
+    setup_mode="auto",
+    postprocessing_problem=None,
+    postprocessing_quantities=None,
+    checkpointing_implementation=NoCheckpointer,
 ):
-    """Tests time integration with distributed variables for a single component."""
-    delta_t = 0.0001
+    """Sets up the time integration problem for the following test."""
+    if postprocessing_quantities is None:
+        postprocessing_quantities = []
+    rk_integrator = RungeKuttaIntegrator(
+        time_stage_problem=stage_prob,
+        postprocessing_problem=postprocessing_problem,
+        butcher_tableau=butcher_tableau,
+        integration_control=integration_control,
+        time_integration_quantities=time_integration_quantities,
+        postprocessing_quantities=postprocessing_quantities,
+        checkpointing_type=checkpointing_implementation,
+    )
+
+    time_test_prob = om.Problem()
+    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
+    time_ivc = om.IndepVarComp()
+    for var in time_integration_quantities:
+        time_ivc.add_output(f"{var}_initial", shape=1, distributed=True)
+    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
+    # these solvers are only necessary so that check_partials actually produces results
+    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
+    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
+    time_test_prob.setup(setup_mode)
+    if initial_values is not None:
+        for var in time_integration_quantities:
+            time_test_prob[f"{var}_initial"][:] = initial_values[var][
+                time_test_prob.comm.rank
+            ]
+
+    return time_test_prob
+
+
+def setup_parallel_single_distributed_problem_and_integration_control(
+    delta_t, num_steps, butcher_tableau, setup_mode="auto"
+):
+    """Sets up the stage problem for the single component test cases."""
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
@@ -372,30 +400,37 @@ def test_parallel_single_distributed_time_integration(
         iprint=-1, solve_subsystems=False
     )
     test_prob.model.linear_solver = om.PETScKrylov(iprint=-1, atol=1e-12, rtol=1e-12)
-    test_prob.setup()
+    test_prob.setup(setup_mode)
+    return test_prob, integration_control
 
-    test_prob.run_model()
 
-    rk_integrator = RungeKuttaIntegrator(
-        time_stage_problem=test_prob,
-        butcher_tableau=butcher_tableau,
-        integration_control=integration_control,
-        time_integration_quantities=["x"],
+@pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1, 10])
+@pytest.mark.parametrize(
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+)
+@pytest.mark.parametrize("initial_values", [{"x": [1, 1]}, {"x": [0, 0]}])
+def test_parallel_single_distributed_time_integration(
+    num_steps, butcher_tableau, initial_values
+):
+    """Tests time integration with distributed variables for a single component."""
+    delta_t = 0.0001
+    test_prob, integration_control = (
+        setup_parallel_single_distributed_problem_and_integration_control(
+            0.0001, num_steps, butcher_tableau
+        )
     )
 
-    time_test_prob = om.Problem()
-    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
-    time_ivc = om.IndepVarComp()
-    time_ivc.add_output("x_initial", shape=1, distributed=True)
-    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
-    # these solvers are only necessary so that check_partials actually produces results
-    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
-    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
-    time_test_prob.setup()
-    time_test_prob["x_initial"][:] = initial_values[time_test_prob.comm.rank]
+    test_prob.run_model()
+    time_test_prob = setup_time_integration_problem(
+        test_prob, butcher_tableau, integration_control, ["x"], initial_values
+    )
+
     time_test_prob.run_model()
 
-    analytical_solution = ode_1_analytical_solution(num_steps * delta_t, initial_values)
+    analytical_solution = ode_1_analytical_solution(
+        num_steps * delta_t, initial_values["x"]
+    )
 
     assert time_test_prob.get_val("x_final", get_remote=False) == pytest.approx(
         analytical_solution[time_test_prob.comm.rank]
@@ -414,26 +449,14 @@ def test_parallel_single_distributed_time_integration(
 def test_parallel_single_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
 ):
-    """Tests totals of time integration with distributed variables for a single component."""
-    integration_control = IntegrationControl(0.0, num_steps, 0.1)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    test_comp = Test1Component1(integration_control=integration_control)
-
-    test_prob = om.Problem()
-    test_prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
-
-    ivc = om.IndepVarComp()
-    ivc.add_output("x_old", shape=1, distributed=True)
-    ivc.add_output("s_i", shape=1, distributed=True)
-
-    test_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
-    test_prob.model.nonlinear_solver = om.NewtonSolver(
-        iprint=-1, solve_subsystems=False
+    """Tests totals of time integration with distributed variables for a single
+    component."""
+    delta_t = 0.1
+    test_prob, integration_control = (
+        setup_parallel_single_distributed_problem_and_integration_control(
+            delta_t, num_steps, butcher_tableau, test_direction
+        )
     )
-    test_prob.model.linear_solver = om.PETScKrylov(iprint=-1, atol=1e-12, rtol=1e-12)
-    test_prob.setup(mode=test_direction)
 
     test_prob.run_model()
 
@@ -451,23 +474,14 @@ def test_parallel_single_distributed_totals(
         )
     assert_check_totals(data, atol=1e-4, rtol=1e-4)
 
-    rk_integrator = RungeKuttaIntegrator(
-        time_stage_problem=test_prob,
-        butcher_tableau=butcher_tableau,
-        integration_control=integration_control,
-        time_integration_quantities=["x"],
-        checkpointing_type=checkpointing_implementation,
+    time_test_prob = setup_time_integration_problem(
+        test_prob,
+        butcher_tableau,
+        integration_control,
+        ["x"],
+        setup_mode=test_direction,
+        checkpointing_implementation=checkpointing_implementation,
     )
-
-    time_test_prob = om.Problem()
-    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
-    time_ivc = om.IndepVarComp()
-    time_ivc.add_output("x_initial", shape=1, distributed=True)
-    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
-    # these solvers are only necessary so that check_partials actually produces results
-    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
-    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
-    time_test_prob.setup(mode=test_direction)
     time_test_prob.run_model()
 
     if test_prob.comm.rank > 0:
@@ -485,17 +499,10 @@ def test_parallel_single_distributed_totals(
     assert_check_totals(data, atol=1e-4, rtol=1e-4)
 
 
-@pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1, 10])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
-)
-@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
-def test_parallel_two_distributed_time_integration(
-    num_steps, butcher_tableau, initial_values
+def setup_parallel_two_distributed_problem_and_integration_control(
+    delta_t, num_steps, butcher_tableau, setup_mode="auto"
 ):
-    """Tests time integration with distributed variables for a problem with two components."""
-    delta_t = 0.0001
+    """Sets up the stage problem for the two component test cases."""
     integration_control = IntegrationControl(0.0, num_steps, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
@@ -517,29 +524,42 @@ def test_parallel_two_distributed_time_integration(
         solve_subsystems=False, iprint=-1
     )
     test_prob.model.linear_solver = om.PETScKrylov(atol=1e-12, rtol=1e-12, iprint=-1)
+    test_prob.setup(mode=setup_mode)
+    return test_prob, integration_control
 
-    rk_integrator = RungeKuttaIntegrator(
-        time_stage_problem=test_prob,
-        butcher_tableau=butcher_tableau,
-        integration_control=integration_control,
-        time_integration_quantities=["x12", "x43"],
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("num_steps", [1, 10])
+@pytest.mark.parametrize(
+    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+)
+@pytest.mark.parametrize(
+    "initial_values", [{"x12": [1, 1], "x43": [1, 1]}, {"x12": [0, 0], "x43": [0, 0]}]
+)
+def test_parallel_two_distributed_time_integration(
+    num_steps, butcher_tableau, initial_values
+):
+    """Tests time integration with distributed variables for a problem with two
+    components."""
+    delta_t = 0.0001
+    test_prob, integration_control = (
+        setup_parallel_two_distributed_problem_and_integration_control(
+            delta_t, num_steps, butcher_tableau
+        )
     )
 
-    time_test_prob = om.Problem()
-    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
-    time_ivc = om.IndepVarComp()
-    time_ivc.add_output("x12_initial", shape=1, distributed=True)
-    time_ivc.add_output("x43_initial", shape=1, distributed=True)
-    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
-    # these solvers are only necessary so that check_partials actually produces results
-    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
-    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
-    time_test_prob.setup()
-    time_test_prob["x12_initial"][:] = initial_values[time_test_prob.comm.rank]
-    time_test_prob["x43_initial"][:] = initial_values[3 - time_test_prob.comm.rank]
+    time_test_prob = setup_time_integration_problem(
+        test_prob,
+        butcher_tableau,
+        integration_control,
+        ["x12", "x43"],
+        initial_values,
+    )
     time_test_prob.run_model()
 
-    analytical_solution = ode_2_analytical_solution(num_steps * delta_t, initial_values)
+    analytical_solution = ode_2_analytical_solution(
+        num_steps * delta_t, initial_values["x12"] + initial_values["x43"]
+    )
 
     numerical_solution = np.array(
         [
@@ -559,33 +579,19 @@ def test_parallel_two_distributed_time_integration(
 @pytest.mark.parametrize(
     "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
 )
-@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
+@pytest.mark.parametrize(
+    "initial_values", [{"x12": [1, 1], "x43": [1, 1]}, {"x12": [0, 0], "x43": [0, 0]}]
+)
 def test_parallel_two_distributed_time_integration_with_postprocessing(
     num_steps, butcher_tableau, initial_values
 ):
     """Tests postprocessing after time integration with distributed variables."""
     delta_t = 0.0001
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    test_comp1 = Test2Component1(integration_control=integration_control)
-    test_comp2 = Test2Component2(integration_control=integration_control)
-    test_prob = om.Problem()
-    test_prob.model.add_subsystem("test_comp1", test_comp1, promotes=["*"])
-    test_prob.model.add_subsystem("test_comp2", test_comp2, promotes=["*"])
-
-    ivc = om.IndepVarComp()
-    ivc.add_output("x12_old", shape=1, distributed=True)
-    ivc.add_output("s12_i", shape=1, distributed=True)
-    ivc.add_output("x43_old", shape=1, distributed=True)
-    ivc.add_output("s43_i", shape=1, distributed=True)
-
-    test_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
-    test_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=False, iprint=-1
+    test_prob, integration_control = (
+        setup_parallel_two_distributed_problem_and_integration_control(
+            delta_t, num_steps, butcher_tableau
+        )
     )
-    test_prob.model.linear_solver = om.PETScKrylov(atol=1e-12, rtol=1e-12, iprint=-1)
 
     postproc_prob = om.Problem()
     postproc_prob.model.add_subsystem(
@@ -596,30 +602,20 @@ def test_parallel_two_distributed_time_integration_with_postprocessing(
     ivc.add_output("x43", shape=1, distributed=True)
     postproc_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
 
-    rk_integrator = RungeKuttaIntegrator(
-        time_stage_problem=test_prob,
+    time_test_prob = setup_time_integration_problem(
+        test_prob,
+        butcher_tableau,
+        integration_control,
+        ["x12", "x43"],
+        initial_values,
         postprocessing_problem=postproc_prob,
-        butcher_tableau=butcher_tableau,
-        integration_control=integration_control,
-        time_integration_quantities=["x12", "x43"],
         postprocessing_quantities=["x_sum"],
     )
-
-    time_test_prob = om.Problem()
-    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
-    time_ivc = om.IndepVarComp()
-    time_ivc.add_output("x12_initial", shape=1, distributed=True)
-    time_ivc.add_output("x43_initial", shape=1, distributed=True)
-    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
-    # these solvers are only necessary so that check_partials actually produces results
-    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
-    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
-    time_test_prob.setup()
-    time_test_prob["x12_initial"][:] = initial_values[time_test_prob.comm.rank]
-    time_test_prob["x43_initial"][:] = initial_values[3 - time_test_prob.comm.rank]
     time_test_prob.run_model()
 
-    analytical_solution = ode_2_analytical_solution(num_steps * delta_t, initial_values)
+    analytical_solution = ode_2_analytical_solution(
+        num_steps * delta_t, initial_values["x12"] + initial_values["x43"]
+    )
 
     postproc_solution = np.sum(analytical_solution)
     time_test_prob.model.list_outputs()
@@ -638,29 +634,14 @@ def test_parallel_two_distributed_time_integration_with_postprocessing(
 def test_parallel_two_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
 ):
-    """Tests totals of time integration with distributed variables for a problem with two components."""
-    integration_control = IntegrationControl(0.0, num_steps, 0.1)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    test_comp1 = Test2Component1(integration_control=integration_control)
-    test_comp2 = Test2Component2(integration_control=integration_control)
-    test_prob = om.Problem()
-    test_prob.model.add_subsystem("test_comp1", test_comp1, promotes=["*"])
-    test_prob.model.add_subsystem("test_comp2", test_comp2, promotes=["*"])
-
-    ivc = om.IndepVarComp()
-    ivc.add_output("x12_old", shape=1, distributed=True)
-    ivc.add_output("s12_i", shape=1, distributed=True)
-    ivc.add_output("x43_old", shape=1, distributed=True)
-    ivc.add_output("s43_i", shape=1, distributed=True)
-
-    test_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
-    test_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=False, iprint=-1
+    """Tests totals of time integration with distributed variables for a problem with
+    two components."""
+    delta_t = 0.1
+    test_prob, integration_control = (
+        setup_parallel_two_distributed_problem_and_integration_control(
+            delta_t, num_steps, butcher_tableau, test_direction
+        )
     )
-    test_prob.model.linear_solver = om.PETScKrylov(atol=1e-12, rtol=1e-12, iprint=-1)
-    test_prob.setup(mode=test_direction)
 
     test_prob.run_model()
 
@@ -681,24 +662,14 @@ def test_parallel_two_distributed_totals(
         )
     assert_check_totals(data, atol=1e-4, rtol=1e-4)
 
-    rk_integrator = RungeKuttaIntegrator(
-        time_stage_problem=test_prob,
-        butcher_tableau=butcher_tableau,
-        integration_control=integration_control,
-        time_integration_quantities=["x12", "x43"],
-        checkpointing_type=checkpointing_implementation,
+    time_test_prob = setup_time_integration_problem(
+        test_prob,
+        butcher_tableau,
+        integration_control,
+        ["x12", "x43"],
+        setup_mode=test_direction,
+        checkpointing_implementation=checkpointing_implementation,
     )
-
-    time_test_prob = om.Problem()
-    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
-    time_ivc = om.IndepVarComp()
-    time_ivc.add_output("x12_initial", shape=1, distributed=True)
-    time_ivc.add_output("x43_initial", shape=1, distributed=True)
-    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
-    # these solvers are only necessary so that check_partials actually produces results
-    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
-    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
-    time_test_prob.setup(mode=test_direction)
     time_test_prob.run_model()
     if test_prob.comm.rank > 0:
         data = time_test_prob.check_totals(
@@ -730,29 +701,14 @@ def test_parallel_two_distributed_totals(
 def test_parallel_two_distributed_totals_with_postprocessing(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
 ):
-    """Tests totals of postprocessing after time integration with distributed variables."""
+    """Tests totals of postprocessing after time integration with distributed
+    variables."""
     delta_t = 0.1
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    test_comp1 = Test2Component1(integration_control=integration_control)
-    test_comp2 = Test2Component2(integration_control=integration_control)
-    test_prob = om.Problem()
-    test_prob.model.add_subsystem("test_comp1", test_comp1, promotes=["*"])
-    test_prob.model.add_subsystem("test_comp2", test_comp2, promotes=["*"])
-
-    ivc = om.IndepVarComp()
-    ivc.add_output("x12_old", shape=1, distributed=True)
-    ivc.add_output("s12_i", shape=1, distributed=True)
-    ivc.add_output("x43_old", shape=1, distributed=True)
-    ivc.add_output("s43_i", shape=1, distributed=True)
-
-    test_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
-    test_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=False, iprint=-1
+    test_prob, integration_control = (
+        setup_parallel_two_distributed_problem_and_integration_control(
+            delta_t, num_steps, butcher_tableau, test_direction
+        )
     )
-    test_prob.model.linear_solver = om.PETScKrylov(atol=1e-12, rtol=1e-12, iprint=-1)
 
     postproc_prob = om.Problem()
     postproc_prob.model.add_subsystem(
@@ -764,26 +720,17 @@ def test_parallel_two_distributed_totals_with_postprocessing(
     postproc_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
     postproc_prob.model.nonlinear_solver = om.NonlinearBlockJac()
     postproc_prob.model.linear_solver = om.LinearBlockJac()
-    rk_integrator = RungeKuttaIntegrator(
-        time_stage_problem=test_prob,
+    time_test_prob = setup_time_integration_problem(
+        test_prob,
+        butcher_tableau,
+        integration_control,
+        ["x12", "x43"],
+        setup_mode=test_direction,
         postprocessing_problem=postproc_prob,
-        butcher_tableau=butcher_tableau,
-        integration_control=integration_control,
-        time_integration_quantities=["x12", "x43"],
         postprocessing_quantities=["x_sum"],
-        checkpointing_type=checkpointing_implementation,
+        checkpointing_implementation=checkpointing_implementation,
     )
 
-    time_test_prob = om.Problem()
-    time_test_prob.model.add_subsystem("rk_integrator", rk_integrator, promotes=["*"])
-    time_ivc = om.IndepVarComp()
-    time_ivc.add_output("x12_initial", shape=1, distributed=True)
-    time_ivc.add_output("x43_initial", shape=1, distributed=True)
-    time_test_prob.model.add_subsystem("time_ivc", time_ivc, promotes=["*"])
-    # these solvers are only necessary so that check_partials actually produces results
-    time_test_prob.model.nonlinear_solver = om.NonlinearBlockJac(iprint=-1)
-    time_test_prob.model.linear_solver = om.LinearBlockJac(iprint=-1)
-    time_test_prob.setup(mode=test_direction)
     time_test_prob.run_model()
 
     if test_prob.comm.rank > 0:

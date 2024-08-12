@@ -1,3 +1,5 @@
+"""Computation and plotting of error given fitting HDF5 files."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,68 +15,68 @@ errors_half_2_analytic = np.zeros(101)
 errors_rel_half_1_analytic = np.zeros(101)
 errors_rel_half_2_analytic = np.zeros(101)
 
-checkpoint_distance = 100
-points_per_direction = 51
-half_points = points_per_direction // 2
+CHECKPOINT_DISTANCE = 100
+POINTS_PER_DIRECTION = 51
+HALF_POINTS = POINTS_PER_DIRECTION // 2
 
 with h5py.File("monolithic.h5", mode="r") as f_1, h5py.File(
     "inner_problem_stage.h5", mode="r"
 ) as f_2, h5py.File("analytic.h5", mode="r") as f_3:
     for i in range(0, 101):
-        heat_monolith = np.array(f_1["heat/" + str(checkpoint_distance * i)])
+        heat_monolith = np.array(f_1["heat/" + str(CHECKPOINT_DISTANCE * i)])
         heat_monolith = heat_monolith.reshape(
-            points_per_direction, points_per_direction
+            POINTS_PER_DIRECTION, POINTS_PER_DIRECTION
         )
-        heat_nested_1 = np.array(f_2["heat_1/" + str(checkpoint_distance * i)])
-        heat_nested_2 = np.array(f_2["heat_2/" + str(checkpoint_distance * i)])
-        heat_analytic = np.array(f_3["heat/" + str(checkpoint_distance * i)])
+        heat_nested_1 = np.array(f_2["heat_1/" + str(CHECKPOINT_DISTANCE * i)])
+        heat_nested_2 = np.array(f_2["heat_2/" + str(CHECKPOINT_DISTANCE * i)])
+        heat_analytic = np.array(f_3["heat/" + str(CHECKPOINT_DISTANCE * i)])
         heat_analytic = heat_analytic.reshape(
-            points_per_direction, points_per_direction
+            POINTS_PER_DIRECTION, POINTS_PER_DIRECTION
         )
         errors_half_1[i] = np.linalg.norm(
-            heat_monolith[:, : half_points + 1].reshape(
-                (half_points + 1) * points_per_direction
+            heat_monolith[:, : HALF_POINTS + 1].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
             - heat_nested_1
         )
         errors_half_2[i] = np.linalg.norm(
-            heat_monolith[:, half_points:].reshape(
-                (half_points + 1) * points_per_direction
+            heat_monolith[:, HALF_POINTS:].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
             - heat_nested_2
         )
         errors_rel_half_1[i] = errors_half_1[i] / np.linalg.norm(
-            heat_monolith[:, : half_points + 1].reshape(
-                (half_points + 1) * points_per_direction
+            heat_monolith[:, : HALF_POINTS + 1].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
         )
         errors_rel_half_2[i] = errors_half_2[i] / np.linalg.norm(
-            heat_monolith[:, half_points:].reshape(
-                (half_points + 1) * points_per_direction
+            heat_monolith[:, HALF_POINTS:].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
         )
 
         errors_half_1_analytic[i] = np.linalg.norm(
-            heat_analytic[:, : half_points + 1].reshape(
-                (half_points + 1) * points_per_direction
+            heat_analytic[:, : HALF_POINTS + 1].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
             - heat_nested_1
         )
         errors_half_2_analytic[i] = np.linalg.norm(
-            heat_analytic[:, half_points:].reshape(
-                (half_points + 1) * points_per_direction
+            heat_analytic[:, HALF_POINTS:].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
             - heat_nested_2
         )
 
         errors_rel_half_1_analytic[i] = errors_half_1_analytic[i] / np.linalg.norm(
-            heat_analytic[:, : half_points + 1].reshape(
-                (half_points + 1) * points_per_direction
+            heat_analytic[:, : HALF_POINTS + 1].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
         )
         errors_rel_half_2_analytic[i] = errors_half_2_analytic[i] / np.linalg.norm(
-            heat_analytic[:, half_points:].reshape(
-                (half_points + 1) * points_per_direction
+            heat_analytic[:, HALF_POINTS:].reshape(
+                (HALF_POINTS + 1) * POINTS_PER_DIRECTION
             )
         )
     times = np.linspace(0.0, 0.1, 101)
@@ -83,7 +85,8 @@ with h5py.File("monolithic.h5", mode="r") as f_1, h5py.File(
     fig.subplots_adjust()
     fig.set_size_inches(16, 12)
     fig.suptitle(
-        r"Newton solver, solve_subsystems=True, $\Delta t = 10^{-5}$, $\Delta x = \Delta y = 0.02$",
+        r"Newton solver, solve_subsystems=True, "
+        r"$\Delta t = 10^{-5}$, $\Delta x = \Delta y = 0.02$",
         fontsize="xx-large",
     )
 
@@ -93,7 +96,8 @@ with h5py.File("monolithic.h5", mode="r") as f_1, h5py.File(
     )
 
     axs[0, 1].set_title(
-        r"Abs. error to monolithic numerical solution: $||\~{u}_{monol.} - \~{u}_{nested}||_2$",
+        r"Abs. error to monolithic numerical solution:"
+        r" $||\~{u}_{monol.} - \~{u}_{nested}||_2$",
         fontsize="x-large",
     )
     (handle_1,) = axs[0, 0].plot(times, errors_half_1_analytic, "go", label="left side")
@@ -110,7 +114,8 @@ with h5py.File("monolithic.h5", mode="r") as f_1, h5py.File(
     )
 
     axs[1, 1].set_title(
-        r"Rel. error to monolithic numerical solution: $||\~{u}_{monol.} - \~{u}_{nested}||_2/||\~{u}_{monol.}||_2$ ",
+        r"Rel. error to monolithic numerical solution:"
+        r" $||\~{u}_{monol.} - \~{u}_{nested}||_2/||\~{u}_{monol.}||_2$ ",
         fontsize="x-large",
     )
 
