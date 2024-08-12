@@ -1,4 +1,4 @@
-"""Computation and plotting of error given fitting hdf5-files."""
+"""Computation and plotting of error given fitting HDF5 files."""
 
 import numpy as np
 import matplotlib.pyplot as plt

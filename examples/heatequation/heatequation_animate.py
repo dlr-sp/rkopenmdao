@@ -1,4 +1,4 @@
-"""Basic animation script using a solution hdf5-files for the heatequation"""
+"""Basic animation script using a solution HDF5 files for the heat equation"""
 
 # pylint: disable=no-member
 # avoids error that 'coolwarm' member of 'matplotlib.cm' is not found
