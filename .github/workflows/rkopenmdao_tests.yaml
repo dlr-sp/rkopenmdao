@@ -28,10 +28,9 @@ jobs:
         cache-dependency-path: setup.py
     - name: Install dependencies
       run: |
-        pip install pip==22.3.1  # required to install for petsc4py before v3.21.1
         pip install cython  # required to build petsc4py
-        pip install petsc==3.21.0
-        pip install petsc4py==3.21.0
+        pip install petsc
+        pip install petsc4py
         pip install ".[dev]"
     - name: Lint with pylint
       continue-on-error: true
