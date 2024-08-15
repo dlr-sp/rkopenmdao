@@ -16,7 +16,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Install OS Packages:
+    - name: Install OS Packages
       uses: awalsh128/cache-apt-pkgs-action@latest
       with:
         packages: openmpi-bin libopenmpi-dev libhdf5-openmpi-dev
