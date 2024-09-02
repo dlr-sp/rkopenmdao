@@ -5,7 +5,7 @@ from typing import Callable, Tuple
 import numpy as np
 
 
-from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.butcher_tableau import ButcherTableau, EmbeddedButcherTableau
 
 
 class RungeKuttaScheme:
@@ -165,8 +165,8 @@ class RungeKuttaScheme:
             self.butcher_tableau.butcher_weight_vector[stage] * new_state_perturbation
         )
         joined_perturbation += np.tensordot(
-            self.butcher_tableau.butcher_matrix[stage + 1 :, stage],
-            accumulated_stages_perturbation_field[stage + 1 :, :],
+            self.butcher_tableau.butcher_matrix[stage + 1:, stage],
+            accumulated_stages_perturbation_field[stage + 1:, :],
             axes=((0,), (0,)),
         )
         return joined_perturbation
@@ -179,3 +179,53 @@ class RungeKuttaScheme:
     ) -> np.ndarray:
         """Currently not needed, keeping for later if necessary."""
         return new_state_perturbation + delta_t * stage_perturbation_field.sum(axis=0)
+
+
+class EmbeddedRungeKuttaScheme(RungeKuttaScheme):
+    """Implements functions used to apply an embedded Runge-Kutta method a function represented by
+    a functor. The current main use is with an OpenMDAO problem wrapped to such a
+    functor."""
+
+    def __init__(
+        self,
+        butcher_tableau: EmbeddedButcherTableau,
+        stage_computation_functor: Callable[
+            [np.ndarray, np.ndarray, float, float, float], np.ndarray
+        ],
+        # old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element
+        # -> stage_state
+        stage_computation_functor_jacvec: Callable[
+            [np.ndarray, np.ndarray, float, float, float], np.ndarray
+        ],
+        # old_state_perturbation, accumulated_stages_perturbation, stage_time, delta_t,
+        # butcher_diagonal_element
+        # -> stage_perturbation
+        stage_computation_functor_transposed_jacvec: Callable[
+            [np.ndarray, float, float, float], Tuple[np.ndarray, np.ndarray]
+        ],
+        # stage_perturbation, stage_time, delta_t, butcher_diagonal_element
+        # -> old_state_perturbation, accumulated_stages_perturbation
+    ):
+
+        if not butcher_tableau.is_embedded:
+            raise ValueError("Butcher tableau is not embedded, please use EmbeddedButcherTableau class")
+
+        super().__init__(butcher_tableau,
+                         stage_computation_functor,
+                         stage_computation_functor_jacvec,
+                         stage_computation_functor_transposed_jacvec)
+
+    def compute_step(self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray, with_embedded=False):
+        new_state = super().compute_step(delta_t, old_state, stage_field)
+        if with_embedded:
+            new_state_embedded = old_state.copy()
+            new_state_embedded += np.tensordot(
+                stage_field,
+                delta_t * self.butcher_tableau.butcher_adaptive_weights,
+                ((0,), (0,)),
+            )
+            return new_state, new_state_embedded
+        return new_state
+
+    def adaptive_ts(self,delta_t,old_state,stage_field, atol=1e-3, rtol=1e-3, sf=0.95):
+        pass

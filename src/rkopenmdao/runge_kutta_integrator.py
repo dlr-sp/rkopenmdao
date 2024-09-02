@@ -10,7 +10,7 @@ from openmdao.vectors.vector import Vector as OMVector
 from .butcher_tableau import ButcherTableau
 from .functional_coefficients import FunctionalCoefficients, EmptyFunctionalCoefficients
 from .integration_control import IntegrationControl
-from .runge_kutta_scheme import RungeKuttaScheme
+from .runge_kutta_scheme import RungeKuttaScheme, EmbeddedRungeKuttaScheme
 from .time_stage_problem_computation_functors import (
     TimeStageProblemComputeFunctor,
     TimeStageProblemComputeJacvecFunctor,
@@ -625,28 +625,53 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _setup_runge_kutta_scheme(self):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        self._runge_kutta_scheme = RungeKuttaScheme(
-            butcher_tableau,
-            TimeStageProblemComputeFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._quantity_metadata,
-            ),
-            TimeStageProblemComputeJacvecFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._quantity_metadata,
-                self._of_vars,
-                self._wrt_vars,
-            ),
-            TimeStageProblemComputeTransposeJacvecFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._quantity_metadata,
-                self._of_vars,
-                self._wrt_vars,
-            ),
-        )
+        if not butcher_tableau.is_embedded:
+            self._runge_kutta_scheme = RungeKuttaScheme(
+                butcher_tableau,
+                TimeStageProblemComputeFunctor(
+                    self.options["time_stage_problem"],
+                    self.options["integration_control"],
+                    self._quantity_metadata,
+                ),
+                TimeStageProblemComputeJacvecFunctor(
+                    self.options["time_stage_problem"],
+                    self.options["integration_control"],
+                    self._quantity_metadata,
+                    self._of_vars,
+                    self._wrt_vars,
+                ),
+                TimeStageProblemComputeTransposeJacvecFunctor(
+                    self.options["time_stage_problem"],
+                    self.options["integration_control"],
+                    self._quantity_metadata,
+                    self._of_vars,
+                    self._wrt_vars,
+                ),
+            )
+        else:
+            self._runge_kutta_scheme = EmbeddedRungeKuttaScheme(
+                butcher_tableau,
+                TimeStageProblemComputeFunctor(
+                    self.options["time_stage_problem"],
+                    self.options["integration_control"],
+                    self._quantity_metadata,
+                ),
+                TimeStageProblemComputeJacvecFunctor(
+                    self.options["time_stage_problem"],
+                    self.options["integration_control"],
+                    self._quantity_metadata,
+                    self._of_vars,
+                    self._wrt_vars,
+                ),
+                TimeStageProblemComputeTransposeJacvecFunctor(
+                    self.options["time_stage_problem"],
+                    self.options["integration_control"],
+                    self._quantity_metadata,
+                    self._of_vars,
+                    self._wrt_vars,
+                ),
+            )
+
 
     def _setup_postprocessor(self):
         postprocessing_problem: om.Problem = self.options["postprocessing_problem"]

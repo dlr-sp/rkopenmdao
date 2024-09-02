@@ -37,11 +37,11 @@ __all__ = [
     "fifth_order_six_stage_esdirk",
 ]
 # one stage methods
-explicit_euler = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]))
+explicit_euler = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]), p=1, name="Explicit Euler")
 
-implicit_euler = ButcherTableau(np.array([[1.0]]), np.array([1.0]), np.array([1.0]))
+implicit_euler = ButcherTableau(np.array([[1.0]]), np.array([1.0]), np.array([1.0]), p=1, name="Implicit Euler")
 
-implicit_midpoint = ButcherTableau(np.array([[0.5]]), np.array([1.0]), np.array([0.5]))
+implicit_midpoint = ButcherTableau(np.array([[0.5]]), np.array([1.0]), np.array([0.5]), p=2, name="Implicit Midpoint")
 
 # two stage methods
 
@@ -52,6 +52,8 @@ def create_second_order_two_stage_sdirk():
         np.array([[gamma, 0.0], [1 - gamma, gamma]]),
         np.array([1 - gamma, gamma]),
         np.array([gamma, 1.0]),
+        p=2,
+        name="SDIRK 2-stage, 2nd order"
     )
     return tableau
 
@@ -66,6 +68,8 @@ def create_third_order_two_stage_sdirk():
         np.array([[gamma, 0.0], [c2 - gamma, gamma]]),
         np.array([0.5, 0.5]),
         np.array([gamma, c2]),
+        p=3,
+        name="SDIRK 2-stage, 3rd order"
     )
     return tableau
 
@@ -87,6 +91,8 @@ def create_second_order_three_stage_esdirk():
         ),
         np.array([1 - b2 - gamma, b2, gamma]),
         np.array([0.0, 2 * gamma, 1.0]),
+        p=2,
+        name="ESDIRK 3-stage, 2nd order"
     )
     return tableau
 
@@ -110,6 +116,8 @@ def create_third_order_three_stage_esdirk():
         ),
         np.array([1 - b2 - b3, b2, b3]),
         np.array([0.0, 2 * gamma, c3]),
+        p=2,
+        name="ESDIRK 3-stage, 3rd order"
     )
     return tableau
 
@@ -133,6 +141,8 @@ def create_third_order_three_stage_sdirk():
         ),
         np.array([1 - b2 - gamma, b2, gamma]),
         np.array([gamma, c2, 1]),
+        p=3,
+        name="SDIRK 3-stage, 3rd order"
     )
     return tableau
 
@@ -159,6 +169,8 @@ def create_third_order_four_stage_esdirk():
         ),
         np.array([1 - b2 - b3 - gamma, b2, b3, gamma]),
         np.array([0.0, 2 * gamma, c3, 1]),
+        p=3,
+        name="ESDIRK 4-stage, 3rd order"
     )
     return tableau
 
@@ -201,6 +213,8 @@ def create_third_order_four_stage_sdirk():
         ),
         np.array([1 - b2 - b3 - gamma, b2, b3, gamma]),
         np.array([gamma, c2, c3, 1]),
+        p=3,
+        name="SDIRK 4-stage, 3rd order"
     )
     return tableau
 
@@ -222,6 +236,8 @@ third_order_second_weak_stage_order_four_stage_dirk = ButcherTableau(
     ),
     np.array([0.02343549374, -0.41207877888, 0.96661161281, 0.42203167233]),
     np.array([0.01900072890, 0.78870323114, 0.41643499339, 1.0]),
+    p=3,
+    name="2nd weak stage order 4-stage DIRK, 3rd order"
 )
 
 # see Ketcheson, David I. et al. “DIRK Schemes with High Weak Stage Order.”
@@ -238,6 +254,8 @@ third_order_third_weak_stage_order_four_stage_dirk = ButcherTableau(
     ),
     np.array([0.59761291500, -0.43420997584, -0.05305815322, 0.88965521406]),
     np.array([0.13756543551, 0.80179011576, 2.33179673002, 1.0]),
+    p=3,
+    name="3rd weak stage order 4-stage DIRK, 3rd order"
 )
 
 runge_kutta_four = ButcherTableau(
@@ -251,6 +269,8 @@ runge_kutta_four = ButcherTableau(
     ),
     np.array([1 / 6, 1 / 3, 1 / 3, 1 / 6]),
     np.array([0.0, 0.5, 0.5, 1.0]),
+    p=4,
+    name="Runge-Kutta 4"
 )
 
 # five stage methods:
@@ -287,6 +307,8 @@ third_order_five_stage_esdirk = ButcherTableau(
         ]
     ),
     np.array([0.0, 9 / 20, 9 * (2 + 2**0.5) / 40, 0.8, 1]),
+    p=3,
+    name="ESDIRK 5-stage, 3rd order"
 )
 
 
@@ -330,6 +352,8 @@ def create_fourth_order_five_stage_esdirk():
         ),
         np.array([1 - b2 - b3 - b4 - gamma, b2, b3, b4, gamma]),
         np.array([0.0, 2 * gamma, c3, c4, 1.0]),
+        p=4,
+        name="ESDIRK 5-stage, 4th order"
     )
     return tableau
 
@@ -383,6 +407,8 @@ fourth_order_five_stage_sdirk = ButcherTableau(
             1.0,
         ]
     ),
+    p=4,
+    name="SDIRK 5-stage, 4th order"
 )
 
 fifth_order_five_stage_sdirk = ButcherTableau(
@@ -437,6 +463,8 @@ fifth_order_five_stage_sdirk = ButcherTableau(
             10449500210709 / 14474071345096,
         ]
     ),
+    p=5,
+    name="SDIRK 5-stage, 5th order"
 )
 
 # six stage methods:
@@ -552,6 +580,9 @@ fifth_order_six_stage_esdirk = ButcherTableau(
             1.0,
         ]
     ),
+    p=5,
+    name="ESDIRK 6-stage, 5th order"
+
 )
 
 
@@ -631,4 +662,6 @@ fourth_order_third_weak_stage_order_six_stage_dirk = ButcherTableau(
             1.0,
         ]
     ),
+    p=4,
+    name="3rd weak stage 6-stage DIRK, 4th order"
 )
