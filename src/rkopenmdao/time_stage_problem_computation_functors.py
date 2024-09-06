@@ -19,10 +19,12 @@ class TimeStageProblemComputeFunctor:
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
+        translation_metadata: dict,
     ):
         self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
+        self.translation_metadata: dict = translation_metadata
 
     def __call__(
         self,
@@ -46,30 +48,32 @@ class TimeStageProblemComputeFunctor:
     def fill_problem_data(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
         """Fills internal OpenMDAO vectors."""
         _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
-        for metadata in self.quantity_metadata.values():
+        for quantity, metadata in self.quantity_metadata.items():
             if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
+                start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
-                if metadata["step_input_var"] is not None:
+                if self.translation_metadata[quantity]["step_input_var"] is not None:
                     outputs[
                         self.time_stage_problem.model.get_source(
-                            metadata["step_input_var"]
+                            self.translation_metadata[quantity]["step_input_var"]
                         )
                     ] = old_state[start:end].reshape(metadata["shape"])
                     outputs[
                         self.time_stage_problem.model.get_source(
-                            metadata["accumulated_stage_var"]
+                            self.translation_metadata[quantity]["accumulated_stage_var"]
                         )
                     ] = accumulated_stage[start:end].reshape(metadata["shape"])
 
     def get_problem_data(self, stage_state: np.ndarray):
         """Extract data from the output vectors of the owned problem."""
         _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
-        for metadata in self.quantity_metadata.values():
+        for quantity, metadata in self.quantity_metadata.items():
             if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
+                start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
-                stage_state[start:end] = outputs[metadata["stage_output_var"]].flatten()
+                stage_state[start:end] = outputs[
+                    self.translation_metadata[quantity]["stage_output_var"]
+                ].flatten()
 
 
 class TimeStageProblemComputeJacvecFunctor:
@@ -82,12 +86,14 @@ class TimeStageProblemComputeJacvecFunctor:
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
+        translation_metadata: dict,
         of_vars: list,
         wrt_vars: list,
     ):
         self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
+        self.translation_metadata: dict = translation_metadata
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
 
@@ -124,19 +130,19 @@ class TimeStageProblemComputeJacvecFunctor:
         """Fills d_residuals of the time_stage_problem to prepare for jacvec product."""
         (_, _, d_residuals) = self.time_stage_problem.model.get_linear_vectors()
         d_residuals.asarray()[:] *= 0.0
-        for metadata in self.quantity_metadata.values():
+        for quantity, metadata in self.quantity_metadata.items():
             if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
+                start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
-                if metadata["step_input_var"] is not None:
+                if self.translation_metadata[quantity]["step_input_var"] is not None:
                     d_residuals[
                         self.time_stage_problem.model.get_source(
-                            metadata["step_input_var"]
+                            self.translation_metadata[quantity]["step_input_var"]
                         )
                     ] = -old_state_perturbation[start:end].reshape(metadata["shape"])
                     d_residuals[
                         self.time_stage_problem.model.get_source(
-                            metadata["accumulated_stage_var"]
+                            self.translation_metadata[quantity]["accumulated_stage_var"]
                         )
                     ] = -accumulated_stage_perturbation[start:end].reshape(
                         metadata["shape"]
@@ -146,12 +152,12 @@ class TimeStageProblemComputeJacvecFunctor:
         """Extracts the result of the jacvec product from d_outputs of the
         time_stage_problem."""
         _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
-        for metadata in self.quantity_metadata.values():
+        for quantity, metadata in self.quantity_metadata.items():
             if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
+                start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
                 stage_perturbation[start:end] = d_outputs[
-                    metadata["stage_output_var"]
+                    self.translation_metadata[quantity]["stage_output_var"]
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
@@ -181,12 +187,14 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         quantity_metadata: dict,
+        translation_metadata: dict,
         of_vars: list,
         wrt_vars: list,
     ):
         self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.quantity_metadata: dict = quantity_metadata
+        self.translation_metadata: dict = translation_metadata
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
 
@@ -218,13 +226,13 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         """Fills d_outputs of the time_stage_problem to prepare for jacvec product."""
         _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0
-        for metadata in self.quantity_metadata.values():
+        for quantity, metadata in self.quantity_metadata.items():
             if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
+                start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
-                d_outputs[metadata["stage_output_var"]] = -stage_perturbation[
-                    start:end
-                ].reshape(metadata["shape"])
+                d_outputs[self.translation_metadata[quantity]["stage_output_var"]] = (
+                    -stage_perturbation[start:end].reshape(metadata["shape"])
+                )
 
     def get_problem_data(
         self,
@@ -234,19 +242,19 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         """Extracts the result of the jacvec product from d_residuals of the
         time_stage_problem."""
         _, _, d_residuals = self.time_stage_problem.model.get_linear_vectors()
-        for metadata in self.quantity_metadata.values():
+        for quantity, metadata in self.quantity_metadata.items():
             if metadata["type"] == "time_integration":
-                start = metadata["numpy_start_index"]
+                start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
-                if metadata["step_input_var"] is not None:
+                if self.translation_metadata[quantity]["step_input_var"] is not None:
                     old_state_perturbation[start:end] = d_residuals[
                         self.time_stage_problem.model.get_source(
-                            metadata["step_input_var"]
+                            self.translation_metadata[quantity]["step_input_var"]
                         )
                     ].flatten()
                     accumulated_stage_perturbation[start:end] = d_residuals[
                         self.time_stage_problem.model.get_source(
-                            metadata["accumulated_stage_var"]
+                            self.translation_metadata[quantity]["accumulated_stage_var"]
                         )
                     ].flatten()
 
