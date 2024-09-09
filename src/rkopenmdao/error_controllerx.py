@@ -1,4 +1,4 @@
-from error_controller import ErrorController
+from rkopenmdao.error_controller import ErrorController
 
 
 __all__ = [

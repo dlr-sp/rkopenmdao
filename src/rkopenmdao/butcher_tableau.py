@@ -44,7 +44,7 @@ class ButcherTableau:
                               "sum up to the temporal shift vector (c) indices value")
         self.stages = butcher_weight_vector.size
         self.name = name
-        self._p = p
+        self.p = p
         if (
             self.butcher_matrix.shape != (self.stages, self.stages)
             or self.butcher_weight_vector.shape != self.butcher_time_stages.shape
@@ -138,7 +138,7 @@ class EmbeddedButcherTableau(ButcherTableau):
         name='Adaptive Runge-Kutta method'
     ):
         super().__init__(butcher_matrix, butcher_weight_vector, butcher_time_stages, p, name)
-        self._phat = phat
+        self.phat = phat
         self.butcher_adaptive_weights = butcher_adaptive_weights
         if self.butcher_adaptive_weights.shape != self.butcher_weight_vector.shape:
             raise AssertionError("Size of adaptive stage doesn't match.")
