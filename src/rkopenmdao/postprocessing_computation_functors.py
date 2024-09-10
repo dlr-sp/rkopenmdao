@@ -38,6 +38,7 @@ class PostprocessingProblemComputeFunctor:
         for quantity, metadata in self.quantity_metadata.items():
             if (
                 metadata["type"] == "time_integration"
+                and metadata["local"]
                 and self.translation_metadata[quantity]["postproc_input_var"]
                 is not None
             ):
@@ -53,7 +54,7 @@ class PostprocessingProblemComputeFunctor:
         """Extract data from the internal nonlinear vectors of the owned problem."""
         _, outputs, _ = self.postprocessing_problem.model.get_nonlinear_vectors()
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "postprocessing":
+            if metadata["type"] == "postprocessing" and metadata["local"]:
                 start = metadata["start_index"]
                 end = metadata["end_index"]
                 postproc_state[start:end] = outputs[
@@ -105,6 +106,7 @@ class PostprocessingProblemComputeJacvecFunctor:
         for quantity, metadata in self.quantity_metadata.items():
             if (
                 metadata["type"] == "time_integration"
+                and metadata["local"]
                 and self.translation_metadata[quantity]["postproc_input_var"]
                 is not None
             ):
@@ -120,7 +122,7 @@ class PostprocessingProblemComputeJacvecFunctor:
         """Extract data from the internal linear vectors of the owned problem."""
         _, d_outputs, _ = self.postprocessing_problem.model.get_linear_vectors()
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "postprocessing":
+            if metadata["type"] == "postprocessing" and metadata["local"]:
                 start = metadata["start_index"]
                 end = metadata["end_index"]
                 postproc_perturbations[start:end] = d_outputs[
@@ -186,7 +188,7 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
         _, d_outputs, _ = self.postprocessing_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "postprocessing":
+            if metadata["type"] == "postprocessing" and metadata["local"]:
                 start = metadata["start_index"]
                 end = metadata["end_index"]
                 d_outputs[
@@ -199,6 +201,7 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
         for quantity, metadata in self.quantity_metadata.items():
             if (
                 metadata["type"] == "time_integration"
+                and metadata["local"]
                 and self.translation_metadata[quantity]["postproc_input_var"]
                 is not None
             ):

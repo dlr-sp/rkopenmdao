@@ -581,17 +581,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     if np.isnan(
                         f[quantity][str(step)][
                             np.unravel_index(
-                                metadata["local_indices_start"],
+                                metadata["global_start_index"],
                                 metadata["global_shape"],
                             )
                         ]
                     ):
                         start_tuple = np.unravel_index(
-                            metadata["local_indices_start"],
+                            metadata["global_start_index"],
                             metadata["global_shape"],
                         )
                         end_tuple = np.unravel_index(
-                            metadata["local_indices_end"] - 1,
+                            metadata["global_end_index"] - 1,
                             metadata["global_shape"],
                         )
                         access_list = []
@@ -606,17 +606,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     if np.isnan(
                         f[quantity][str(step)][
                             np.unravel_index(
-                                metadata["local_indices_start"],
+                                metadata["global_start_index"],
                                 metadata["global_shape"],
                             )
                         ]
                     ):
                         start_tuple = np.unravel_index(
-                            metadata["local_indices_start"],
+                            metadata["global_start_index"],
                             metadata["global_shape"],
                         )
                         end_tuple = np.unravel_index(
-                            metadata["local_indices_end"] - 1,
+                            metadata["global_end_index"] - 1,
                             metadata["global_shape"],
                         )
                         access_list = []
@@ -650,9 +650,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             start_functional = self._quantity_metadata[quantity][
                 "functional_start_index"
             ]
-            end_functional = self._quantity_metadata[quantity][
-                "functional_end_index"
-            ]
+            end_functional = self._quantity_metadata[quantity]["functional_end_index"]
             if self._quantity_metadata[quantity]["type"] == "time_integration":
                 start_time_stepping = self._quantity_metadata[quantity]["start_index"]
                 end_time_stepping = self._quantity_metadata[quantity]["end_index"]

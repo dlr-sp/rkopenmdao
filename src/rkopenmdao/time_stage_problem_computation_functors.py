@@ -49,9 +49,9 @@ class TimeStageProblemComputeFunctor:
         """Fills internal OpenMDAO vectors."""
         _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "time_integration":
+            if metadata["type"] == "time_integration" and metadata["local"]:
                 start = metadata["start_index"]
-                end = start + np.prod(metadata["shape"])
+                end = metadata["end_index"]
                 if self.translation_metadata[quantity]["step_input_var"] is not None:
                     outputs[
                         self.time_stage_problem.model.get_source(
@@ -68,9 +68,9 @@ class TimeStageProblemComputeFunctor:
         """Extract data from the output vectors of the owned problem."""
         _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "time_integration":
+            if metadata["type"] == "time_integration" and metadata["local"]:
                 start = metadata["start_index"]
-                end = start + np.prod(metadata["shape"])
+                end = metadata["end_index"]
                 stage_state[start:end] = outputs[
                     self.translation_metadata[quantity]["stage_output_var"]
                 ].flatten()
@@ -131,7 +131,7 @@ class TimeStageProblemComputeJacvecFunctor:
         (_, _, d_residuals) = self.time_stage_problem.model.get_linear_vectors()
         d_residuals.asarray()[:] *= 0.0
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "time_integration":
+            if metadata["type"] == "time_integration" and metadata["local"]:
                 start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
                 if self.translation_metadata[quantity]["step_input_var"] is not None:
@@ -153,7 +153,7 @@ class TimeStageProblemComputeJacvecFunctor:
         time_stage_problem."""
         _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "time_integration":
+            if metadata["type"] == "time_integration" and metadata["local"]:
                 start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
                 stage_perturbation[start:end] = d_outputs[
@@ -227,7 +227,7 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "time_integration":
+            if metadata["type"] == "time_integration" and metadata["local"]:
                 start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
                 d_outputs[self.translation_metadata[quantity]["stage_output_var"]] = (
@@ -243,7 +243,7 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         time_stage_problem."""
         _, _, d_residuals = self.time_stage_problem.model.get_linear_vectors()
         for quantity, metadata in self.quantity_metadata.items():
-            if metadata["type"] == "time_integration":
+            if metadata["type"] == "time_integration" and metadata["local"]:
                 start = metadata["start_index"]
                 end = start + np.prod(metadata["shape"])
                 if self.translation_metadata[quantity]["step_input_var"] is not None:

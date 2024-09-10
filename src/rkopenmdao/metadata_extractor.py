@@ -135,12 +135,12 @@ def extract_time_integration_metadata(
                 f"For quantity {quantity}, there is either a variable tagged for 'step_input_var, but not "
                 "'accumulated_stage_var', or vice versa. Either none or both have to be present."
             )
+            print(
+                found_step_input_var,
+                found_accumulated_stage_var,
+                found_stage_output_var,
+            )
 
-    assert len(translation_metadata) == len(time_integration_quantity_list) and len(
-        quantity_metadata
-    ) == len(
-        time_integration_quantity_list
-    ), "There are some passed time integration quantity tags that have no tagged variables in the stage problem."
     return (
         array_size,
         translation_metadata,
@@ -182,6 +182,7 @@ def add_postprocessing_metadata(
                 "shape": 0,
                 "global_shape": 0,
                 "local": False,
+                "distributed": False,
                 "start_index": 0,
                 "end_index": 0,
                 "functionally_integrated": False,
@@ -209,6 +210,7 @@ def add_postprocessing_metadata(
             get_remote=False,
         )
         found_postproc_input_var = 0
+        # At least one variable will be found in here, so found_postproc_input_var will be greater than zero
         for detailed_var, detailed_data in detailed_local_quantity.items():
             if "postproc_input_var" in detailed_data["tags"]:
                 found_postproc_input_var += 1
@@ -295,11 +297,6 @@ def add_postprocessing_metadata(
                 found_postproc_output_var >= 1
             ), f"For quantity {quantity}, there is no inner variable tagged with 'postproc_output_vars'."
 
-    assert len(translation_metadata) == len(time_integration_quantity_list) + len(
-        postprocessing_quantity_list
-    ) and len(quantity_metadata) == len(time_integration_quantity_list) + len(
-        postprocessing_quantity_list
-    ), "There are some passed postprocessing quantity tags that have no tagged variables in the stage problem."
     return (
         array_size,
         translation_metadata,
