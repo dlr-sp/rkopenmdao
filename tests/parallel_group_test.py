@@ -574,7 +574,8 @@ def setup_time_integration_problem(
 
 def set_time_integration_initial_values(
     time_integration_prob: om.Problem, initial_values: list
-):
+) -> None:
+    """Convenience function for setting the inputs if the time integration."""
     time_integration_prob["d_initial"] = np.array([initial_values[0]])
     if time_integration_prob.comm.rank == 0:
         time_integration_prob["b_initial"] = np.zeros(0)

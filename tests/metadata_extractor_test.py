@@ -1,13 +1,23 @@
-import openmdao.api as om
-from numpy.lib.function_base import extract
-from openmdao.utils.assert_utils import assert_check_totals, assert_check_partials
-import pytest
-import numpy as np
+"""Tests for extraction of metadata from OpenMDAO problems."""
+
+# pylint: disable=c-extension-no-member
+
 from mpi4py import MPI
-from rkopenmdao.metadata_extractor import *
+import openmdao.api as om
+import pytest
+
+from rkopenmdao.metadata_extractor import (
+    extract_time_integration_metadata,
+    add_postprocessing_metadata,
+    add_functional_metadata,
+    add_distributivity_information,
+)
 
 
 class MetadataTestComponent(om.ExplicitComponent):
+    """Helper class to create a component with specific in/output properties. No
+    computations are done."""
+
     def initialize(self):
         self.options.declare(
             "input_dict", types=dict, default={}, desc="Inputs with tags"
@@ -34,6 +44,7 @@ class MetadataTestComponent(om.ExplicitComponent):
 
 
 def basic_test_problem():
+    """Sets up the basic test problem that is reused for many tests here."""
     input_dict = {
         "x_old": {
             "tags": ["step_input_var", "x"],
@@ -61,6 +72,8 @@ def basic_test_problem():
 
 
 def test_metadata_non_parallel_correct():
+    """Tests for the sequential case whether time integration metadata is correctly
+    set."""
     prob = basic_test_problem()
 
     array_size, translation_metadata, quantity_metadata = (
@@ -123,7 +136,8 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["x"],
-            "For quantity x, there is more than one inner variable tagged with 'stage_output_var'.",
+            "For quantity x, there is more than one inner variable tagged with "
+            "'stage_output_var'.",
         ),
         (
             {
@@ -151,7 +165,8 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["x"],
-            "For quantity x, there is more than one inner variable tagged with 'step_input_var'.",
+            "For quantity x, there is more than one inner variable tagged with "
+            "'step_input_var'.",
         ),
         (
             {
@@ -179,7 +194,8 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["x"],
-            "For quantity x, there is more than one inner variable tagged with 'accumulated_stage_var'.",
+            "For quantity x, there is more than one inner variable tagged with "
+            "'accumulated_stage_var'.",
         ),
         (
             {
@@ -202,7 +218,8 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["x"],
-            "For quantity x, there is no inner variable tagged with 'stage_output_var'.",
+            "For quantity x, there is no inner variable tagged with "
+            "'stage_output_var'.",
         ),
         (
             {
@@ -220,8 +237,9 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["x"],
-            "For quantity x, there is either a variable tagged for 'step_input_var, but not "
-            "'accumulated_stage_var', or vice versa. Either none or both have to be present.",
+            "For quantity x, there is either a variable tagged for 'step_input_var, "
+            "but not 'accumulated_stage_var', or vice versa. Either none or both have "
+            "to be present.",
         ),
         (
             {
@@ -239,8 +257,9 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["x"],
-            "For quantity x, there is either a variable tagged for 'step_input_var, but not "
-            "'accumulated_stage_var', or vice versa. Either none or both have to be present.",
+            "For quantity x, there is either a variable tagged for 'step_input_var, "
+            "but not 'accumulated_stage_var', or vice versa. Either none or both have "
+            "to be present.",
         ),
         (
             {
@@ -263,9 +282,10 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["x", "y"],
-            "Variable test_comp.x_update either has two time integration quantity tags, or 'stage_output_var' was "
-            "used as quantity tag. Both are forbidden. Tags of test_comp.x_update intersected with time integration "
-            "quantities: ({'y', 'x'}|{'x', 'y'}).",
+            "Variable test_comp.x_update either has two time integration quantity tags,"
+            " or 'stage_output_var' was used as quantity tag. Both are forbidden. Tags "
+            "of test_comp.x_update intersected with time integration quantities: "
+            "({'y', 'x'}|{'x', 'y'}).",
         ),
         (
             {
@@ -288,15 +308,17 @@ def test_metadata_non_parallel_correct():
                 },
             },
             ["stage_output_var", "x"],
-            "Variable test_comp.x_update either has two time integration quantity tags, or 'stage_output_var' was "
-            "used as quantity tag. Both are forbidden. Tags of test_comp.x_update intersected with time integration "
-            "quantities: ({'x', 'stage_output_var'}|{'stage_output_var', 'x'}).",
+            "Variable test_comp.x_update either has two time integration quantity tags,"
+            " or 'stage_output_var' was used as quantity tag. Both are forbidden. Tags "
+            "of test_comp.x_update intersected with time integration quantities: "
+            "({'x', 'stage_output_var'}|{'stage_output_var', 'x'}).",
         ),
     ],
 )
 def test_metadata_non_parallel_incorrect(
     input_dict, output_dict, quantity_list, error_message
 ):
+    """Tests various incorrect cases for the setup of the time integration metadata."""
     test_comp = MetadataTestComponent(input_dict=input_dict, output_dict=output_dict)
     prob = om.Problem()
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
@@ -306,6 +328,7 @@ def test_metadata_non_parallel_incorrect(
 
 
 def test_metadata_functional_correct():
+    """Tests whether functional metadata is correctly added to the metadata dict."""
     prob = basic_test_problem()
     _, _, quantity_metadata = extract_time_integration_metadata(prob, ["x"])
     functional_size, quantity_metadata = add_functional_metadata(
@@ -331,16 +354,20 @@ def test_metadata_functional_correct():
 
 
 def test_metadata_functional_incorrect():
+    """Tests an incorrect case for the addition of functional metadata."""
     prob = basic_test_problem()
     _, _, quantity_metadata = extract_time_integration_metadata(prob, ["x"])
     with pytest.raises(
         AssertionError,
-        match="Some functional requires a quantity that is part of neither the time integration nor postprocessing.",
+        match="Some functional requires a quantity that is part of neither the time "
+        "integration nor postprocessing.",
     ):
         add_functional_metadata(["y"], quantity_metadata)
 
 
 def test_metadata_postprocessing_correct():
+    """Tests the correct case for addition of postprocessing metadata to the metadata
+    dicts."""
     prob = basic_test_problem()
     input_dict = {
         "x": {
@@ -440,7 +467,8 @@ def test_metadata_postprocessing_correct():
                 },
             },
             ["y"],
-            "More than one variable with quantity tag x for 'postproc_input_var' in postprocessing_problem.",
+            "More than one variable with quantity tag x for 'postproc_input_var' in "
+            "postprocessing_problem.",
         ),
         (
             {
@@ -458,9 +486,10 @@ def test_metadata_postprocessing_correct():
                 },
             },
             ["y", "z"],
-            "Variable postproc_test.y either has two postprocessing quantity tags, or 'postproc_output_var' was "
-            "used as quantity tag. Both are forbidden. Tags of postproc_test.y intersected with time integration "
-            "quantities: ({'y', 'z'}|{'z', 'y'}).",
+            "Variable postproc_test.y either has two postprocessing quantity tags, or "
+            "'postproc_output_var' was used as quantity tag. Both are forbidden. Tags "
+            "of postproc_test.y intersected with time integration quantities: "
+            "({'y', 'z'}|{'z', 'y'}).",
         ),
         (
             {
@@ -481,9 +510,10 @@ def test_metadata_postprocessing_correct():
                 },
             },
             ["postproc_output_var", "y"],
-            "Variable postproc_test.y either has two postprocessing quantity tags, or 'postproc_output_var' was "
-            "used as quantity tag. Both are forbidden. Tags of postproc_test.y intersected with time integration "
-            "quantities: ({'y', 'postproc_output_var'}|{'postproc_output_var', 'y'}).",
+            "Variable postproc_test.y either has two postprocessing quantity tags, or "
+            "'postproc_output_var' was used as quantity tag. Both are forbidden. Tags "
+            "of postproc_test.y intersected with time integration quantities:"
+            " ({'y', 'postproc_output_var'}|{'postproc_output_var', 'y'}).",
         ),
         (
             {
@@ -512,7 +542,8 @@ def test_metadata_postprocessing_correct():
                 },
             },
             ["y"],
-            "For quantity y, there is more than one inner variable tagged with 'postproc_output_var'.",
+            "For quantity y, there is more than one inner variable tagged with "
+            "'postproc_output_var'.",
         ),
         (
             {
@@ -533,13 +564,16 @@ def test_metadata_postprocessing_correct():
                 },
             },
             ["y"],
-            "For quantity y, there is no inner variable tagged with 'postproc_output_vars'.",
+            "For quantity y, there is no inner variable tagged with "
+            "'postproc_output_vars'.",
         ),
     ],
 )
 def test_metadata_postprocessing_incorrect(
     input_dict, output_dict, quantity_list, error_message
 ):
+    """Tests various incorrect cases for the addition of postprocessing metadata to the
+    dicts."""
     prob = basic_test_problem()
     postproc_comp = MetadataTestComponent(
         input_dict=input_dict, output_dict=output_dict
@@ -559,6 +593,8 @@ def test_metadata_postprocessing_incorrect(
 
 @pytest.mark.mpi
 def test_metadata_distributed_var_correct():
+    """Tests whether addition of metadata for distributed variables is handled
+    correctly."""
     input_dict = {
         "x_old": {
             "tags": ["step_input_var", "x"],
@@ -621,6 +657,8 @@ def test_metadata_distributed_var_correct():
 
 @pytest.mark.mpi
 def test_metadata_parallel_group_correct():
+    """Tests whether addition of metadata for variables coming from parallel groups is
+    handled correctly."""
     input_dict_1 = {
         "x_old": {
             "tags": ["step_input_var", "x"],

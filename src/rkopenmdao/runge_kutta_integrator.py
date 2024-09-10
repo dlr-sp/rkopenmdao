@@ -24,7 +24,6 @@ from .postprocessing_computation_functors import (
 )
 from .checkpoint_interface.checkpoint_interface import CheckpointInterface
 from .checkpoint_interface.no_checkpointer import NoCheckpointer
-from .errors import SetupError
 from .metadata_extractor import (
     extract_time_integration_metadata,
     add_postprocessing_metadata,
