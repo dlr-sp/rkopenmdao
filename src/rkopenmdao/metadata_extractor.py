@@ -2,6 +2,7 @@
 RungeKuttaIntegrator used for organizing its own data structures."""
 
 # pylint: disable=protected-access
+from typing import Tuple
 
 import numpy as np
 import openmdao.api as om
@@ -11,7 +12,7 @@ from mpi4py import MPI
 
 def extract_time_integration_metadata(
     stage_problem: om.Problem, time_integration_quantity_list: list
-) -> tuple[int, dict, dict]:
+) -> Tuple[int, dict, dict]:
     """Extracts metadata from the time stage problem and returns the size of the
     integrators internal array, a dict to translate to the inner problem, and a dict
     containing variable information."""
@@ -90,7 +91,7 @@ def _extract_detailed_time_integration_info(
     array_size: int,
     translation_metadata: dict,
     quantity_metadata: dict,
-) -> tuple[int, dict, dict]:
+) -> Tuple[int, dict, dict]:
     detailed_local_quantity = stage_problem.model.get_io_metadata(
         metadata_keys=["tags", "shape", "global_shape"],
         tags=[quantity],
@@ -175,7 +176,7 @@ def add_postprocessing_metadata(
     postprocessing_quantity_list: list,
     quantity_metadata: dict,
     translation_metadata: dict,
-) -> tuple[int, dict, dict]:
+) -> Tuple[int, dict, dict]:
     """Extracts metadata from the postprocessing problem and adds it to the passed
     metadata dicts. Returns them, as well as the size for the internal postprocessing
     state array."""
@@ -304,7 +305,7 @@ def _extract_detailed_postprocessing_output_info(
     array_size: int,
     translation_metadata: dict,
     quantity_metadata: dict,
-) -> tuple[int, dict, dict]:
+) -> Tuple[int, dict, dict]:
     detailed_local_quantity = postproc_problem.model.get_io_metadata(
         metadata_keys=["tags", "shape", "global_shape"],
         tags=[quantity],
@@ -358,7 +359,7 @@ def _extract_detailed_postprocessing_output_info(
 
 def add_functional_metadata(
     functional_quantities: list, quantity_metadata: dict
-) -> tuple[int, dict]:
+) -> Tuple[int, dict]:
     """Adds metadata in the quantity metadata dict based on which functionals are part
     of a functional. Also returns the size of the internal functional state array."""
     assert set(functional_quantities).issubset(set(quantity_metadata.keys())), (
