@@ -30,6 +30,13 @@ class TimeIntegrationTranslationMetadata(TranslationMetadata):
 
 
 @dataclass
+class TimeIndependentInputTranslationMetadata(TranslationMetadata):
+    """Translation metadata for time independent input quantities"""
+
+    time_independent_input_var: str | None = None
+
+
+@dataclass
 class PostprocessingTranslationMetadata(TranslationMetadata):
     """Translation metadata for postprocessing quantities."""
 
@@ -68,6 +75,7 @@ class TimeIntegrationMetadata:
     """Collection of metadata over all quantities of a time integration."""
 
     time_integration_array_size: int
+    time_independent_input_size: int
     postprocessing_array_size: int
     functional_array_size: int
     quantity_list: list[Quantity]
@@ -227,6 +235,103 @@ def _extract_time_integration_quantity(
     quantity = Quantity(
         name=quantity_name,
         type="time_integration",
+        array_metadata=array_metadata,
+        translation_metadata=translation_metadata,
+    )
+
+    return array_size, quantity
+
+
+def add_time_independent_input_metadata(
+    stage_problem: om.Problem,
+    time_independent_input_quantity_list: list,
+    runge_kutta_metadata: TimeIntegrationMetadata,
+):
+    local_quantities = stage_problem.model.get_io_metadata(
+        iotypes="input",
+        metadata_keys=["tags"],
+        tags=time_independent_input_quantity_list,
+        get_remote=False,
+    )
+    global_quantities = stage_problem.model.get_io_metadata(
+        iotypes="output",
+        metadata_keys=["tags"],
+        tags=time_independent_input_quantity_list,
+        get_remote=True,
+    )
+
+    time_independent_input_set = set(time_independent_input_quantity_list)
+    for var, data in global_quantities.items():
+        tags = time_independent_input_set & set(data["tags"])
+        quantity_name = tags.pop()
+        if var in local_quantities:
+            assert len(tags) == 1, (
+                f"Variable {var} either has two time integration quantity tags, "
+                f"or 'time_independent_input_var' was used as quantity tag. Both are "
+                f"forbidden. Tags of {var} intersected with time independent input "
+                f"quantities: {tags}."
+            )
+
+            runge_kutta_metadata.time_independent_input_size, quantity = (
+                _extract_time_independent_quantity(
+                    quantity_name,
+                    stage_problem,
+                    runge_kutta_metadata.time_independent_input_size,
+                )
+            )
+        else:
+            quantity = Quantity(
+                type="independent_input",
+                name=quantity_name,
+                array_metadata=ArrayMetadata(),
+                translation_metadata=TimeIndependentInputTranslationMetadata(),
+            )
+        runge_kutta_metadata.quantity_list.append(quantity)
+
+
+def _extract_time_independent_quantity(
+    quantity_name: str,
+    stage_problem: om.Problem,
+    array_size,
+) -> tuple[int, Quantity]:
+    detailed_local_quantity = stage_problem.model.get_io_metadata(
+        metadata_keys=["tags", "shape", "global_shape"],
+        tags=[quantity_name],
+        get_remote=False,
+    )
+    found_time_independent_input_var = 0
+    translation_metadata = TimeIndependentInputTranslationMetadata()
+    for detailed_var, detailed_data in detailed_local_quantity.items():
+        if "time_independent_input_var" in detailed_data["tags"]:
+            found_time_independent_input_var += 1
+            translation_metadata.time_independent_input_var = detailed_var
+            start_index = array_size
+            array_size += np.prod(detailed_data["shape"])
+            end_index = array_size
+            array_metadata = _create_local_array_metadata(
+                stage_problem=stage_problem,
+                start_index=start_index,
+                end_index=end_index,
+                detailed_var=detailed_var,
+                detailed_data=detailed_data,
+            )
+
+    if found_time_independent_input_var > 1:
+        raise SetupError(
+            f"For quantity {quantity_name}, there is more than one inner variable tagged"
+            f" with 'time_independent_input_var'."
+        )
+
+    if found_time_independent_input_var < 1:
+        raise SetupError(
+            f"For quantity {quantity_name}, there is no inner variable tagged with "
+            f"'time_independent_input_var'."
+        )
+    # We check that there is a time_independent_input_var, so array_metadata must exist
+    # pylint: disable=possibly-used-before-assignment
+    quantity = Quantity(
+        name=quantity_name,
+        type="independent_input",
         array_metadata=array_metadata,
         translation_metadata=translation_metadata,
     )
