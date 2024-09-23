@@ -7,7 +7,7 @@ class RungeKuttaError(Exception):
 
 class SetupError(RungeKuttaError, ValueError):
     """Exception for the case when something goes wrong in the setup of the
-    RUngeKuttaIntegrator"""
+    RungeKuttaIntegrator"""
 
 
 class PostprocessingError(RungeKuttaError, AssertionError):

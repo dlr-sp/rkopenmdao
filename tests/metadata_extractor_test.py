@@ -11,7 +11,13 @@ from rkopenmdao.metadata_extractor import (
     add_postprocessing_metadata,
     add_functional_metadata,
     add_distributivity_information,
+    Quantity,
+    ArrayMetadata,
+    TimeIntegrationTranslationMetadata,
+    PostprocessingTranslationMetadata,
 )
+
+from rkopenmdao.errors import SetupError
 
 
 class MetadataTestComponent(om.ExplicitComponent):
@@ -76,35 +82,29 @@ def test_metadata_non_parallel_correct():
     set."""
     prob = basic_test_problem()
 
-    array_size, translation_metadata, quantity_metadata = (
-        extract_time_integration_metadata(prob, ["x"])
-    )
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
 
-    assert array_size == 10
-    assert translation_metadata == {
-        "x": {
-            "step_input_var": "test_comp.x_old",
-            "accumulated_stage_var": "test_comp.x_acc_stages",
-            "stage_output_var": "test_comp.x_update",
-            "postproc_input_var": None,
-        }
-    }
-    assert quantity_metadata == {
-        "x": {
-            "type": "time_integration",
-            "shape": (5, 2),
-            "global_shape": (5, 2),
-            "local": True,
-            "distributed": False,
-            "start_index": 0,
-            "end_index": 10,
-            "functionally_integrated": False,
-            "functional_start_index": 0,
-            "functional_end_index": 0,
-            "global_start_index": 0,
-            "global_end_index": 10,
-        }
-    }
+    assert time_integration_metadata.time_integration_array_size == 10
+    assert time_integration_metadata.quantity_list == [
+        Quantity(
+            "x",
+            "time_integration",
+            ArrayMetadata(
+                shape=(5, 2),
+                global_shape=(5, 2),
+                local=True,
+                start_index=0,
+                end_index=10,
+                global_start_index=0,
+                global_end_index=10,
+            ),
+            TimeIntegrationTranslationMetadata(
+                step_input_var="test_comp.x_old",
+                accumulated_stage_var="test_comp.x_acc_stages",
+                stage_output_var="test_comp.x_update",
+            ),
+        )
+    ]
 
 
 @pytest.mark.parametrize(
@@ -323,46 +323,51 @@ def test_metadata_non_parallel_incorrect(
     prob = om.Problem()
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
     prob.setup()
-    with pytest.raises(AssertionError, match=error_message):
+    with pytest.raises(SetupError, match=error_message):
         extract_time_integration_metadata(prob, quantity_list)
 
 
 def test_metadata_functional_correct():
     """Tests whether functional metadata is correctly added to the metadata dict."""
     prob = basic_test_problem()
-    _, _, quantity_metadata = extract_time_integration_metadata(prob, ["x"])
-    functional_size, quantity_metadata = add_functional_metadata(
-        ["x"], quantity_metadata
-    )
-    assert functional_size == 10
-    assert quantity_metadata == {
-        "x": {
-            "type": "time_integration",
-            "shape": (5, 2),
-            "global_shape": (5, 2),
-            "local": True,
-            "distributed": False,
-            "start_index": 0,
-            "end_index": 10,
-            "functionally_integrated": True,
-            "functional_start_index": 0,
-            "functional_end_index": 10,
-            "global_start_index": 0,
-            "global_end_index": 10,
-        }
-    }
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
+    add_functional_metadata(["x"], time_integration_metadata)
+    assert time_integration_metadata.functional_array_size == 10
+    assert time_integration_metadata.quantity_list == [
+        Quantity(
+            "x",
+            "time_integration",
+            ArrayMetadata(
+                shape=(5, 2),
+                global_shape=(5, 2),
+                local=True,
+                start_index=0,
+                end_index=10,
+                functionally_integrated=True,
+                functional_start_index=0,
+                functional_end_index=10,
+                global_start_index=0,
+                global_end_index=10,
+            ),
+            TimeIntegrationTranslationMetadata(
+                step_input_var="test_comp.x_old",
+                accumulated_stage_var="test_comp.x_acc_stages",
+                stage_output_var="test_comp.x_update",
+            ),
+        )
+    ]
 
 
 def test_metadata_functional_incorrect():
     """Tests an incorrect case for the addition of functional metadata."""
     prob = basic_test_problem()
-    _, _, quantity_metadata = extract_time_integration_metadata(prob, ["x"])
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     with pytest.raises(
-        AssertionError,
+        SetupError,
         match="Some functional requires a quantity that is part of neither the time "
         "integration nor postprocessing.",
     ):
-        add_functional_metadata(["y"], quantity_metadata)
+        add_functional_metadata(["y"], time_integration_metadata)
 
 
 def test_metadata_postprocessing_correct():
@@ -388,59 +393,47 @@ def test_metadata_postprocessing_correct():
     )
     postproc_prob = om.Problem()
     postproc_prob.model.add_subsystem("postproc_test", postproc_comp, promotes=["*"])
-    _, translation_metadata, quantity_metadata = extract_time_integration_metadata(
-        prob, ["x"]
-    )
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     postproc_prob.setup()
 
-    postproc_array_size, translation_metadata, quantity_metadata = (
-        add_postprocessing_metadata(
-            postproc_prob, ["x"], ["y"], quantity_metadata, translation_metadata
-        )
-    )
+    add_postprocessing_metadata(postproc_prob, ["x"], ["y"], time_integration_metadata)
 
-    assert postproc_array_size == 2
-    assert translation_metadata == {
-        "x": {
-            "step_input_var": "test_comp.x_old",
-            "accumulated_stage_var": "test_comp.x_acc_stages",
-            "stage_output_var": "test_comp.x_update",
-            "postproc_input_var": "postproc_test.x",
-        },
-        "y": {
-            "postproc_output_var": "postproc_test.y",
-        },
-    }
-    assert quantity_metadata == {
-        "x": {
-            "type": "time_integration",
-            "shape": (5, 2),
-            "global_shape": (5, 2),
-            "local": True,
-            "distributed": False,
-            "start_index": 0,
-            "end_index": 10,
-            "functionally_integrated": False,
-            "functional_start_index": 0,
-            "functional_end_index": 0,
-            "global_start_index": 0,
-            "global_end_index": 10,
-        },
-        "y": {
-            "type": "postprocessing",
-            "shape": (1, 2),
-            "global_shape": (1, 2),
-            "local": True,
-            "distributed": False,
-            "start_index": 0,
-            "end_index": 2,
-            "functionally_integrated": False,
-            "functional_start_index": 0,
-            "functional_end_index": 0,
-            "global_start_index": 0,
-            "global_end_index": 2,
-        },
-    }
+    assert time_integration_metadata.postprocessing_array_size == 2
+    assert time_integration_metadata.quantity_list == [
+        Quantity(
+            "x",
+            "time_integration",
+            ArrayMetadata(
+                shape=(5, 2),
+                global_shape=(5, 2),
+                local=True,
+                start_index=0,
+                end_index=10,
+                global_start_index=0,
+                global_end_index=10,
+            ),
+            TimeIntegrationTranslationMetadata(
+                step_input_var="test_comp.x_old",
+                accumulated_stage_var="test_comp.x_acc_stages",
+                stage_output_var="test_comp.x_update",
+                postproc_input_var="postproc_test.x",
+            ),
+        ),
+        Quantity(
+            "y",
+            "postprocessing",
+            ArrayMetadata(
+                shape=(1, 2),
+                global_shape=(1, 2),
+                local=True,
+                start_index=0,
+                end_index=2,
+                global_start_index=0,
+                global_end_index=2,
+            ),
+            PostprocessingTranslationMetadata(postproc_output_var="postproc_test.y"),
+        ),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -580,14 +573,12 @@ def test_metadata_postprocessing_incorrect(
     )
     postproc_prob = om.Problem()
     postproc_prob.model.add_subsystem("postproc_test", postproc_comp, promotes=["*"])
-    _, translation_metadata, quantity_metadata = extract_time_integration_metadata(
-        prob, ["x"]
-    )
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     postproc_prob.setup()
 
-    with pytest.raises(AssertionError, match=error_message):
+    with pytest.raises(SetupError, match=error_message):
         add_postprocessing_metadata(
-            postproc_prob, ["x"], quantity_list, quantity_metadata, translation_metadata
+            postproc_prob, ["x"], quantity_list, time_integration_metadata
         )
 
 
@@ -623,36 +614,34 @@ def test_metadata_distributed_var_correct():
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
     prob.setup()
 
-    array_size, translation_metadata, quantity_metadata = (
-        extract_time_integration_metadata(prob, ["x"])
-    )
-    add_distributivity_information(prob, quantity_metadata)
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
+    add_distributivity_information(prob, time_integration_metadata)
 
-    assert array_size == 10 + MPI.COMM_WORLD.rank
-    assert translation_metadata == {
-        "x": {
-            "step_input_var": "test_comp.x_old",
-            "accumulated_stage_var": "test_comp.x_acc_stages",
-            "stage_output_var": "test_comp.x_update",
-            "postproc_input_var": None,
-        }
-    }
-    assert quantity_metadata == {
-        "x": {
-            "type": "time_integration",
-            "shape": (10 + MPI.COMM_WORLD.rank,),
-            "global_shape": (21,),
-            "local": True,
-            "distributed": True,
-            "start_index": 0,
-            "end_index": 10 + MPI.COMM_WORLD.rank,
-            "functionally_integrated": False,
-            "functional_start_index": 0,
-            "functional_end_index": 0,
-            "global_start_index": 0 if MPI.COMM_WORLD.rank == 0 else 10,
-            "global_end_index": 10 if MPI.COMM_WORLD.rank == 0 else 21,
-        }
-    }
+    assert (
+        time_integration_metadata.time_integration_array_size
+        == 10 + MPI.COMM_WORLD.rank
+    )
+    assert time_integration_metadata.quantity_list == [
+        Quantity(
+            "x",
+            "time_integration",
+            ArrayMetadata(
+                shape=(10 + MPI.COMM_WORLD.rank,),
+                global_shape=(21,),
+                local=True,
+                distributed=True,
+                start_index=0,
+                end_index=10 + MPI.COMM_WORLD.rank,
+                global_start_index=0 if MPI.COMM_WORLD.rank == 0 else 10,
+                global_end_index=10 if MPI.COMM_WORLD.rank == 0 else 21,
+            ),
+            TimeIntegrationTranslationMetadata(
+                step_input_var="test_comp.x_old",
+                accumulated_stage_var="test_comp.x_acc_stages",
+                stage_output_var="test_comp.x_update",
+            ),
+        )
+    ]
 
 
 @pytest.mark.mpi
@@ -712,99 +701,63 @@ def test_metadata_parallel_group_correct():
     prob.model.add_subsystem("par_group", par_group, promotes=["*"])
     prob.setup()
 
-    array_size, translation_metadata, quantity_metadata = (
-        extract_time_integration_metadata(prob, ["x", "y"])
-    )
-    add_distributivity_information(prob, quantity_metadata)
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x", "y"])
+    add_distributivity_information(prob, time_integration_metadata)
 
-    assert array_size == 6
+    assert time_integration_metadata.time_integration_array_size == 6
     if prob.comm.rank == 0:
-        assert translation_metadata == {
-            "x": {
-                "step_input_var": "par_group.test_comp_1.x_old",
-                "accumulated_stage_var": "par_group.test_comp_1.x_acc_stages",
-                "stage_output_var": "par_group.test_comp_1.x_update",
-                "postproc_input_var": None,
-            },
-            "y": {
-                "step_input_var": None,
-                "accumulated_stage_var": None,
-                "stage_output_var": None,
-                "postproc_input_var": None,
-            },
-        }
-        assert quantity_metadata == {
-            "x": {
-                "type": "time_integration",
-                "shape": (2, 3),
-                "global_shape": (2, 3),
-                "local": True,
-                "distributed": True,
-                "start_index": 0,
-                "end_index": 6,
-                "functionally_integrated": False,
-                "functional_start_index": 0,
-                "functional_end_index": 0,
-                "global_start_index": 0,
-                "global_end_index": 6,
-            },
-            "y": {
-                "type": "time_integration",
-                "shape": 0,
-                "global_shape": 0,
-                "local": False,
-                "distributed": True,
-                "start_index": 0,
-                "end_index": 0,
-                "functionally_integrated": False,
-                "functional_start_index": 0,
-                "functional_end_index": 0,
-                "global_start_index": 0,
-                "global_end_index": 0,
-            },
-        }
+        assert time_integration_metadata.quantity_list == [
+            Quantity(
+                "x",
+                "time_integration",
+                ArrayMetadata(
+                    shape=(2, 3),
+                    global_shape=(2, 3),
+                    local=True,
+                    distributed=True,
+                    start_index=0,
+                    end_index=6,
+                    global_start_index=0,
+                    global_end_index=6,
+                ),
+                TimeIntegrationTranslationMetadata(
+                    step_input_var="par_group.test_comp_1.x_old",
+                    accumulated_stage_var="par_group.test_comp_1.x_acc_stages",
+                    stage_output_var="par_group.test_comp_1.x_update",
+                ),
+            ),
+            Quantity(
+                "y",
+                "time_integration",
+                ArrayMetadata(distributed=True),
+                TimeIntegrationTranslationMetadata(),
+            ),
+        ]
     else:
-        assert translation_metadata == {
-            "x": {
-                "step_input_var": None,
-                "accumulated_stage_var": None,
-                "stage_output_var": None,
-                "postproc_input_var": None,
-            },
-            "y": {
-                "step_input_var": "par_group.test_comp_2.y_old",
-                "accumulated_stage_var": "par_group.test_comp_2.y_acc_stages",
-                "stage_output_var": "par_group.test_comp_2.y_update",
-                "postproc_input_var": None,
-            },
-        }
-        assert quantity_metadata == {
-            "x": {
-                "type": "time_integration",
-                "shape": 0,
-                "global_shape": 0,
-                "local": False,
-                "distributed": True,
-                "start_index": 0,
-                "end_index": 0,
-                "functionally_integrated": False,
-                "functional_start_index": 0,
-                "functional_end_index": 0,
-                "global_start_index": 0,
-                "global_end_index": 0,
-            },
-            "y": {
-                "type": "time_integration",
-                "shape": (3, 2),
-                "global_shape": (3, 2),
-                "local": True,
-                "distributed": True,
-                "start_index": 0,
-                "end_index": 6,
-                "functionally_integrated": False,
-                "functional_start_index": 0,
-                "functional_end_index": 0,
-                "global_start_index": 0,
-                "global_end_index": 6,
-            },
-        }
+        assert time_integration_metadata.quantity_list == [
+            Quantity(
+                "x",
+                "time_integration",
+                ArrayMetadata(distributed=True),
+                TimeIntegrationTranslationMetadata(),
+            ),
+            Quantity(
+                "y",
+                "time_integration",
+                ArrayMetadata(
+                    shape=(3, 2),
+                    global_shape=(3, 2),
+                    local=True,
+                    distributed=True,
+                    start_index=0,
+                    end_index=6,
+                    global_start_index=0,
+                    global_end_index=6,
+                ),
+                TimeIntegrationTranslationMetadata(
+                    step_input_var="par_group.test_comp_2.y_old",
+                    accumulated_stage_var="par_group.test_comp_2.y_acc_stages",
+                    stage_output_var="par_group.test_comp_2.y_update",
+                ),
+            ),
+        ]
