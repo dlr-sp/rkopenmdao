@@ -43,17 +43,15 @@ class AverageCoefficients(FunctionalCoefficients):
     """
 
     def __init__(
-        self, integration_control: IntegrationControl, quantity_list: List[str]
+        self, integration_control: IntegrationControl, quantity_list: list[str]
     ):
-        self._quantity_list: List[str] = quantity_list
+        self._quantity_list: list[str] = quantity_list
         self._integration_control: IntegrationControl = integration_control
 
-    def list_quantities(self) -> List[str]:
+    def list_quantities(self) -> list[str]:
         return self._quantity_list
 
-    def get_coefficient(
-        self, time_step: int, quantity: str
-    ) -> Union[float, np.ndarray]:
+    def get_coefficient(self, time_step: int, quantity: str) -> float | np.ndarray:
         return (self._integration_control.num_steps + 1) ** -1
 
 
@@ -64,17 +62,15 @@ class CompositeTrapezoidalCoefficients(FunctionalCoefficients):
     """
 
     def __init__(
-        self, integration_control: IntegrationControl, quantity_list: List[str]
+        self, integration_control: IntegrationControl, quantity_list: list[str]
     ):
-        self._quantity_list: List[str] = quantity_list
+        self._quantity_list: list[str] = quantity_list
         self._integration_control: IntegrationControl = integration_control
 
-    def list_quantities(self) -> List[str]:
+    def list_quantities(self) -> list[str]:
         return self._quantity_list
 
-    def get_coefficient(
-        self, time_step: int, quantity: str
-    ) -> Union[float, np.ndarray]:
+    def get_coefficient(self, time_step: int, quantity: str) -> float | np.ndarray:
         if time_step in (0, self._integration_control.num_steps):
             return 0.5 * self._integration_control.delta_t
         else:

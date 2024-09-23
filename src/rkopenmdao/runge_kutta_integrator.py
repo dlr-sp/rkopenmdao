@@ -307,7 +307,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                         shape=quantity.array_metadata.shape,
                         val=(
                             time_stage_problem.get_val(
-                                quantity.translation_metadata.step_input_var,  # get_remote=False
+                                quantity.translation_metadata.step_input_var,
                             )
                             if quantity.translation_metadata.step_input_var is not None
                             else np.zeros(quantity.array_metadata.shape)

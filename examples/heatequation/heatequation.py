@@ -22,7 +22,7 @@ class HeatEquation:
         heat_inhomogeneity_function: Callable[[float, float, float], float],
         heat_boundary_condition: boundary.BoundaryCondition,
         heat_diffusivity: float,
-        initial_value: Union[np.ndarray, Callable[[float, float], float]],
+        initial_value: np.ndarray | Callable[[float, float], float],
         solver_options: dict,
         start_time=0.0,
     ):

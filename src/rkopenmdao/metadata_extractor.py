@@ -125,6 +125,40 @@ def extract_time_integration_metadata(
     return runge_kutta_metadata
 
 
+def _create_local_array_metadata(
+    stage_problem: om.Problem,
+    start_index: int,
+    end_index: int,
+    detailed_var: str,
+    detailed_data: dict,
+) -> ArrayMetadata:
+    if detailed_data["shape"] != detailed_data["global_shape"]:
+        try:
+            sizes = stage_problem.model._var_sizes["output"][
+                :,
+                stage_problem.model._var_allprocs_abs2idx[detailed_var],
+            ]
+        except KeyError:  # Have to deal with an older openMDAO version
+            sizes = stage_problem.model._var_sizes["nonlinear"]["output"][
+                :,
+                stage_problem.model._var_allprocs_abs2idx["nonlinear"][detailed_var],
+            ]
+        global_start_index = start = np.sum(sizes[: stage_problem.comm.rank])
+        global_end_index = start + sizes[stage_problem.comm.rank]
+    else:
+        global_start_index = 0
+        global_end_index = np.prod(detailed_data["shape"])
+    return ArrayMetadata(
+        shape=detailed_data["shape"],
+        global_shape=detailed_data["global_shape"],
+        local=True,
+        start_index=start_index,
+        end_index=end_index,
+        global_start_index=global_start_index,
+        global_end_index=global_end_index,
+    )
+
+
 def _extract_time_integration_quantity(
     quantity_name: str,
     stage_problem: om.Problem,
@@ -146,32 +180,12 @@ def _extract_time_integration_quantity(
             start_index = array_size
             array_size += np.prod(detailed_data["shape"])
             end_index = array_size
-            if detailed_data["shape"] != detailed_data["global_shape"]:
-                try:
-                    sizes = stage_problem.model._var_sizes["output"][
-                        :,
-                        stage_problem.model._var_allprocs_abs2idx[detailed_var],
-                    ]
-                except KeyError:  # Have to deal with an older openMDAO version
-                    sizes = stage_problem.model._var_sizes["nonlinear"]["output"][
-                        :,
-                        stage_problem.model._var_allprocs_abs2idx["nonlinear"][
-                            detailed_var
-                        ],
-                    ]
-                global_start_index = start = np.sum(sizes[: stage_problem.comm.rank])
-                global_end_index = start + sizes[stage_problem.comm.rank]
-            else:
-                global_start_index = 0
-                global_end_index = np.prod(detailed_data["shape"])
-            array_metadata = ArrayMetadata(
-                shape=detailed_data["shape"],
-                global_shape=detailed_data["global_shape"],
-                local=True,
+            array_metadata = _create_local_array_metadata(
+                stage_problem=stage_problem,
                 start_index=start_index,
                 end_index=end_index,
-                global_start_index=global_start_index,
-                global_end_index=global_end_index,
+                detailed_var=detailed_var,
+                detailed_data=detailed_data,
             )
         elif "step_input_var" in detailed_data["tags"]:
             found_step_input_var += 1
@@ -210,6 +224,8 @@ def _extract_time_integration_quantity(
             f"Either none or both have to be present."
         )
 
+    # We check that there is a stage_output_var, so array_metadata must exist
+    # pylint: disable=possibly-used-before-assignment
     quantity = Quantity(
         name=quantity_name,
         type="time_integration",
@@ -242,14 +258,6 @@ def add_postprocessing_metadata(
             "Time integration and postprocessing quantities have to be disjoint"
         )
 
-    # translation_metadata.update(
-    #     {
-    #         quantity: {
-    #             "postproc_output_var": None,
-    #         }
-    #         for quantity in postprocessing_quantity_list
-    #     }
-    # )
     translation_metadata = {}
 
     for var, data in postproc_input_vars.items():
@@ -261,10 +269,8 @@ def add_postprocessing_metadata(
                 f"Tags of {var} intersected with time integration quantities: {tags}."
             )
 
-        quantity_name = tags.pop()
-
         _extract_detailed_postprocessing_input_info(
-            quantity_name, postproc_problem, translation_metadata
+            tags.pop(), postproc_problem, translation_metadata
         )
     for quantity in runge_kutta_metadata.quantity_list:
         if quantity.name in translation_metadata:
@@ -284,8 +290,6 @@ def add_postprocessing_metadata(
         tags=postprocessing_quantity_list,
         get_remote=True,
     )
-    array_size = 0
-    quantity_list = []
 
     for var, data in global_postproc_quantities.items():
         tags = postprocessing_set & set(data["tags"])
@@ -300,10 +304,12 @@ def add_postprocessing_metadata(
                     f"quantities: {tags}."
                 )
 
-            array_size, quantity = _extract_postprocessing_quantity(
-                quantity_name,
-                postproc_problem,
-                array_size,
+            runge_kutta_metadata.postprocessing_array_size, quantity = (
+                _extract_postprocessing_quantity(
+                    quantity_name,
+                    postproc_problem,
+                    runge_kutta_metadata.postprocessing_array_size,
+                )
             )
         else:
             quantity = Quantity(
@@ -312,10 +318,7 @@ def add_postprocessing_metadata(
                 array_metadata=ArrayMetadata(),
                 translation_metadata=PostprocessingTranslationMetadata(),
             )
-        quantity_list.append(quantity)
-
-    runge_kutta_metadata.postprocessing_array_size = array_size
-    runge_kutta_metadata.quantity_list.extend(quantity_list)
+        runge_kutta_metadata.quantity_list.append(quantity)
 
 
 def _extract_detailed_postprocessing_input_info(
@@ -359,32 +362,12 @@ def _extract_postprocessing_quantity(
             start_index = array_size
             array_size += np.prod(detailed_data["shape"])
             end_index = array_size
-            if detailed_data["shape"] != detailed_data["global_shape"]:
-                try:
-                    sizes = postproc_problem.model._var_sizes["output"][
-                        :,
-                        postproc_problem.model._var_allprocs_abs2idx[detailed_var],
-                    ]
-                except KeyError:  # Have to deal with an older openMDAO version
-                    sizes = postproc_problem.model._var_sizes["nonlinear"]["output"][
-                        :,
-                        postproc_problem.model._var_allprocs_abs2idx["nonlinear"][
-                            detailed_var
-                        ],
-                    ]
-                global_start_index = start = np.sum(sizes[: postproc_problem.comm.rank])
-                global_end_index = start + sizes[postproc_problem.comm.rank]
-            else:
-                global_start_index = 0
-                global_end_index = np.prod(detailed_data["shape"])
-            array_metadata = ArrayMetadata(
-                shape=detailed_data["shape"],
-                global_shape=detailed_data["global_shape"],
-                local=True,
+            array_metadata = _create_local_array_metadata(
+                stage_problem=postproc_problem,
                 start_index=start_index,
                 end_index=end_index,
-                global_start_index=global_start_index,
-                global_end_index=global_end_index,
+                detailed_var=detailed_var,
+                detailed_data=detailed_data,
             )
 
     if found_postproc_output_var > 1:
@@ -397,6 +380,8 @@ def _extract_postprocessing_quantity(
             f"For quantity {quantity_name}, there is no inner variable tagged with "
             f"'postproc_output_vars'."
         )
+    # We check that there is a postproc_output_var, so array_metadata must exist
+    # pylint: disable=possibly-used-before-assignment
     quantity = Quantity(
         name=quantity_name,
         type="postprocessing",
