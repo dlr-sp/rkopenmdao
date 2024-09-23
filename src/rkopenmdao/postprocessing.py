@@ -1,5 +1,7 @@
 # pylint: disable=missing-module-docstring
 
+from __future__ import annotations
+
 from collections.abc import Callable
 import numpy as np
 
