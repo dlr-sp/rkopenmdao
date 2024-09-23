@@ -1,6 +1,7 @@
 # pylint: disable=missing-module-docstring, protected-access
 
-from typing import Optional
+from __future__ import annotations
+
 import h5py
 import numpy as np
 import openmdao.api as om
@@ -30,9 +31,6 @@ from .metadata_extractor import (
     add_functional_metadata,
     add_distributivity_information,
     TimeIntegrationMetadata,
-    Quantity,
-    ArrayMetadata,
-    TranslationMetadata,
 )
 
 
@@ -53,33 +51,29 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _of_vars_postproc: list
     _wrt_vars_postproc: list
 
-    _runge_kutta_scheme: Optional[RungeKuttaScheme]
-    _serialized_state: Optional[np.ndarray]
-    _accumulated_stages: Optional[np.ndarray]
-    _stage_cache: Optional[np.ndarray]
-    _serialized_state_perturbations: Optional[np.ndarray]
-    _serialized_state_perturbations_from_functional: Optional[np.ndarray]
-    _accumulated_stage_perturbations: Optional[np.ndarray]
-    _stage_perturbations_cache: Optional[np.ndarray]
+    _runge_kutta_scheme: RungeKuttaScheme | None
+    _serialized_state: np.ndarray | None
+    _accumulated_stages: np.ndarray | None
+    _stage_cache: np.ndarray | None
+    _serialized_state_perturbations: np.ndarray | None
+    _serialized_state_perturbations_from_functional: np.ndarray | None
+    _accumulated_stage_perturbations: np.ndarray | None
+    _stage_perturbations_cache: np.ndarray | None
 
-    _postprocessor: Optional[Postprocessor]
-    _postprocessing_state: Optional[np.ndarray]
-    _postprocessing_state_perturbations: Optional[np.ndarray]
+    _postprocessor: Postprocessor | None
+    _postprocessing_state: np.ndarray | None
+    _postprocessing_state_perturbations: np.ndarray | None
 
-    _functional_part: Optional[np.ndarray]
-    _functional_part_perturbations: Optional[np.ndarray]
+    _functional_part: np.ndarray | None
+    _functional_part_perturbations: np.ndarray | None
 
-    _time_integration_metadata: TimeIntegrationMetadata
-
-    _numpy_array_size: int
-    _numpy_postproc_size: int
-    _numpy_functional_size: int
+    _time_integration_metadata: TimeIntegrationMetadata | None
 
     _cached_input: np.ndarray
 
     _disable_write_out: bool
 
-    _checkpointer: Optional[CheckpointInterface]
+    _checkpointer: CheckpointInterface | None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -104,6 +98,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._functional_part = None
         self._functional_part_perturbations = None
+
+        self._time_integration_metadata = None
 
         self._cached_input = np.full(0, np.nan)
         self._disable_write_out = False

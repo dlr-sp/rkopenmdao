@@ -1,7 +1,7 @@
 """Wrapper classes to make a openMDAO problem modelling a time stage for the
 RungeKuttaIntegrator usable with the RungeKuttaScheme class."""
 
-from typing import Tuple
+from __future__ import annotations
 
 import numpy as np
 import openmdao.api as om
@@ -209,7 +209,7 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         stage_time: float,
         delta_t: float,
         butcher_diagonal_element: float,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
         self.time_stage_problem.model.run_linearize()

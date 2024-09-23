@@ -1,6 +1,7 @@
 """Tests for the Runge-Kutta integration core."""
 
-from typing import Callable, Tuple
+from __future__ import annotations
+from collections.abc import Callable
 
 import numpy as np
 import pytest
@@ -26,7 +27,7 @@ class RkFunctionProvider:
             [np.ndarray, np.ndarray, float, float, float], np.ndarray
         ],
         stage_computation_functor_transposed_jacvec: Callable[
-            [np.ndarray, float, float, float], Tuple[np.ndarray, np.ndarray]
+            [np.ndarray, float, float, float], tuple[np.ndarray, np.ndarray]
         ],
     ):
         self.stage_computation_functor = stage_computation_functor
@@ -461,7 +462,7 @@ def test_compute_stage_jacvec(
         old_time,
         old_state_perturbation,
         accumulated_stages_perturbation,
-        **linearization_args
+        **linearization_args,
     ) == pytest.approx(expected_jacvec_product)
 
 
@@ -526,7 +527,7 @@ def test_compute_stage_transposed_jacvec(
     old_time: float,
     joined_perturbation: np.ndarray,
     linearization_args: dict,
-    expected_jacvec_product: Tuple[np.ndarray, np.ndarray],
+    expected_jacvec_product: tuple[np.ndarray, np.ndarray],
 ):
     """Tests the compute_stage_tranposed_jacvec function."""
     assert rk_scheme.compute_stage_transposed_jacvec(

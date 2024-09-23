@@ -1,6 +1,6 @@
 # pylint: disable=missing-module-docstring
-from typing import Union
-from typing import Callable
+from __future__ import annotations
+from collections.abc import Callable
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, gmres
 import h5py

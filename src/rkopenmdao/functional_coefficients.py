@@ -1,8 +1,7 @@
 """Base class and default for the object to describe linear combinations to the
 RungeKuttaIntegrator."""
 
-from typing import List, Union
-
+from __future__ import annotations
 import numpy as np
 
 from .integration_control import IntegrationControl
@@ -11,15 +10,13 @@ from .integration_control import IntegrationControl
 class FunctionalCoefficients:
     """Base class for the functional coefficients object."""
 
-    def list_quantities(self) -> List[str]:
+    def list_quantities(self) -> list[str]:
         """Returns the list of quantities this objects operates on."""
         raise NotImplementedError(
             "Method 'list_quantities' must be implemented in child class by user."
         )
 
-    def get_coefficient(
-        self, time_step: int, quantity: str
-    ) -> Union[float, np.ndarray]:
+    def get_coefficient(self, time_step: int, quantity: str) -> float | np.ndarray:
         """Given a quantity and a time step, returns the fitting coefficient for the
         linear combination."""
         raise NotImplementedError(
@@ -33,12 +30,10 @@ class EmptyFunctionalCoefficients(FunctionalCoefficients):
     all times and quantities.
     """
 
-    def list_quantities(self) -> List[str]:
+    def list_quantities(self) -> list[str]:
         return []
 
-    def get_coefficient(
-        self, time_step: int, quantity: str
-    ) -> Union[float, np.ndarray]:
+    def get_coefficient(self, time_step: int, quantity: str) -> float | np.ndarray:
         return 0.0
 
 
