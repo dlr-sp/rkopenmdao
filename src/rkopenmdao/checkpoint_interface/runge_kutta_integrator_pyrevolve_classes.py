@@ -1,6 +1,7 @@
 """Classes for the usage of the modernized interface of pyrevolve in the
 RungeKuttaIntegrator."""
 
+from __future__ import annotations
 from collections.abc import Mapping, Callable
 
 import pyrevolve as pr
