@@ -5,7 +5,6 @@ RungeKuttaIntegrator used for organizing its own data structures."""
 from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
-from pkgutil import get_loader
 
 import numpy as np
 import openmdao.api as om
@@ -267,12 +266,13 @@ def add_time_independent_input_metadata(
     for var, data in global_quantities.items():
         tags = data["tags"] & time_independent_input_set
 
-        assert len(tags) == 1, (
-            f"Variable {var} either has two time integration quantity tags, "
-            f"or 'time_independent_input_var' was used as quantity tag. Both are "
-            f"forbidden. Tags of {var} intersected with time independent input "
-            f"quantities: {tags}."
-        )
+        if len(tags) != 1:
+            raise SetupError(
+                f"Variable {var} either has two time independent quantity tags, "
+                f"or 'time_independent_input_var' was used as quantity tag. Both are "
+                f"forbidden. Tags of {var} intersected with time independent input "
+                f"quantities: {tags}."
+            )
         quantity_name = tags.pop()
 
         if var in local_quantities:
@@ -323,8 +323,8 @@ def _extract_time_independent_quantity(
 
     if found_time_independent_input_var > 1:
         raise SetupError(
-            f"For quantity {quantity_name}, there is more than one inner variable tagged"
-            f" with 'time_independent_input_var'."
+            f"For quantity {quantity_name}, there is more than one inner variable "
+            f"tagged with 'time_independent_input_var'."
         )
 
     if found_time_independent_input_var < 1:

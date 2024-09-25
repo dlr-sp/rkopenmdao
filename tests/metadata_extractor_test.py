@@ -330,6 +330,7 @@ def test_metadata_non_parallel_incorrect(
 
 
 def test_metadata_time_independent_inputs_correct():
+    """Tests whether independent input metadata is correctly added."""
     prob = basic_test_problem()
     prob.model.add_subsystem(
         "input_comp",
@@ -384,6 +385,90 @@ def test_metadata_time_independent_inputs_correct():
             ),
         ),
     ]
+
+
+@pytest.mark.parametrize(
+    "input_dict, quantity_list, error_message",
+    [
+        (
+            {
+                "w": {
+                    "tags": ["time_independent_input_var", "v", "w"],
+                    "shape": (2, 2),
+                    "distributed": False,
+                },
+            },
+            ["v", "w"],
+            "Variable input_comp.w either has two time independent quantity tags, "
+            "or 'time_independent_input_var' was used as quantity tag. Both are "
+            "forbidden. Tags of input_comp.w intersected with time independent input "
+            "quantities: ({'v', 'w'}|{'w', 'v'})",
+        ),
+        (
+            {
+                "w": {
+                    "tags": ["time_independent_input_var", "w"],
+                    "shape": (2, 2),
+                    "distributed": False,
+                },
+            },
+            ["time_independent_input_var", "w"],
+            "Variable input_comp.w either has two time independent quantity tags, "
+            "or 'time_independent_input_var' was used as quantity tag. Both are "
+            "forbidden. Tags of input_comp.w intersected with time independent input "
+            "quantities: "
+            "({'w', 'time_independent_input_var'}|{'time_independent_input_var', 'w'})",
+        ),
+        (
+            {
+                "w": {
+                    "tags": ["time_independent_input_var", "w"],
+                    "shape": (2, 2),
+                    "distributed": False,
+                },
+                "ww": {
+                    "tags": ["time_independent_input_var", "w"],
+                    "shape": (2, 2),
+                    "distributed": False,
+                },
+            },
+            ["w"],
+            "For quantity w, there is more than one inner variable tagged"
+            " with 'time_independent_input_var'.",
+        ),
+        (
+            {
+                "w": {
+                    "tags": ["time_independent_input_var_err", "w"],
+                    "shape": (2, 2),
+                    "distributed": False,
+                },
+            },
+            ["w"],
+            "For quantity w, there is no inner variable tagged with "
+            "'time_independent_input_var'.",
+        ),
+    ],
+)
+def test_metadata_time_independent_inputs_incorrect(
+    input_dict, quantity_list, error_message
+):
+    """Tests various incorrect cases for the addition of metadata for independent
+    inputs."""
+    prob = basic_test_problem()
+    prob.model.add_subsystem(
+        "input_comp",
+        MetadataTestComponent(
+            input_dict=input_dict,
+            output_dict={},
+        ),
+    )
+    prob.setup()
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
+    with pytest.raises(SetupError, match=error_message):
+        add_time_independent_input_metadata(
+            prob, quantity_list, time_integration_metadata
+        )
 
 
 def test_metadata_functional_correct():
