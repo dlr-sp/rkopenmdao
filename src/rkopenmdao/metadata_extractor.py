@@ -4,7 +4,8 @@ RungeKuttaIntegrator used for organizing its own data structures."""
 # pylint: disable=protected-access
 from __future__ import annotations
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pkgutil import get_loader
 
 import numpy as np
 import openmdao.api as om
@@ -74,11 +75,11 @@ class Quantity:
 class TimeIntegrationMetadata:
     """Collection of metadata over all quantities of a time integration."""
 
-    time_integration_array_size: int
-    time_independent_input_size: int
-    postprocessing_array_size: int
-    functional_array_size: int
-    quantity_list: list[Quantity]
+    time_integration_array_size: int = 0
+    time_independent_input_size: int = 0
+    postprocessing_array_size: int = 0
+    functional_array_size: int = 0
+    quantity_list: list[Quantity] = field(default_factory=list)
 
 
 def extract_time_integration_metadata(
@@ -127,7 +128,9 @@ def extract_time_integration_metadata(
                 translation_metadata=TimeIntegrationTranslationMetadata(),
             )
         quantity_list.append(quantity)
-    runge_kutta_metadata = TimeIntegrationMetadata(array_size, 0, 0, quantity_list)
+    runge_kutta_metadata = TimeIntegrationMetadata(
+        time_integration_array_size=array_size, quantity_list=quantity_list
+    )
     return runge_kutta_metadata
 
 
@@ -254,7 +257,7 @@ def add_time_independent_input_metadata(
         get_remote=False,
     )
     global_quantities = stage_problem.model.get_io_metadata(
-        iotypes="output",
+        iotypes="input",
         metadata_keys=["tags"],
         tags=time_independent_input_quantity_list,
         get_remote=True,
@@ -262,15 +265,17 @@ def add_time_independent_input_metadata(
 
     time_independent_input_set = set(time_independent_input_quantity_list)
     for var, data in global_quantities.items():
-        tags = time_independent_input_set & set(data["tags"])
+        tags = data["tags"] & time_independent_input_set
+
+        assert len(tags) == 1, (
+            f"Variable {var} either has two time integration quantity tags, "
+            f"or 'time_independent_input_var' was used as quantity tag. Both are "
+            f"forbidden. Tags of {var} intersected with time independent input "
+            f"quantities: {tags}."
+        )
         quantity_name = tags.pop()
+
         if var in local_quantities:
-            assert len(tags) == 1, (
-                f"Variable {var} either has two time integration quantity tags, "
-                f"or 'time_independent_input_var' was used as quantity tag. Both are "
-                f"forbidden. Tags of {var} intersected with time independent input "
-                f"quantities: {tags}."
-            )
 
             runge_kutta_metadata.time_independent_input_size, quantity = (
                 _extract_time_independent_quantity(

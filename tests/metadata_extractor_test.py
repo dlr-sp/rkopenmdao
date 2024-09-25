@@ -8,6 +8,7 @@ import pytest
 
 from rkopenmdao.metadata_extractor import (
     extract_time_integration_metadata,
+    add_time_independent_input_metadata,
     add_postprocessing_metadata,
     add_functional_metadata,
     add_distributivity_information,
@@ -15,6 +16,7 @@ from rkopenmdao.metadata_extractor import (
     ArrayMetadata,
     TimeIntegrationTranslationMetadata,
     PostprocessingTranslationMetadata,
+    TimeIndependentInputTranslationMetadata,
 )
 
 from rkopenmdao.errors import SetupError
@@ -73,7 +75,6 @@ def basic_test_problem():
     test_comp = MetadataTestComponent(input_dict=input_dict, output_dict=output_dict)
     prob = om.Problem()
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
-    prob.setup()
     return prob
 
 
@@ -81,6 +82,7 @@ def test_metadata_non_parallel_correct():
     """Tests for the sequential case whether time integration metadata is correctly
     set."""
     prob = basic_test_problem()
+    prob.setup()
 
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
 
@@ -327,9 +329,67 @@ def test_metadata_non_parallel_incorrect(
         extract_time_integration_metadata(prob, quantity_list)
 
 
+def test_metadata_time_independent_inputs_correct():
+    prob = basic_test_problem()
+    prob.model.add_subsystem(
+        "input_comp",
+        MetadataTestComponent(
+            input_dict={
+                "w": {
+                    "tags": ["time_independent_input_var", "w"],
+                    "shape": (2, 2),
+                    "distributed": False,
+                },
+            },
+            output_dict={},
+        ),
+    )
+    prob.setup()
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
+    add_time_independent_input_metadata(prob, ["w"], time_integration_metadata)
+    assert time_integration_metadata.time_independent_input_size == 4
+    assert time_integration_metadata.quantity_list == [
+        Quantity(
+            "x",
+            "time_integration",
+            ArrayMetadata(
+                shape=(5, 2),
+                global_shape=(5, 2),
+                local=True,
+                start_index=0,
+                end_index=10,
+                global_start_index=0,
+                global_end_index=10,
+            ),
+            TimeIntegrationTranslationMetadata(
+                step_input_var="test_comp.x_old",
+                accumulated_stage_var="test_comp.x_acc_stages",
+                stage_output_var="test_comp.x_update",
+            ),
+        ),
+        Quantity(
+            "w",
+            "independent_input",
+            ArrayMetadata(
+                shape=(2, 2),
+                global_shape=(2, 2),
+                local=True,
+                start_index=0,
+                end_index=4,
+                global_start_index=0,
+                global_end_index=4,
+            ),
+            TimeIndependentInputTranslationMetadata(
+                time_independent_input_var="input_comp.w",
+            ),
+        ),
+    ]
+
+
 def test_metadata_functional_correct():
     """Tests whether functional metadata is correctly added to the metadata dict."""
     prob = basic_test_problem()
+    prob.setup()
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     add_functional_metadata(["x"], time_integration_metadata)
     assert time_integration_metadata.functional_array_size == 10
@@ -361,6 +421,7 @@ def test_metadata_functional_correct():
 def test_metadata_functional_incorrect():
     """Tests an incorrect case for the addition of functional metadata."""
     prob = basic_test_problem()
+    prob.setup()
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     with pytest.raises(
         SetupError,
@@ -374,6 +435,7 @@ def test_metadata_postprocessing_correct():
     """Tests the correct case for addition of postprocessing metadata to the metadata
     dicts."""
     prob = basic_test_problem()
+    prob.setup()
     input_dict = {
         "x": {
             "tags": ["postproc_input_var", "x"],
@@ -568,6 +630,7 @@ def test_metadata_postprocessing_incorrect(
     """Tests various incorrect cases for the addition of postprocessing metadata to the
     dicts."""
     prob = basic_test_problem()
+    prob.setup()
     postproc_comp = MetadataTestComponent(
         input_dict=input_dict, output_dict=output_dict
     )
