@@ -76,9 +76,8 @@ class TimeIntegrationMetadata:
 def extract_time_integration_metadata(
     stage_problem: om.Problem, time_integration_quantity_list: list
 ) -> TimeIntegrationMetadata:
-    """Extracts metadata from the time stage problem and returns the size of the
-    integrators internal array, a dict to translate to the inner problem, and a dict
-    containing variable information."""
+    """Extracts metadata from the time stage problem and returns it inside a
+    TimeIntegrationMetadata object."""
     local_quantities = stage_problem.model.get_io_metadata(
         iotypes="output",
         metadata_keys=["tags"],
@@ -97,17 +96,16 @@ def extract_time_integration_metadata(
     time_integration_set = set(time_integration_quantity_list)
     for var, data in global_quantities.items():
         tags = time_integration_set & set(data["tags"])
+
+        if len(tags) != 1:
+            raise SetupError(
+                f"Variable {var} either has two time integration quantity tags, or "
+                f"'stage_output_var' was used as quantity tag. Both are forbidden. "
+                f"Tags of {var} intersected with time integration quantities: "
+                f"{tags}."
+            )
         quantity_name = tags.pop()
         if var in local_quantities:
-            tags = time_integration_set & set(data["tags"])
-            if len(tags) != 1:
-                raise SetupError(
-                    f"Variable {var} either has two time integration quantity tags, or "
-                    f"'stage_output_var' was used as quantity tag. Both are forbidden. "
-                    f"Tags of {var} intersected with time integration quantities: "
-                    f"{tags}."
-                )
-
             array_size, quantity = _extract_time_integration_quantity(
                 quantity_name,
                 stage_problem,
@@ -243,8 +241,7 @@ def add_postprocessing_metadata(
     runge_kutta_metadata: TimeIntegrationMetadata,
 ):
     """Extracts metadata from the postprocessing problem and adds it to the passed
-    metadata dicts. Returns them, as well as the size for the internal postprocessing
-    state array."""
+    TimeIntegrationMetadata object."""
     postproc_input_vars = postproc_problem.model.get_io_metadata(
         iotypes="input",
         metadata_keys=["tags"],
@@ -293,17 +290,15 @@ def add_postprocessing_metadata(
 
     for var, data in global_postproc_quantities.items():
         tags = postprocessing_set & set(data["tags"])
+        if len(tags) != 1:
+            raise SetupError(
+                f"Variable {var} either has two postprocessing quantity tags, or "
+                f"'postproc_output_var' was used as quantity tag. Both are "
+                f"forbidden. Tags of {var} intersected with time integration "
+                f"quantities: {tags}."
+            )
         quantity_name = tags.pop()
         if var in local_postproc_quantities:
-            tags = postprocessing_set & set(data["tags"])
-            if len(tags) != 1:
-                raise SetupError(
-                    f"Variable {var} either has two postprocessing quantity tags, or "
-                    f"'postproc_output_var' was used as quantity tag. Both are "
-                    f"forbidden. Tags of {var} intersected with time integration "
-                    f"quantities: {tags}."
-                )
-
             runge_kutta_metadata.postprocessing_array_size, quantity = (
                 _extract_postprocessing_quantity(
                     quantity_name,
@@ -394,8 +389,8 @@ def _extract_postprocessing_quantity(
 def add_functional_metadata(
     functional_quantities: list, runge_kutta_metadata: TimeIntegrationMetadata
 ) -> None:
-    """Adds metadata in the quantity metadata dict based on which functionals are part
-    of a functional. Also returns the size of the internal functional state array."""
+    """Adds metadata to the passed TimeIntegrationMetadata object based on which
+    functionals are part of a functional."""
 
     functional_quantities_set = set(functional_quantities)
 
@@ -423,8 +418,8 @@ def add_functional_metadata(
 def add_distributivity_information(
     stage_problem: om.Problem, runge_kutta_metadata: TimeIntegrationMetadata
 ) -> None:
-    """Adds information about the distributed structure of data the the quantity
-    metadata dict."""
+    """Adds information about the distributed structure of data to the passed
+    TimeIntegrationMetadata object."""
     for quantity in runge_kutta_metadata.quantity_list:
         local = np.array(quantity.array_metadata.local)
         everywhere_local = np.zeros_like(local)
