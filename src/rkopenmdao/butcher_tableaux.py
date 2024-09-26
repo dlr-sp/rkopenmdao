@@ -12,7 +12,7 @@ or their source is given at the tableau.
 
 import numpy as np
 
-from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.butcher_tableau import ButcherTableau, EmbeddedButcherTableau
 
 __all__ = [
     "explicit_euler",
@@ -35,6 +35,8 @@ __all__ = [
     "fourth_order_six_stage_esdirk",
     "fourth_order_third_weak_stage_order_six_stage_dirk",
     "fifth_order_six_stage_esdirk",
+    "embedded_heun_euler",
+    "embedded_runge_kutta_fehlberg"
 ]
 # one stage methods
 explicit_euler = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]), p=1, name="Explicit Euler")
@@ -664,4 +666,28 @@ fourth_order_third_weak_stage_order_six_stage_dirk = ButcherTableau(
     ),
     p=4,
     name="3rd weak stage 6-stage DIRK, 4th order"
+)
+embedded_heun_euler = EmbeddedButcherTableau(
+    np.array([[0., 0.], [1.0, 0.0]]),
+    np.array([0.5, 0.5]),
+    np.array([1.0, 0.]),
+    np.array([0., 1.0]),
+    2,
+    1,
+    name="Embedded Heun's Method with Euler method"
+)
+
+embedded_runge_kutta_fehlberg = EmbeddedButcherTableau(
+    np.array([[0., 0., 0., 0., 0., 0.],
+              [1/4, 0., 0., 0., 0., 0.],
+              [3/32, 9/32, 0., 0., 0., 0.],
+              [1932/2197, -7200/2197, 7296/2197, 0., 0., 0.],
+              [439/216, -8., 3680/513, -845/4104, 0., 0.],
+              [-8/27, 2., -3544/2565, 1859/4014, -11/40, 0.]]),
+    np.array([16/135, 0., 6656/12825, 28561/56430, -9/50, 2/55]),
+    np.array([25/216, 0., 1408/2565, 2197/4104, -1/5, 0.]),
+    np.array([0., 1/4, 3/8, 12/13, 1., 1/2]),
+    5,
+    4,
+    name="The Runge–Kutta–Fehlberg method"
 )
