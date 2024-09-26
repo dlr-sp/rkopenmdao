@@ -1,6 +1,7 @@
 # pylint: disable=missing-module-docstring
 
-from typing import Callable, Tuple
+from __future__ import annotations
+from collections.abc import Callable
 
 import numpy as np
 
@@ -28,7 +29,7 @@ class RungeKuttaScheme:
         # butcher_diagonal_element
         # -> stage_perturbation
         stage_computation_functor_transposed_jacvec: Callable[
-            [np.ndarray, float, float, float], Tuple[np.ndarray, np.ndarray]
+            [np.ndarray, float, float, float], tuple[np.ndarray, np.ndarray]
         ],
         # stage_perturbation, stage_time, delta_t, butcher_diagonal_element
         # -> old_state_perturbation, accumulated_stages_perturbation
@@ -88,7 +89,7 @@ class RungeKuttaScheme:
         old_time: float,
         old_state_perturbation: np.ndarray,
         accumulated_stages_perturbation: np.ndarray,
-        **linearization_args
+        **linearization_args,
     ) -> np.ndarray:
         """Computes the matrix-vector-product of the jacobian of the stage wrt. to the
         old state and the accumulated stages."""
@@ -136,8 +137,8 @@ class RungeKuttaScheme:
         delta_t: float,
         old_time: float,
         joined_perturbation: np.ndarray,
-        **linearization_args
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        **linearization_args,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Computes the matrix-vector-product of the transposed of the jacobian of the
         stage wrt. to the old state and the accumulated stages."""
         if hasattr(self.stage_computation_functor_transposed_jacvec, "linearize"):

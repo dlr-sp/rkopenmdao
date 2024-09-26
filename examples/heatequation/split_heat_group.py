@@ -1,7 +1,7 @@
 """Creation routine for an OpenMDAO problem that models a heat equation split along the
 middle of its domain."""
 
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import openmdao.api as om

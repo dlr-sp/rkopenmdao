@@ -5,6 +5,7 @@ import numpy as np
 import openmdao.api as om
 
 from .errors import PostprocessingError
+from .metadata_extractor import TimeIntegrationMetadata
 
 
 class PostprocessingProblemComputeFunctor:
@@ -14,47 +15,48 @@ class PostprocessingProblemComputeFunctor:
     def __init__(
         self,
         postprocessing_problem: om.Problem,
-        quantity_metadata: dict,
-        state_size: int,
-        postproc_size: int,
+        time_integration_metadata: TimeIntegrationMetadata,
     ):
         self.postprocessing_problem: om.Problem = postprocessing_problem
-        self.quantity_metadata: dict = quantity_metadata
-        self.state_size = state_size
-        self.postproc_size = postproc_size
+        self.time_integration_metadata: TimeIntegrationMetadata = (
+            time_integration_metadata
+        )
 
     def __call__(self, input_vector: np.ndarray) -> np.ndarray:
         self.fill_problem_data(input_vector)
         self.postprocessing_problem.model.run_solve_nonlinear()
-        postproc_state = np.zeros(self.postproc_size)
+        postproc_state = np.zeros(
+            self.time_integration_metadata.postprocessing_array_size
+        )
         self.get_problem_data(postproc_state)
         return postproc_state
 
     def fill_problem_data(self, input_vector):
         """Write data into the internal nonlinear vectors of the owned problem."""
         _, outputs, _ = self.postprocessing_problem.model.get_nonlinear_vectors()
-        for metadata in self.quantity_metadata.values():
+        for quantity in self.time_integration_metadata.quantity_list:
             if (
-                metadata["type"] == "time_integration"
-                and "postproc_input_var" in metadata
+                quantity.type == "time_integration"
+                and quantity.array_metadata.local
+                and quantity.translation_metadata.postproc_input_var is not None
             ):
-                start = metadata["numpy_start_index"]
-                end = metadata["numpy_end_index"]
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
                 outputs[
                     self.postprocessing_problem.model.get_source(
-                        metadata["postproc_input_var"]
+                        quantity.translation_metadata.postproc_input_var
                     )
-                ] = (input_vector[start:end].reshape(metadata["shape"]),)
+                ] = (input_vector[start:end].reshape(quantity.array_metadata.shape),)
 
     def get_problem_data(self, postproc_state: np.ndarray):
         """Extract data from the internal nonlinear vectors of the owned problem."""
         _, outputs, _ = self.postprocessing_problem.model.get_nonlinear_vectors()
-        for metadata in self.quantity_metadata.values():
-            if metadata["type"] == "postprocessing":
-                start = metadata["numpy_postproc_start_index"]
-                end = metadata["numpy_postproc_end_index"]
+        for quantity in self.time_integration_metadata.quantity_list:
+            if quantity.type == "postprocessing" and quantity.array_metadata.local:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
                 postproc_state[start:end] = outputs[
-                    metadata["postproc_output_var"]
+                    quantity.translation_metadata.postproc_output_var
                 ].flatten()
 
 
@@ -66,16 +68,14 @@ class PostprocessingProblemComputeJacvecFunctor:
     def __init__(
         self,
         postprocessing_problem: om.Problem,
-        quantity_metadata: dict,
-        state_size: int,
-        postproc_size: int,
+        time_integration_metadata: TimeIntegrationMetadata,
         of_vars: list,
         wrt_vars: list,
     ):
         self.postprocessing_problem: om.Problem = postprocessing_problem
-        self.quantity_metadata: dict = quantity_metadata
-        self.state_size = state_size
-        self.postproc_size = postproc_size
+        self.time_integration_metadata: TimeIntegrationMetadata = (
+            time_integration_metadata
+        )
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
 
@@ -89,7 +89,9 @@ class PostprocessingProblemComputeJacvecFunctor:
             self.postprocessing_problem.model.run_solve_linear(
                 vec_names=["linear"], mode="fwd"
             )
-        postproc_perturbations = np.zeros(self.postproc_size)
+        postproc_perturbations = np.zeros(
+            self.time_integration_metadata.postprocessing_array_size
+        )
         self.get_problem_data(postproc_perturbations)
         return postproc_perturbations
 
@@ -97,28 +99,29 @@ class PostprocessingProblemComputeJacvecFunctor:
         """Write data into the internal linear vectors of the owned problem."""
         (_, _, d_residuals) = self.postprocessing_problem.model.get_linear_vectors()
         d_residuals.asarray()[:] *= 0.0
-        for metadata in self.quantity_metadata.values():
+        for quantity in self.time_integration_metadata.quantity_list:
             if (
-                metadata["type"] == "time_integration"
-                and "postproc_input_var" in metadata
+                quantity.type == "time_integration"
+                and quantity.array_metadata.local
+                and quantity.translation_metadata.postproc_input_var is not None
             ):
-                start = metadata["numpy_start_index"]
-                end = metadata["numpy_end_index"]
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
                 d_residuals[
                     self.postprocessing_problem.model.get_source(
-                        metadata["postproc_input_var"]
+                        quantity.translation_metadata.postproc_input_var
                     )
-                ] = -input_vector[start:end].reshape(metadata["shape"])
+                ] = -input_vector[start:end].reshape(quantity.array_metadata.shape)
 
     def get_problem_data(self, postproc_perturbations: np.ndarray):
         """Extract data from the internal linear vectors of the owned problem."""
         _, d_outputs, _ = self.postprocessing_problem.model.get_linear_vectors()
-        for metadata in self.quantity_metadata.values():
-            if metadata["type"] == "postprocessing":
-                start = metadata["numpy_postproc_start_index"]
-                end = metadata["numpy_postproc_end_index"]
+        for quantity in self.time_integration_metadata.quantity_list:
+            if quantity.type == "postprocessing" and quantity.array_metadata.local:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
                 postproc_perturbations[start:end] = d_outputs[
-                    metadata["postproc_output_var"]
+                    quantity.translation_metadata.postproc_output_var
                 ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
@@ -146,16 +149,14 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
     def __init__(
         self,
         postprocessing_problem: om.Problem,
-        quantity_metadata: dict,
-        state_size: int,
-        postproc_size: int,
+        time_integration_metadata: TimeIntegrationMetadata,
         of_vars: list,
         wrt_vars: list,
     ):
         self.postprocessing_problem: om.Problem = postprocessing_problem
-        self.quantity_metadata: dict = quantity_metadata
-        self.state_size = state_size
-        self.postproc_size = postproc_size
+        self.time_integration_metadata: TimeIntegrationMetadata = (
+            time_integration_metadata
+        )
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
 
@@ -169,7 +170,9 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
             self.postprocessing_problem.model.run_solve_linear(
                 vec_names=["linear"], mode="rev"
             )
-        input_perturbations = np.zeros(self.state_size)
+        input_perturbations = np.zeros(
+            self.time_integration_metadata.time_integration_array_size
+        )
         self.get_problem_data(input_perturbations)
         return input_perturbations
 
@@ -177,27 +180,30 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
         """Write data into the internal linear vectors of the owned problem."""
         _, d_outputs, _ = self.postprocessing_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0
-        for metadata in self.quantity_metadata.values():
-            if metadata["type"] == "postprocessing":
-                start = metadata["numpy_postproc_start_index"]
-                end = metadata["numpy_postproc_end_index"]
-                d_outputs[metadata["postproc_output_var"]] = -postproc_perturbations[
-                    start:end
-                ].reshape(metadata["shape"])
+        for quantity in self.time_integration_metadata.quantity_list:
+            if quantity.type == "postprocessing" and quantity.array_metadata.local:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                d_outputs[quantity.translation_metadata.postproc_output_var] = (
+                    -postproc_perturbations[start:end].reshape(
+                        quantity.array_metadata.shape
+                    )
+                )
 
     def get_problem_data(self, input_perturbations: np.ndarray):
         """Extract data from the internal linear vectors of the owned problem."""
         _, _, d_residuals = self.postprocessing_problem.model.get_linear_vectors()
-        for metadata in self.quantity_metadata.values():
+        for quantity in self.time_integration_metadata.quantity_list:
             if (
-                metadata["type"] == "time_integration"
-                and "postproc_input_var" in metadata
+                quantity.type == "time_integration"
+                and quantity.array_metadata.local
+                and quantity.translation_metadata.postproc_input_var is not None
             ):
-                start = metadata["numpy_start_index"]
-                end = metadata["numpy_end_index"]
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
                 input_perturbations[start:end] = d_residuals[
                     self.postprocessing_problem.model.get_source(
-                        metadata["postproc_input_var"]
+                        quantity.translation_metadata.postproc_input_var
                     )
                 ].flatten()
 

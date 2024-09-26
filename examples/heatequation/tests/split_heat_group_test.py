@@ -1,6 +1,6 @@
 """Tests the creator function for the split heat group."""
 
-from typing import Callable
+from collections.abc import Callable
 import pytest
 
 import openmdao.api as om
@@ -27,8 +27,8 @@ integration_control_1 = IntegrationControl(0.0, 1, 1e-4)
 
 
 gmres_args_without_precon = {
-    "tol": 1e-15,
-    "atol": "legacy",
+    "rtol": 1e-10,
+    "atol": 1e-15,
 }
 
 

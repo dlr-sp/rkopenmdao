@@ -547,16 +547,18 @@ def setup_time_integration_problem(
     if postprocessing_quantities is None:
         postprocessing_quantities = []
     time_integration_prob = om.Problem()
+    time_integration_indep = om.IndepVarComp()
+    time_integration_indep.add_output("b_initial", shape_by_conn=True, distributed=True)
+    time_integration_indep.add_output("c_initial", shape_by_conn=True, distributed=True)
+    time_integration_prob.model.add_subsystem(
+        "indep", time_integration_indep, promotes=["*"]
+    )
     time_integration_prob.model.add_subsystem(
         "rk_integrator",
         RungeKuttaIntegrator(
             time_stage_problem=stage_prob,
             postprocessing_problem=postproc_problem,
-            time_integration_quantities=[
-                "a",
-                "b" if stage_prob.comm.rank == 1 else "c",
-                "d",
-            ],
+            time_integration_quantities=["a", "b", "c", "d"],
             postprocessing_quantities=postprocessing_quantities,
             integration_control=integration_control,
             butcher_tableau=butcher_tableau,
@@ -568,6 +570,20 @@ def setup_time_integration_problem(
     time_integration_prob.model.linear_solver = om.LinearBlockGS()
     time_integration_prob.setup(mode=test_direction)
     return time_integration_prob
+
+
+def set_time_integration_initial_values(
+    time_integration_prob: om.Problem, initial_values: list
+) -> None:
+    """Convenience function for setting the inputs if the time integration."""
+    time_integration_prob["d_initial"] = np.array([initial_values[0]])
+    if time_integration_prob.comm.rank == 0:
+        time_integration_prob["b_initial"] = np.zeros(0)
+        time_integration_prob["c_initial"] = np.array([initial_values[1]])
+    else:
+        time_integration_prob["b_initial"] = np.array([initial_values[2]])
+        time_integration_prob["c_initial"] = np.zeros(0)
+    time_integration_prob["a_initial"] = np.array([initial_values[3]])
 
 
 @pytest.mark.mpi
@@ -591,20 +607,16 @@ def test_parallel_group_time_integration(
         integration_control,
         butcher_tableau,
     )
-    time_integration_prob["d_initial"] = initial_values[0]
-    if time_integration_prob.comm.rank == 0:
-        time_integration_prob["c_initial"] = initial_values[1]
-    else:
-        time_integration_prob["b_initial"] = initial_values[2]
-    time_integration_prob["a_initial"] = initial_values[3]
+    set_time_integration_initial_values(time_integration_prob, initial_values)
     time_integration_prob.run_model()
 
     result_array = np.array(
         [
             time_integration_prob["d_final"][:],
-            time_integration_prob[
-                "c_final" if time_integration_prob.comm.rank == 0 else "b_final"
-            ][:],
+            time_integration_prob.get_val(
+                "c_final" if time_integration_prob.comm.rank == 0 else "b_final",
+                get_remote=False,
+            )[:],
             time_integration_prob["a_final"][:],
         ]
     ).flatten()
@@ -640,12 +652,7 @@ def test_parallel_group_time_integration_with_postprocessing(
         postproc_problem=postproc_prob,
         postprocessing_quantities=["sum"],
     )
-    time_integration_prob["d_initial"] = initial_values[0]
-    if time_integration_prob.comm.rank == 0:
-        time_integration_prob["c_initial"] = initial_values[1]
-    else:
-        time_integration_prob["b_initial"] = initial_values[2]
-    time_integration_prob["a_initial"] = initial_values[3]
+    set_time_integration_initial_values(time_integration_prob, initial_values)
     time_integration_prob.run_model()
 
     analytical_result = ode_system_solution(
@@ -715,7 +722,6 @@ def test_parallel_group_time_integration_totals(
     assert_check_totals(data)
 
 
-# currently not working, although not sure why
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
