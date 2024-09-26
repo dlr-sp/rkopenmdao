@@ -17,13 +17,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install OS Packages
-      uses: awalsh128/cache-apt-pkgs-action@latest
-      with:
-        packages: openmpi-bin libopenmpi-dev libhdf5-openmpi-dev
-    # - name: Set up MPI
-    #   uses: mpi4py/setup-mpi@v1
-    #   with:
-    #     mpi: 'openmpi'
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install openmpi-bin libopenmpi-dev libhdf5-openmpi-dev
     - name: Set up Python 3.8
       uses: actions/setup-python@v3
       with:
