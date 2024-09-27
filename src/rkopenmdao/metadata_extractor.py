@@ -556,13 +556,3 @@ def add_distributivity_information(
 #     translation_metadata: dict,
 # ):
 #     pass
-
-# TODO: we will later want the ability to passthrough parameters to the outside problem
-#  for optimization
-# def add_passthrough_metadata(
-#     stage_problem: om.Problem,
-#     time_integration_quantity_list: list,
-#     quantity_metadata: dict,
-#     translation_metadata: dict,
-# ):
-#     pass

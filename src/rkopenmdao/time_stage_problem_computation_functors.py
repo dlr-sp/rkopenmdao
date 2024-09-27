@@ -20,12 +20,15 @@ class TimeStageProblemComputeFunctor:
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         time_integration_metadata: TimeIntegrationMetadata,
+        time_independent_params: np.ndarray,
     ):
         self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.time_integration_metadata: TimeIntegrationMetadata = (
             time_integration_metadata
         )
+        self.time_independent_params = time_independent_params
+        self.set_time_independent_params()
 
     def __call__(
         self,
@@ -78,6 +81,19 @@ class TimeStageProblemComputeFunctor:
                     quantity.translation_metadata.stage_output_var
                 ].flatten()
 
+    def set_time_independent_params(self):
+        """Set the time independent parameters into the owned problem."""
+        _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
+        for quantity in self.time_integration_metadata.quantity_list:
+            if quantity.type == "indpendent_input" and quantity.array_metadata.local:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                outputs[
+                    self.time_stage_problem.model.get_source(
+                        quantity.translation_metadata.time_independent_input_var
+                    )
+                ] = self.time_independent_params[start:end]
+
 
 class TimeStageProblemComputeJacvecFunctor:
     """Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a
@@ -89,6 +105,7 @@ class TimeStageProblemComputeJacvecFunctor:
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         time_integration_metadata: TimeIntegrationMetadata,
+        time_independent_param_perturbations: np.ndarray,
         of_vars: list,
         wrt_vars: list,
     ):
@@ -96,6 +113,9 @@ class TimeStageProblemComputeJacvecFunctor:
         self.integration_control: IntegrationControl = integration_control
         self.time_integration_metadata: TimeIntegrationMetadata = (
             time_integration_metadata
+        )
+        self.time_independent_param_perturbations: np.ndarray = (
+            time_independent_param_perturbations
         )
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
@@ -152,6 +172,16 @@ class TimeStageProblemComputeJacvecFunctor:
                     ] = -accumulated_stage_perturbation[start:end].reshape(
                         quantity.array_metadata.shape
                     )
+            elif quantity.type == "independent_input" and quantity.array_metadata.local:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                d_residuals[
+                    self.time_stage_problem.model.get_source(
+                        quantity.translation_metadata.time_independent_input_var
+                    )
+                ] = -self.time_independent_param_perturbations[start:end].reshape(
+                    quantity.array_metadata.shape
+                )
 
     def get_problem_data(self, stage_perturbation: np.ndarray):
         """Extracts the result of the jacvec product from d_outputs of the
@@ -200,6 +230,10 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         self.time_integration_metadata: TimeIntegrationMetadata = (
             time_integration_metadata
         )
+        self.time_independent_perturbations = np.zeros(
+            self.time_integration_metadata.time_independent_input_size
+        )
+
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
 
@@ -264,6 +298,14 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
                             quantity.translation_metadata.accumulated_stage_var
                         )
                     ].flatten()
+            if quantity.type == "independent_input" and quantity.array_metadata.local:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                self.time_independent_perturbations[start:end] += d_residuals[
+                    self.time_stage_problem.model.get_source(
+                        quantity.translation_metadata.time_independent_input_var
+                    )
+                ].flatten()
 
     def linearize(self, inputs=None, outputs=None):
         """Sets inputs and outputs of the owned problem to prepare for a different

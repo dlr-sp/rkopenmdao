@@ -60,6 +60,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _accumulated_stage_perturbations: np.ndarray | None
     _stage_perturbations_cache: np.ndarray | None
 
+    _independent_input_array: np.ndarray | None
+    _independent_input_perturbations: np.ndarray | None
+
     _postprocessor: Postprocessor | None
     _postprocessing_state: np.ndarray | None
     _postprocessing_state_perturbations: np.ndarray | None
@@ -69,7 +72,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     _time_integration_metadata: TimeIntegrationMetadata | None
 
-    _cached_input: np.ndarray
+    _cached_input: tuple[np.ndarray, np.ndarray]
 
     _disable_write_out: bool
 
@@ -92,6 +95,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._accumulated_stage_perturbations = None
         self._stage_perturbations_cache = None
 
+        self._independent_input_array = None
+        self._independent_input_perturbations = None
+
         self._postprocessor = None
         self._postprocessing_state = None
         self._postprocessing_state_perturbations = None
@@ -101,7 +107,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._time_integration_metadata = None
 
-        self._cached_input = np.full(0, np.nan)
+        self._cached_input = (np.full(0, np.nan), np.full(0, np.nan))
         self._disable_write_out = False
 
         self._checkpointer = None
@@ -331,6 +337,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     shape=quantity.array_metadata.shape,
                     distributed=quantity.array_metadata.distributed,
                 )
+            if quantity.type == "ndependent_input":
+                self.add_input(
+                    quantity.name,
+                    shape=quantity.array_metadata.shape,
+                    val=time_stage_problem.get_val(
+                        quantity.translation_metadata.time_independent_input_var
+                    ),
+                    distributed=quantity.array_metadata.distributed,
+                )
             if quantity.array_metadata.functionally_integrated:
                 self.add_output(
                     quantity.name + "_functional",
@@ -353,6 +368,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     self._wrt_vars_postproc.append(
                         quantity.translation_metadata.postproc_input_var
                     )
+            if quantity.type == "independent_input":
+                self._wrt_vars.append(
+                    quantity.translation_metadata.time_independent_input_var
+                )
             elif quantity.type == "postprocessing":
                 self._of_vars_postproc.append(
                     quantity.translation_metadata.postproc_output_var
@@ -387,6 +406,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._time_integration_metadata.time_integration_array_size,
             )
         )
+        self._independent_input_array = np.zeros(
+            self._time_integration_metadata.time_independent_input_size
+        )
+        self._independent_input_perturbations = np.zeros(
+            self._time_integration_metadata.time_independent_input_size
+        )
         self._postprocessing_state = np.zeros(
             self._time_integration_metadata.postprocessing_array_size
         )
@@ -408,11 +433,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.options["time_stage_problem"],
                 self.options["integration_control"],
                 self._time_integration_metadata,
+                self._independent_input_array,
             ),
             TimeStageProblemComputeJacvecFunctor(
                 self.options["time_stage_problem"],
                 self.options["integration_control"],
                 self._time_integration_metadata,
+                self._independent_input_perturbations,
                 self._of_vars,
                 self._wrt_vars,
             ),
@@ -514,11 +541,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print("\n\nFinishing compute\n\n")
 
     def _compute_preparation_phase(self, inputs: OMVector):
-        self._to_numpy_array(inputs, self._serialized_state)
-        self._cached_input = self._serialized_state.copy()
+        self._to_numpy_array_time_integration(inputs, self._serialized_state)
+        self._to_numpy_array_independent_inputs(inputs, self._independent_input_array)
+        self._cached_input = (
+            self._serialized_state.copy(),
+            self._independent_input_array.copy(),
+        )
         self.options["integration_control"].reset()
 
-    def _to_numpy_array(self, om_vector: OMVector, np_array: np.ndarray):
+    def _to_numpy_array_time_integration(
+        self, om_vector: OMVector, np_array: np.ndarray
+    ):
         if om_vector._kind == "input":
             name_suffix = "_initial"
         else:
@@ -528,6 +561,20 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 np_array[start:end] = om_vector[quantity.name + name_suffix].flatten()
+
+    def _to_numpy_array_independent_inputs(
+        self, om_vector: OMVector, np_array: np.ndarray
+    ):
+        if om_vector._kind != "input":
+            raise TypeError(
+                "Can't extract independent input data from an output vector"
+            )
+        else:
+            for quantity in self._time_integration_metadata.quantity_list:
+                if quantity.type == "independent_input":
+                    start = quantity.array_metadata.start_index
+                    end = quantity.array_metadata.end_index
+                    np_array[start:end] = om_vector[quantity.name].flatten()
 
     def _compute_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
@@ -564,7 +611,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.size > 1:
                 f.atomic = True
             for quantity in self._time_integration_metadata.quantity_list:
-
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 # check whether data has already been written on dataset by checking
@@ -645,13 +691,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._checkpointer.create_checkpointer()
 
     def _compute_translate_to_om_vector_phase(self, outputs: OMVector):
-        self._from_numpy_array(self._serialized_state, outputs)
+        self._from_numpy_array_time_integration(self._serialized_state, outputs)
         if self.options["postprocessing_problem"] is not None:
             self._from_numpy_array_postprocessing(self._postprocessing_state, outputs)
         if self._functional_quantities:
             self._add_functional_part_to_om_vec(self._functional_part, outputs)
 
-    def _from_numpy_array(self, np_array: np.ndarray, om_vector: OMVector):
+    def _from_numpy_array_time_integration(
+        self, np_array: np.ndarray, om_vector: OMVector
+    ):
         if om_vector._kind == "input":
             name_suffix = "_initial"
         else:
@@ -663,6 +711,20 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 om_vector[quantity.name + name_suffix] = np_array[start:end].reshape(
                     quantity.array_metadata.shape
                 )
+
+    def _from_numpy_array_independent_input(
+        self, np_array: np.ndarray, om_vector: OMVector
+    ):
+        if om_vector._kind != "input":
+            raise TypeError("Can't export independent input data to an output vector")
+        else:
+            for quantity in self._time_integration_metadata.quantity_list:
+                if quantity.type == "independent_input":
+                    start = quantity.array_metadata.start_index
+                    end = quantity.array_metadata.end_index
+                    om_vector[quantity.name] = np_array[start:end].reshape(
+                        quantity.array_metadata.shape
+                    )
 
     def _from_numpy_array_postprocessing(
         self, np_postproc_array: np.ndarray, om_vector: OMVector
@@ -795,8 +857,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print("\n\nFinished fwd-mode jacvec product\n\n")
 
     def _compute_jacvec_fwd_preparation_phase(self, inputs, d_inputs):
-        self._to_numpy_array(inputs, self._serialized_state)
-        self._to_numpy_array(d_inputs, self._serialized_state_perturbations)
+        self._to_numpy_array_time_integration(inputs, self._serialized_state)
+        self._to_numpy_array_time_integration(
+            d_inputs, self._serialized_state_perturbations
+        )
+        self._to_numpy_array_independent_inputs(inputs, self._independent_input_array)
+        self._to_numpy_array_independent_inputs(
+            d_inputs, self._independent_input_perturbations
+        )
         self.options["integration_control"].reset()
 
     def _compute_jacvec_fwd_postprocessing_phase(self):
@@ -921,7 +989,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self,
         d_outputs: OMVector,
     ):
-        self._from_numpy_array(self._serialized_state_perturbations, d_outputs)
+        self._from_numpy_array_time_integration(
+            self._serialized_state_perturbations, d_outputs
+        )
         if self.options["postprocessing_problem"] is not None:
             self._from_numpy_array_postprocessing(
                 self._postprocessing_state_perturbations, d_outputs
@@ -935,13 +1005,25 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.comm.rank == 0:
             print("\n\nStarting rev-mode jacvec product\n\n")
         self._disable_write_out = True
-        self._to_numpy_array(inputs, self._serialized_state)
-        if not np.array_equal(self._cached_input, self._serialized_state):
+        self._to_numpy_array_time_integration(inputs, self._serialized_state)
+        self._to_numpy_array_independent_inputs(inputs, self._independent_input_array)
+        self._to_numpy_array_independent_inputs(
+            d_inputs, self._independent_input_perturbations
+        )
+        self._runge_kutta_scheme.stage_computation_functor_transposed_jacvec.time_independent_perturbations = (
+            self._independent_input_perturbations
+        )
+        if not (
+            np.array_equal(self._cached_input[0], self._serialized_state)
+            and np.array_equal(self._cached_input[1], self._independent_input_array)
+        ):
             if self.comm.rank == 0:
                 print("Preparing checkpoints by calling compute()")
             outputs = self._vector_class("nonlinear", "output", self)
             self.compute(inputs, outputs)
-        self._to_numpy_array(d_outputs, self._serialized_state_perturbations)
+        self._to_numpy_array_time_integration(
+            d_outputs, self._serialized_state_perturbations
+        )
         self._to_numpy_array_postprocessing(
             d_outputs, self._postprocessing_state_perturbations
         )
@@ -966,11 +1048,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 print("Finished computation of functional contribution.")
         self._checkpointer.iterate_reverse(self._serialized_state_perturbations)
 
-        self._from_numpy_array(self._serialized_state_perturbations, d_inputs)
+        self._from_numpy_array_time_integration(
+            self._serialized_state_perturbations, d_inputs
+        )
+        self._from_numpy_array_independent_input(
+            self._independent_input_perturbations, d_inputs
+        )
         self._configure_write_out()
 
         # using the checkpoints invalidates the checkpointer in general
-        self._cached_input = np.full(0, np.nan)
+        self._cached_input = (np.full(0, np.nan), np.full(0, np.nan))
 
         if self.comm.rank == 0:
             print("\n\nFinished rev-mode jacvec product\n\n")
