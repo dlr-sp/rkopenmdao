@@ -211,9 +211,6 @@ class TimeStageProblemComputeJacvecFunctor:
                 "Either both or none of inputs and outputs must be given."
             )
 
-    def set_independent_input_perturbations(self, independent_input_perturbations):
-        self.time_independent_param_perturbations = independent_input_perturbations
-
 
 class TimeStageProblemComputeTransposeJacvecFunctor:
     """Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a
@@ -334,9 +331,3 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
             raise TimeStageError(
                 "Either both or none of inputs and outputs must be given."
             )
-
-    def set_initial_input_perturbations(self, independent_input_perturbations):
-        self.time_independent_perturbations = independent_input_perturbations
-
-    def get_independent_input_perturbations(self):
-        return self.time_independent_perturbations

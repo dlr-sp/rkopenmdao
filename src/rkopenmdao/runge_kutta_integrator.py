@@ -280,7 +280,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._configure_write_out()
         self._setup_write_file()
         self._setup_checkpointing()
-        # TODO: maybe add methods for time-independent in/outputs
 
     def _setup_inner_problems(self):
         self.options["time_stage_problem"].setup()

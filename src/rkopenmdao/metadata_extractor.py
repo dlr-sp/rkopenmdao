@@ -249,6 +249,8 @@ def add_time_independent_input_metadata(
     time_independent_input_quantity_list: list,
     runge_kutta_metadata: TimeIntegrationMetadata,
 ):
+    """Extracts metadata of independent inputs from the stage problem and adds it to the
+    passed TimeIntegrationMetadata object."""
     local_quantities = stage_problem.model.get_io_metadata(
         iotypes="input",
         metadata_keys=["tags"],

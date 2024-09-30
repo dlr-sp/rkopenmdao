@@ -1,5 +1,6 @@
 """Tests for the Runge-Kutta integration core."""
 
+# pylint: disable=unused-argument
 from __future__ import annotations
 from collections.abc import Callable
 
@@ -41,7 +42,7 @@ def identity_ode_function(
     old_state, acc_stages, parameter, stage_time, delta_t, butcher_diagonal_element
 ):
     """Solution for the stage update for the identity ode x' = x."""
-    # pylint: disable=unused-argument
+
     return (old_state + delta_t * acc_stages) / (1 - delta_t * butcher_diagonal_element)
 
 
@@ -54,7 +55,6 @@ def identity_ode_jacvec(
     butcher_diagonal_element,
 ):
     """Jacvec for the stage update for the identity ode"""
-    # pylint: disable=unused-argument
     return (old_state_perturb + delta_t * acc_stage_perturb) / (
         1 - delta_t * butcher_diagonal_element
     )
@@ -64,7 +64,6 @@ def identity_ode_transposed_jacvec(
     stage_perturb, stage_time, delta_t, butcher_diagonal_element
 ):
     """Transposed jacvec for the stage update for the identity ode"""
-    # pylint: disable=unused-argument
     return (
         stage_perturb / (1 - delta_t * butcher_diagonal_element),
         delta_t * stage_perturb / (1 - delta_t * butcher_diagonal_element),
@@ -81,7 +80,6 @@ def time_ode_solution(
     old_state, acc_stages, parameter, stage_time, delta_t, butcher_diagonal_element
 ):
     """Solution for the stage update for the time ode x' = t."""
-    # pylint: disable=unused-argument
     return stage_time
 
 
@@ -94,7 +92,6 @@ def time_ode_jacvec(
     butcher_diagonal_element,
 ):
     """Jacvec for the stage update for the time ode"""
-    # pylint: disable=unused-argument
     return np.zeros(1)
 
 
@@ -102,7 +99,6 @@ def time_ode_tranposed_jacvec(
     stage_perturb, stage_time, delta_t, butcher_diagonal_element
 ):
     """Transposed jacvec for the stage update for the time ode"""
-    # pylint: disable=unused-argument
     return np.zeros(1), np.zeros(1), np.zeros(0)
 
 
@@ -164,6 +160,8 @@ time_scaled_identity_ode_provider = RkFunctionProvider(
 def parameter_ode_function(
     old_state, acc_stages, parameter, stage_time, delta_t, butcher_diagonal_element
 ):
+    """Solution for the stage update of the parameter based ode x' = b, where b is a
+    parameter."""
     return parameter
 
 
@@ -175,12 +173,14 @@ def parameter_ode_jacvec(
     delta_t,
     butcher_diagonal_element,
 ):
+    """Jacvec for the stage update for the parameter based ode."""
     return parameter_perturbation
 
 
 def parameter_ode_transposed_jacvec(
     stage_perturb, stage_time, delta_t, butcher_diagonal_element
 ):
+    """Transposed jacvec for the stage update for the parameter based ode."""
     return np.zeros(1), np.zeros(1), stage_perturb
 
 
