@@ -7,7 +7,6 @@ import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
 
-
 from .butcher_tableau import ButcherTableau
 from .functional_coefficients import FunctionalCoefficients, EmptyFunctionalCoefficients
 from .integration_control import IntegrationControl
@@ -27,6 +26,7 @@ from .checkpoint_interface.checkpoint_interface import CheckpointInterface
 from .checkpoint_interface.no_checkpointer import NoCheckpointer
 from .metadata_extractor import (
     extract_time_integration_metadata,
+    add_time_independent_input_metadata,
     add_postprocessing_metadata,
     add_functional_metadata,
     add_distributivity_information,
@@ -206,6 +206,19 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 the postprocessing_problem.
                 """,
         )
+        self.options.declare(
+            "time_independent_input_quantities",
+            types=list,
+            default=[],
+            desc="""List of tags used to describe quantities of independent inputs in
+            the time_stage_problem. These tags fulfil the following roles:
+                1. Based on these tags, an input will be added to the
+                RungeKuttaIntegrator. Per tag there will be the input *tag*.
+                2. Inputs with these tags need to be present in the time_stage_problem.
+                In detail, per tag there needs to be exactly one input tagged with
+                [*tag*, 'time_independent_input_var'].
+                """,
+        )
 
         self.options.declare(
             "postprocessing_quantities",
@@ -213,7 +226,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             default=[],
             desc="""List of tags used to describe the quantities computed by the
             postprocessing. These tags fulfil multiple roles:
-                1. Based on these tags, outputs are added to the RUngeKuttaIntegrator.
+                1. Based on these tags, outputs are added to the RungeKuttaIntegrator.
                 Per tag there will be *tag*_final as output, containing the
                 postprocessing of the final state of the time integration.
                 2. Outputs with these tags need to be present in the
@@ -284,6 +297,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self.options["time_stage_problem"],
             self.options["time_integration_quantities"],
         )
+        if self.options["time_independent_input_quantities"]:
+            add_time_independent_input_metadata(
+                self.options["time_stage_problem"],
+                self.options["time_independent_input_quantities"],
+                self._time_integration_metadata,
+            )
         if self.options["postprocessing_problem"] is not None:
             add_postprocessing_metadata(
                 self.options["postprocessing_problem"],
@@ -337,7 +356,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     shape=quantity.array_metadata.shape,
                     distributed=quantity.array_metadata.distributed,
                 )
-            if quantity.type == "ndependent_input":
+            if quantity.type == "independent_input":
                 self.add_input(
                     quantity.name,
                     shape=quantity.array_metadata.shape,
@@ -433,13 +452,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.options["time_stage_problem"],
                 self.options["integration_control"],
                 self._time_integration_metadata,
-                self._independent_input_array,
             ),
             TimeStageProblemComputeJacvecFunctor(
                 self.options["time_stage_problem"],
                 self.options["integration_control"],
                 self._time_integration_metadata,
-                self._independent_input_perturbations,
                 self._of_vars,
                 self._wrt_vars,
             ),
@@ -798,7 +815,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         else:
             self._accumulated_stages.fill(0.0)
         self._stage_cache[stage, :] = self._runge_kutta_scheme.compute_stage(
-            stage, delta_t, time, self._serialized_state, self._accumulated_stages
+            stage,
+            delta_t,
+            time,
+            self._serialized_state,
+            self._accumulated_stages,
+            self._independent_input_array,
         )
         if self.comm.rank == 0:
             print(f"Finished stage {stage} of compute in step {step}.")
@@ -932,7 +954,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._accumulated_stages.fill(0.0)
                 self._accumulated_stage_perturbations.fill(0.0)
             self._stage_cache[stage, :] = self._runge_kutta_scheme.compute_stage(
-                stage, delta_t, time, self._serialized_state, self._accumulated_stages
+                stage,
+                delta_t,
+                time,
+                self._serialized_state,
+                self._accumulated_stages,
+                self._independent_input_array,
             )
             self._stage_perturbations_cache[stage, :] = (
                 self._runge_kutta_scheme.compute_stage_jacvec(
@@ -941,6 +968,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     time,
                     self._serialized_state_perturbations,
                     self._accumulated_stage_perturbations,
+                    self._independent_input_perturbations,
                 )
             )
             if self.comm.rank == 0:
@@ -1009,9 +1037,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._to_numpy_array_independent_inputs(inputs, self._independent_input_array)
         self._to_numpy_array_independent_inputs(
             d_inputs, self._independent_input_perturbations
-        )
-        self._runge_kutta_scheme.stage_computation_functor_transposed_jacvec.time_independent_perturbations = (
-            self._independent_input_perturbations
         )
         if not (
             np.array_equal(self._cached_input[0], self._serialized_state)
@@ -1187,10 +1212,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             (
                 wrt_old_state,
                 self._stage_perturbations_cache[stage, :],
+                parameter_perturbation,
             ) = self._runge_kutta_scheme.compute_stage_transposed_jacvec(
                 stage, delta_t, time, joined_perturbations, **linearization_args
             )
             new_serialized_state_perturbations += delta_t * wrt_old_state
+            self._independent_input_perturbations += (
+                delta_t
+                # * butcher_tableau.butcher_weight_vector[stage]
+                * parameter_perturbation
+            )
             if self.comm.rank == 0:
                 print(
                     f"Finished stage {stage} of the rev iteration of reve-mode jvp in\n"

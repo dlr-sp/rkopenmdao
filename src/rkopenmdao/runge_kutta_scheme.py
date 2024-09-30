@@ -18,21 +18,23 @@ class RungeKuttaScheme:
         self,
         butcher_tableau: ButcherTableau,
         stage_computation_functor: Callable[
-            [np.ndarray, np.ndarray, float, float, float], np.ndarray
+            [np.ndarray, np.ndarray, np.ndarray, float, float, float], np.ndarray
         ],
-        # old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element
+        # old_state, accumulated_stages, parameters, stage_time, delta_t,
+        # butcher_diagonal_element
         # -> stage_state
         stage_computation_functor_jacvec: Callable[
-            [np.ndarray, np.ndarray, float, float, float], np.ndarray
+            [np.ndarray, np.ndarray, np.ndarray, float, float, float], np.ndarray
         ],
-        # old_state_perturbation, accumulated_stages_perturbation, stage_time, delta_t,
-        # butcher_diagonal_element
+        # old_state_perturbation, accumulated_stages_perturbation,
+        # parameter_perturbations, stage_time, delta_t, butcher_diagonal_element
         # -> stage_perturbation
         stage_computation_functor_transposed_jacvec: Callable[
-            [np.ndarray, float, float, float], tuple[np.ndarray, np.ndarray]
+            [np.ndarray, float, float, float], tuple[np.ndarray, np.ndarray, np.ndarray]
         ],
         # stage_perturbation, stage_time, delta_t, butcher_diagonal_element
-        # -> old_state_perturbation, accumulated_stages_perturbation
+        # -> old_state_perturbation, accumulated_stages_perturbation,
+        #    parameter_perturbations
     ):
         self.butcher_tableau = butcher_tableau
         self.stage_computation_functor = stage_computation_functor
@@ -48,6 +50,7 @@ class RungeKuttaScheme:
         old_time: float,
         old_state: np.ndarray,
         accumulated_stages: np.ndarray,
+        parameters: np.ndarray,
     ) -> np.ndarray:
         """Computes the new stage variable based on the current information."""
         stage_time = (
@@ -55,7 +58,12 @@ class RungeKuttaScheme:
         )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         return self.stage_computation_functor(
-            old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element
+            old_state,
+            accumulated_stages,
+            parameters,
+            stage_time,
+            delta_t,
+            butcher_diagonal_element,
         )
 
     def compute_accumulated_stages(
@@ -89,6 +97,7 @@ class RungeKuttaScheme:
         old_time: float,
         old_state_perturbation: np.ndarray,
         accumulated_stages_perturbation: np.ndarray,
+        parameter_perturbations: np.ndarray,
         **linearization_args,
     ) -> np.ndarray:
         """Computes the matrix-vector-product of the jacobian of the stage wrt. to the
@@ -103,6 +112,7 @@ class RungeKuttaScheme:
         return self.stage_computation_functor_jacvec(
             old_state_perturbation,
             accumulated_stages_perturbation,
+            parameter_perturbations,
             stage_time,
             delta_t,
             butcher_diagonal_element,
@@ -138,7 +148,7 @@ class RungeKuttaScheme:
         old_time: float,
         joined_perturbation: np.ndarray,
         **linearization_args,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Computes the matrix-vector-product of the transposed of the jacobian of the
         stage wrt. to the old state and the accumulated stages."""
         if hasattr(self.stage_computation_functor_transposed_jacvec, "linearize"):

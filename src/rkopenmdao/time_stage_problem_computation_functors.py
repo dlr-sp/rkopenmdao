@@ -20,25 +20,23 @@ class TimeStageProblemComputeFunctor:
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         time_integration_metadata: TimeIntegrationMetadata,
-        time_independent_params: np.ndarray,
     ):
         self.time_stage_problem: om.Problem = time_stage_problem
         self.integration_control: IntegrationControl = integration_control
         self.time_integration_metadata: TimeIntegrationMetadata = (
             time_integration_metadata
         )
-        self.time_independent_params = time_independent_params
-        self.set_time_independent_params()
 
     def __call__(
         self,
         old_state: np.ndarray,
         accumulated_stages: np.ndarray,
+        parameters: np.ndarray,
         stage_time: float,
         delta_t: float,
         butcher_diagonal_element: float,
     ) -> np.ndarray:
-        self.fill_problem_data(old_state, accumulated_stages)
+        self.fill_problem_data(old_state, accumulated_stages, parameters)
 
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
@@ -49,7 +47,12 @@ class TimeStageProblemComputeFunctor:
         self.get_problem_data(stage_state)
         return stage_state
 
-    def fill_problem_data(self, old_state: np.ndarray, accumulated_stage: np.ndarray):
+    def fill_problem_data(
+        self,
+        old_state: np.ndarray,
+        accumulated_stage: np.ndarray,
+        parameters: np.ndarray,
+    ):
         """Fills internal OpenMDAO vectors."""
         _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
         for quantity in self.time_integration_metadata.quantity_list:
@@ -69,6 +72,14 @@ class TimeStageProblemComputeFunctor:
                     ] = accumulated_stage[start:end].reshape(
                         quantity.array_metadata.shape
                     )
+            elif quantity.type == "independent_input" and quantity.array_metadata.local:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                outputs[
+                    self.time_stage_problem.model.get_source(
+                        quantity.translation_metadata.time_independent_input_var
+                    )
+                ] = parameters[start:end]
 
     def get_problem_data(self, stage_state: np.ndarray):
         """Extract data from the output vectors of the owned problem."""
@@ -81,19 +92,6 @@ class TimeStageProblemComputeFunctor:
                     quantity.translation_metadata.stage_output_var
                 ].flatten()
 
-    def set_time_independent_params(self):
-        """Set the time independent parameters into the owned problem."""
-        _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "indpendent_input" and quantity.array_metadata.local:
-                start = quantity.array_metadata.start_index
-                end = quantity.array_metadata.end_index
-                outputs[
-                    self.time_stage_problem.model.get_source(
-                        quantity.translation_metadata.time_independent_input_var
-                    )
-                ] = self.time_independent_params[start:end]
-
 
 class TimeStageProblemComputeJacvecFunctor:
     """Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a
@@ -105,7 +103,6 @@ class TimeStageProblemComputeJacvecFunctor:
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         time_integration_metadata: TimeIntegrationMetadata,
-        time_independent_param_perturbations: np.ndarray,
         of_vars: list,
         wrt_vars: list,
     ):
@@ -114,9 +111,6 @@ class TimeStageProblemComputeJacvecFunctor:
         self.time_integration_metadata: TimeIntegrationMetadata = (
             time_integration_metadata
         )
-        self.time_independent_param_perturbations: np.ndarray = (
-            time_independent_param_perturbations
-        )
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
 
@@ -124,6 +118,7 @@ class TimeStageProblemComputeJacvecFunctor:
         self,
         old_state_perturbation: np.ndarray,
         accumulated_stage_perturbation: np.ndarray,
+        parameter_perturbations: np.ndarray,
         stage_time: float,
         delta_t: float,
         butcher_diagonal_element: float,
@@ -131,7 +126,11 @@ class TimeStageProblemComputeJacvecFunctor:
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
         self.time_stage_problem.model.run_linearize()
-        self.fill_problem_data(old_state_perturbation, accumulated_stage_perturbation)
+        self.fill_problem_data(
+            old_state_perturbation,
+            accumulated_stage_perturbation,
+            parameter_perturbations,
+        )
 
         try:
             self.time_stage_problem.model.run_solve_linear("fwd")
@@ -149,6 +148,7 @@ class TimeStageProblemComputeJacvecFunctor:
         self,
         old_state_perturbation: np.ndarray,
         accumulated_stage_perturbation: np.ndarray,
+        parameter_perturbations: np.ndarray,
     ):
         """Fills d_residuals of the time_stage_problem to prepare for jacvec product."""
         (_, _, d_residuals) = self.time_stage_problem.model.get_linear_vectors()
@@ -179,7 +179,7 @@ class TimeStageProblemComputeJacvecFunctor:
                     self.time_stage_problem.model.get_source(
                         quantity.translation_metadata.time_independent_input_var
                     )
-                ] = -self.time_independent_param_perturbations[start:end].reshape(
+                ] = -parameter_perturbations[start:end].reshape(
                     quantity.array_metadata.shape
                 )
 
@@ -211,6 +211,9 @@ class TimeStageProblemComputeJacvecFunctor:
                 "Either both or none of inputs and outputs must be given."
             )
 
+    def set_independent_input_perturbations(self, independent_input_perturbations):
+        self.time_independent_param_perturbations = independent_input_perturbations
+
 
 class TimeStageProblemComputeTransposeJacvecFunctor:
     """Wraps an openMDAO problem (specifically its compute_jacvec_problem function) to a
@@ -230,9 +233,6 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         self.time_integration_metadata: TimeIntegrationMetadata = (
             time_integration_metadata
         )
-        self.time_independent_perturbations = np.zeros(
-            self.time_integration_metadata.time_independent_input_size
-        )
 
         self.of_vars = of_vars
         self.wrt_vars = wrt_vars
@@ -243,7 +243,7 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         stage_time: float,
         delta_t: float,
         butcher_diagonal_element: float,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         self.integration_control.stage_time = stage_time
         self.integration_control.butcher_diagonal_element = butcher_diagonal_element
         self.time_stage_problem.model.run_linearize()
@@ -258,8 +258,19 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
 
         old_state_perturbation = np.zeros_like(stage_perturbation)
         accumulated_stage_perturbation = np.zeros_like(stage_perturbation)
-        self.get_problem_data(old_state_perturbation, accumulated_stage_perturbation)
-        return old_state_perturbation, accumulated_stage_perturbation
+        parameter_perturbations = np.zeros(
+            self.time_integration_metadata.time_independent_input_size
+        )
+        self.get_problem_data(
+            old_state_perturbation,
+            accumulated_stage_perturbation,
+            parameter_perturbations,
+        )
+        return (
+            old_state_perturbation,
+            accumulated_stage_perturbation,
+            parameter_perturbations,
+        )
 
     def fill_problem_data(self, stage_perturbation: np.ndarray):
         """Fills d_outputs of the time_stage_problem to prepare for jacvec product."""
@@ -279,6 +290,7 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         self,
         old_state_perturbation: np.ndarray,
         accumulated_stage_perturbation: np.ndarray,
+        parameter_perturbations: np.ndarray,
     ):
         """Extracts the result of the jacvec product from d_residuals of the
         time_stage_problem."""
@@ -301,7 +313,7 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
             if quantity.type == "independent_input" and quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
-                self.time_independent_perturbations[start:end] += d_residuals[
+                parameter_perturbations[start:end] = d_residuals[
                     self.time_stage_problem.model.get_source(
                         quantity.translation_metadata.time_independent_input_var
                     )
@@ -322,3 +334,9 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
             raise TimeStageError(
                 "Either both or none of inputs and outputs must be given."
             )
+
+    def set_initial_input_perturbations(self, independent_input_perturbations):
+        self.time_independent_perturbations = independent_input_perturbations
+
+    def get_independent_input_perturbations(self):
+        return self.time_independent_perturbations
