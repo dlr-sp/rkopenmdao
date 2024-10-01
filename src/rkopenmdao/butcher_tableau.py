@@ -34,7 +34,7 @@ class ButcherTableau:
 
     Methods
     -------
-    minPorder()
+    min_p_order()
         Returns the minimum order of the Butcher tableau.
     number_of_stages()
         Returns the number of stages of the Butcher tableau.
@@ -73,7 +73,7 @@ class ButcherTableau:
                               "sum up to the temporal shift vector (c) indices value")
         self.stages = butcher_weight_vector.size
         self.name = name
-        self.p = p
+        self._p = p
         if (
             self.butcher_matrix.shape != (self.stages, self.stages)
             or self.butcher_weight_vector.shape != self.butcher_time_stages.shape
@@ -90,8 +90,8 @@ class ButcherTableau:
     def p(self, p):
         self._p = p
 
-    def minPorder(self):
-        return min(self._p)
+    def min_p_order(self):
+        return self._p
 
     @property
     def is_embedded(self):
@@ -224,7 +224,7 @@ class EmbeddedButcherTableau(ButcherTableau):
         name: str = 'Adaptive Runge-Kutta method'
     ):
         super().__init__(butcher_matrix, butcher_weight_vector, butcher_time_stages, p, name)
-        self.phat = phat
+        self._phat = phat
         self.butcher_adaptive_weights = butcher_adaptive_weights
         if self.butcher_adaptive_weights.shape != self.butcher_weight_vector.shape:
             raise AssertionError("Size of adaptive stage doesn't match.")
@@ -272,7 +272,7 @@ class EmbeddedButcherTableau(ButcherTableau):
     def is_embedded(self):
         return True
 
-    def minPorder(self) -> int:
+    def min_p_order(self) -> int:
         """
         Returns
         -------

@@ -4,7 +4,7 @@ from typing import Callable, Tuple
 
 import numpy as np
 
-from rkopenmdao.butcher_tableau import ButcherTableau, EmbeddedButcherTableau
+from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.error_controller import ErrorController
 from rkopenmdao.error_controllers import Integral
 
@@ -21,9 +21,11 @@ class RungeKuttaScheme:
     stage_computation_functor: Callable[[np.ndarray, np.ndarray, float, float, float], np.ndarray]
         Has the following form: (old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element).
     stage_computation_functor_jacvec: Callable[[np.ndarray, np.ndarray, float, float, float], np.ndarray]
+        The Forward derivative of the stage.
         Has the following form: (old_state_perturbation, accumulated_stages_perturbation,
         stage_time, delta_t,butcher_diagonal_element).
     stage_computation_functor_transposed_jacvec: Callable[[np.ndarray, float, float, float],Tuple[np.ndarray,np.ndarray]
+        The Backwards derivative of the stage.
         Has the following form: (stage_perturbation, stage_time, delta_t, butcher_diagonal_element).
     error_controller: ErrorController
         Error controller that estimates the next time-difference jumps of a Runge-Kutta scheme.
@@ -31,7 +33,7 @@ class RungeKuttaScheme:
     """
     def __init__(
         self,
-        butcher_tableau: ButcherTableau | EmbeddedButcherTableau,
+        butcher_tableau: ButcherTableau,
         stage_computation_functor: Callable[
             [np.ndarray, np.ndarray, float, float, float], np.ndarray
         ],
@@ -56,8 +58,9 @@ class RungeKuttaScheme:
         self.stage_computation_functor_transposed_jacvec = (
             stage_computation_functor_transposed_jacvec
         )
-        if error_controller is not None and self.butcher_tableau.is_embedded:
-            self.error_controller = ErrorController(Integral(self.butcher_tableau.phat))
+
+        if self.butcher_tableau.is_embedded and not error_controller:
+            self.error_controller = Integral(self.butcher_tableau.min_p_order())
         else:
             self.error_controller = error_controller
 
@@ -92,7 +95,7 @@ class RungeKuttaScheme:
     def compute_step(
         self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray
     ) -> (np.ndarray, float, bool):
-        """Joins the old state and the stage variables to the new state."""
+        """Computes the next state and """
         new_state = old_state.copy()
         new_state += np.tensordot(
             stage_field,
@@ -207,5 +210,7 @@ class RungeKuttaScheme:
     ) -> np.ndarray:
         """Currently not needed, keeping for later if necessary."""
         return new_state_perturbation + delta_t * stage_perturbation_field.sum(axis=0)
+
+
 
 
