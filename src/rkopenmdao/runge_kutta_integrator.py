@@ -31,6 +31,7 @@ from .metadata_extractor import (
     add_postprocessing_metadata,
     add_functional_metadata,
     add_distributivity_information,
+    Quantity,
     TimeIntegrationMetadata,
 )
 
@@ -322,8 +323,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._add_inputs_and_outputs()
 
     def _add_inputs_and_outputs(self):
-        time_stage_problem: om.Problem = self.options["time_stage_problem"]
+        self._add_time_integration_inputs_and_outputs()
+        self._add_time_independent_inputs()
+        self._add_postprocessing_outputs()
+        self._add_functional_outputs()
 
+    def _add_time_integration_inputs_and_outputs(self):
+        time_stage_problem: om.Problem = self.options["time_stage_problem"]
         for quantity in self._time_integration_metadata.time_integration_quantity_list:
             if quantity.array_metadata.local:
                 self.add_input(
@@ -349,12 +355,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 copy_shape=quantity.name + "_initial",
                 distributed=quantity.array_metadata.distributed,
             )
-        for quantity in self._time_integration_metadata.postprocessing_quantity_list:
-            self.add_output(
-                quantity.name + "_final",
-                shape=quantity.array_metadata.shape,
-                distributed=quantity.array_metadata.distributed,
-            )
+
+    def _add_time_independent_inputs(self):
+        time_stage_problem: om.Problem = self.options["time_stage_problem"]
         for (
             quantity
         ) in self._time_integration_metadata.time_independent_input_quantity_list:
@@ -366,6 +369,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 ),
                 distributed=quantity.array_metadata.distributed,
             )
+
+    def _add_postprocessing_outputs(self):
+        for quantity in self._time_integration_metadata.postprocessing_quantity_list:
+            self.add_output(
+                quantity.name + "_final",
+                shape=quantity.array_metadata.shape,
+                distributed=quantity.array_metadata.distributed,
+            )
+
+    def _add_functional_outputs(self):
         for quantity in chain(
             self._time_integration_metadata.time_integration_quantity_list,
             self._time_integration_metadata.postprocessing_quantity_list,
@@ -378,8 +391,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 )
 
     def _setup_wrt_and_of_vars(self):
-        self._of_vars = []
-        self._wrt_vars = []
+        self._add_time_integration_derivative_info()
+        self._add_time_independent_variable_derivative_info()
+        self._add_postprocessing_derivative_info()
+
+    def _add_time_integration_derivative_info(self):
         for quantity in self._time_integration_metadata.time_integration_quantity_list:
             self._of_vars.append(quantity.translation_metadata.stage_output_var)
             if quantity.translation_metadata.step_input_var is not None:
@@ -391,12 +407,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._wrt_vars_postproc.append(
                     quantity.translation_metadata.postproc_input_var
                 )
+
+    def _add_time_independent_variable_derivative_info(self):
         for (
             quantity
         ) in self._time_integration_metadata.time_independent_input_quantity_list:
             self._wrt_vars.append(
                 quantity.translation_metadata.time_independent_input_var
             )
+
+    def _add_postprocessing_derivative_info(self):
         for quantity in self._time_integration_metadata.postprocessing_quantity_list:
             self._of_vars_postproc.append(
                 quantity.translation_metadata.postproc_output_var
@@ -693,31 +713,40 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         postprocessing_state: np.ndarray,
         timestep: int,
     ) -> np.ndarray:
+        contribution = np.zeros(self._time_integration_metadata.functional_array_size)
+        self._add_contribution_of_quantities_from_vector(
+            contribution,
+            timestep,
+            self._time_integration_metadata.time_integration_quantity_list,
+            serialized_state,
+        )
+        self._add_contribution_of_quantities_from_vector(
+            contribution,
+            timestep,
+            self._time_integration_metadata.postprocessing_quantity_list,
+            postprocessing_state,
+        )
+        return contribution
+
+    def _add_contribution_of_quantities_from_vector(
+        self,
+        contribution: np.ndarray,
+        step: int,
+        quantity_list: list[Quantity],
+        vector: np.ndarray,
+    ):
         functional_coefficients: FunctionalCoefficients = self.options[
             "functional_coefficients"
         ]
-        contribution = np.zeros(self._time_integration_metadata.functional_array_size)
-        for quantity in self._time_integration_metadata.time_integration_quantity_list:
-            if quantity.array_metadata.functionally_integrated:
-                start_functional = quantity.array_metadata.functional_start_index
-                end_functional = quantity.array_metadata.functional_end_index
-                start_time_stepping = quantity.array_metadata.start_index
-                end_time_stepping = quantity.array_metadata.end_index
-                contribution[start_functional:end_functional] = (
-                    functional_coefficients.get_coefficient(timestep, quantity.name)
-                    * serialized_state[start_time_stepping:end_time_stepping]
-                )
-        for quantity in self._time_integration_metadata.postprocessing_quantity_list:
-            if quantity.array_metadata.functionally_integrated:
-                start_functional = quantity.array_metadata.functional_start_index
-                end_functional = quantity.array_metadata.functional_end_index
-                start_postprocessing = quantity.array_metadata.start_index
-                end_postprocessing = quantity.array_metadata.end_index
-                contribution[start_functional:end_functional] = (
-                    functional_coefficients.get_coefficient(timestep, quantity.name)
-                    * postprocessing_state[start_postprocessing:end_postprocessing]
-                )
-        return contribution
+        for quantity in quantity_list:
+            start_functional = quantity.array_metadata.functional_start_index
+            end_functional = quantity.array_metadata.functional_end_index
+            start_quantity = quantity.array_metadata.start_index
+            end_quantity = quantity.array_metadata.end_index
+            contribution[start_functional:end_functional] = (
+                functional_coefficients.get_coefficient(step, quantity.name)
+                * vector[start_quantity:end_quantity]
+            )
 
     def _compute_checkpointing_setup_phase(self):
         self._checkpointer.create_checkpointer()
