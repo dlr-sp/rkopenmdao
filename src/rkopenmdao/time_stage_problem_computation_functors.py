@@ -55,8 +55,8 @@ class TimeStageProblemComputeFunctor:
     ):
         """Fills internal OpenMDAO vectors."""
         _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "time_integration" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 if quantity.translation_metadata.step_input_var is not None:
@@ -72,7 +72,10 @@ class TimeStageProblemComputeFunctor:
                     ] = accumulated_stage[start:end].reshape(
                         quantity.array_metadata.shape
                     )
-            elif quantity.type == "independent_input" and quantity.array_metadata.local:
+        for (
+            quantity
+        ) in self.time_integration_metadata.time_independent_input_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 outputs[
@@ -84,8 +87,8 @@ class TimeStageProblemComputeFunctor:
     def get_problem_data(self, stage_state: np.ndarray):
         """Extract data from the output vectors of the owned problem."""
         _, outputs, _ = self.time_stage_problem.model.get_nonlinear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "time_integration" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 stage_state[start:end] = outputs[
@@ -153,8 +156,8 @@ class TimeStageProblemComputeJacvecFunctor:
         """Fills d_residuals of the time_stage_problem to prepare for jacvec product."""
         (_, _, d_residuals) = self.time_stage_problem.model.get_linear_vectors()
         d_residuals.asarray()[:] *= 0.0
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "time_integration" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 if quantity.translation_metadata.step_input_var is not None:
@@ -172,7 +175,10 @@ class TimeStageProblemComputeJacvecFunctor:
                     ] = -accumulated_stage_perturbation[start:end].reshape(
                         quantity.array_metadata.shape
                     )
-            elif quantity.type == "independent_input" and quantity.array_metadata.local:
+        for (
+            quantity
+        ) in self.time_integration_metadata.time_independent_input_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 d_residuals[
@@ -187,8 +193,8 @@ class TimeStageProblemComputeJacvecFunctor:
         """Extracts the result of the jacvec product from d_outputs of the
         time_stage_problem."""
         _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "time_integration" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 stage_perturbation[start:end] = d_outputs[
@@ -273,8 +279,8 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         """Fills d_outputs of the time_stage_problem to prepare for jacvec product."""
         _, d_outputs, _ = self.time_stage_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "time_integration" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 d_outputs[quantity.translation_metadata.stage_output_var] = (
@@ -292,8 +298,8 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
         """Extracts the result of the jacvec product from d_residuals of the
         time_stage_problem."""
         _, _, d_residuals = self.time_stage_problem.model.get_linear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "time_integration" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 if quantity.translation_metadata.step_input_var is not None:
@@ -307,7 +313,10 @@ class TimeStageProblemComputeTransposeJacvecFunctor:
                             quantity.translation_metadata.accumulated_stage_var
                         )
                     ].flatten()
-            if quantity.type == "independent_input" and quantity.array_metadata.local:
+        for (
+            quantity
+        ) in self.time_integration_metadata.time_independent_input_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 parameter_perturbations[start:end] = d_residuals[

@@ -12,7 +12,9 @@ from rkopenmdao.metadata_extractor import (
     add_postprocessing_metadata,
     add_functional_metadata,
     add_distributivity_information,
-    Quantity,
+    TimeIntegrationQuantity,
+    PostprocessingQuantity,
+    TimeIndependentQuantity,
     ArrayMetadata,
     TimeIntegrationTranslationMetadata,
     PostprocessingTranslationMetadata,
@@ -87,8 +89,8 @@ def test_metadata_non_parallel_correct():
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
 
     assert time_integration_metadata.time_integration_array_size == 10
-    assert time_integration_metadata.quantity_list == [
-        Quantity(
+    assert time_integration_metadata.time_integration_quantity_list == [
+        TimeIntegrationQuantity(
             "x",
             "time_integration",
             ArrayMetadata(
@@ -110,7 +112,7 @@ def test_metadata_non_parallel_correct():
 
 
 @pytest.mark.parametrize(
-    "input_dict, output_dict, quantity_list, error_message",
+    "input_dict, output_dict, time_integration_quantity_list, error_message",
     [
         (
             {
@@ -318,7 +320,7 @@ def test_metadata_non_parallel_correct():
     ],
 )
 def test_metadata_non_parallel_incorrect(
-    input_dict, output_dict, quantity_list, error_message
+    input_dict, output_dict, time_integration_quantity_list, error_message
 ):
     """Tests various incorrect cases for the setup of the time integration metadata."""
     test_comp = MetadataTestComponent(input_dict=input_dict, output_dict=output_dict)
@@ -326,7 +328,7 @@ def test_metadata_non_parallel_incorrect(
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
     prob.setup()
     with pytest.raises(SetupError, match=error_message):
-        extract_time_integration_metadata(prob, quantity_list)
+        extract_time_integration_metadata(prob, time_integration_quantity_list)
 
 
 def test_metadata_time_independent_inputs_correct():
@@ -349,26 +351,8 @@ def test_metadata_time_independent_inputs_correct():
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     add_time_independent_input_metadata(prob, ["w"], time_integration_metadata)
     assert time_integration_metadata.time_independent_input_size == 4
-    assert time_integration_metadata.quantity_list == [
-        Quantity(
-            "x",
-            "time_integration",
-            ArrayMetadata(
-                shape=(5, 2),
-                global_shape=(5, 2),
-                local=True,
-                start_index=0,
-                end_index=10,
-                global_start_index=0,
-                global_end_index=10,
-            ),
-            TimeIntegrationTranslationMetadata(
-                step_input_var="test_comp.x_old",
-                accumulated_stage_var="test_comp.x_acc_stages",
-                stage_output_var="test_comp.x_update",
-            ),
-        ),
-        Quantity(
+    assert time_integration_metadata.time_independent_input_quantity_list == [
+        TimeIndependentQuantity(
             "w",
             "independent_input",
             ArrayMetadata(
@@ -388,7 +372,7 @@ def test_metadata_time_independent_inputs_correct():
 
 
 @pytest.mark.parametrize(
-    "input_dict, quantity_list, error_message",
+    "input_dict, time_independent_input_quantity_list, error_message",
     [
         (
             {
@@ -451,7 +435,7 @@ def test_metadata_time_independent_inputs_correct():
     ],
 )
 def test_metadata_time_independent_inputs_incorrect(
-    input_dict, quantity_list, error_message
+    input_dict, time_independent_input_quantity_list, error_message
 ):
     """Tests various incorrect cases for the addition of metadata for independent
     inputs."""
@@ -467,7 +451,7 @@ def test_metadata_time_independent_inputs_incorrect(
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     with pytest.raises(SetupError, match=error_message):
         add_time_independent_input_metadata(
-            prob, quantity_list, time_integration_metadata
+            prob, time_independent_input_quantity_list, time_integration_metadata
         )
 
 
@@ -478,8 +462,8 @@ def test_metadata_functional_correct():
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     add_functional_metadata(["x"], time_integration_metadata)
     assert time_integration_metadata.functional_array_size == 10
-    assert time_integration_metadata.quantity_list == [
-        Quantity(
+    assert time_integration_metadata.time_integration_quantity_list == [
+        TimeIntegrationQuantity(
             "x",
             "time_integration",
             ArrayMetadata(
@@ -546,27 +530,8 @@ def test_metadata_postprocessing_correct():
     add_postprocessing_metadata(postproc_prob, ["x"], ["y"], time_integration_metadata)
 
     assert time_integration_metadata.postprocessing_array_size == 2
-    assert time_integration_metadata.quantity_list == [
-        Quantity(
-            "x",
-            "time_integration",
-            ArrayMetadata(
-                shape=(5, 2),
-                global_shape=(5, 2),
-                local=True,
-                start_index=0,
-                end_index=10,
-                global_start_index=0,
-                global_end_index=10,
-            ),
-            TimeIntegrationTranslationMetadata(
-                step_input_var="test_comp.x_old",
-                accumulated_stage_var="test_comp.x_acc_stages",
-                stage_output_var="test_comp.x_update",
-                postproc_input_var="postproc_test.x",
-            ),
-        ),
-        Quantity(
+    assert time_integration_metadata.postprocessing_quantity_list == [
+        PostprocessingQuantity(
             "y",
             "postprocessing",
             ArrayMetadata(
@@ -584,7 +549,7 @@ def test_metadata_postprocessing_correct():
 
 
 @pytest.mark.parametrize(
-    "input_dict, output_dict, quantity_list, error_message",
+    "input_dict, output_dict, postprocessing_quantity_list, error_message",
     [
         (
             {
@@ -710,7 +675,7 @@ def test_metadata_postprocessing_correct():
     ],
 )
 def test_metadata_postprocessing_incorrect(
-    input_dict, output_dict, quantity_list, error_message
+    input_dict, output_dict, postprocessing_quantity_list, error_message
 ):
     """Tests various incorrect cases for the addition of postprocessing metadata to the
     dicts."""
@@ -726,7 +691,10 @@ def test_metadata_postprocessing_incorrect(
 
     with pytest.raises(SetupError, match=error_message):
         add_postprocessing_metadata(
-            postproc_prob, ["x"], quantity_list, time_integration_metadata
+            postproc_prob,
+            ["x"],
+            postprocessing_quantity_list,
+            time_integration_metadata,
         )
 
 
@@ -769,8 +737,8 @@ def test_metadata_distributed_var_correct():
         time_integration_metadata.time_integration_array_size
         == 10 + MPI.COMM_WORLD.rank
     )
-    assert time_integration_metadata.quantity_list == [
-        Quantity(
+    assert time_integration_metadata.time_integration_quantity_list == [
+        TimeIntegrationQuantity(
             "x",
             "time_integration",
             ArrayMetadata(
@@ -854,8 +822,8 @@ def test_metadata_parallel_group_correct():
 
     assert time_integration_metadata.time_integration_array_size == 6
     if prob.comm.rank == 0:
-        assert time_integration_metadata.quantity_list == [
-            Quantity(
+        assert time_integration_metadata.time_integration_quantity_list == [
+            TimeIntegrationQuantity(
                 "x",
                 "time_integration",
                 ArrayMetadata(
@@ -874,7 +842,7 @@ def test_metadata_parallel_group_correct():
                     stage_output_var="par_group.test_comp_1.x_update",
                 ),
             ),
-            Quantity(
+            TimeIntegrationQuantity(
                 "y",
                 "time_integration",
                 ArrayMetadata(distributed=True),
@@ -882,14 +850,14 @@ def test_metadata_parallel_group_correct():
             ),
         ]
     else:
-        assert time_integration_metadata.quantity_list == [
-            Quantity(
+        assert time_integration_metadata.time_integration_quantity_list == [
+            TimeIntegrationQuantity(
                 "x",
                 "time_integration",
                 ArrayMetadata(distributed=True),
                 TimeIntegrationTranslationMetadata(),
             ),
-            Quantity(
+            TimeIntegrationQuantity(
                 "y",
                 "time_integration",
                 ArrayMetadata(

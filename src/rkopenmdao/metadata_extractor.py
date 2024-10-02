@@ -5,6 +5,7 @@ RungeKuttaIntegrator used for organizing its own data structures."""
 from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
+from itertools import chain
 
 import numpy as np
 import openmdao.api as om
@@ -62,12 +63,34 @@ class ArrayMetadata:
 
 @dataclass
 class Quantity:
-    """Class containing all necessary information about a quantity."""
+    """Base class for all quantity types. Contains all the necessary information about a
+    quantity."""
 
     name: str
     type: str
     array_metadata: ArrayMetadata
     translation_metadata: TranslationMetadata
+
+
+@dataclass
+class TimeIntegrationQuantity(Quantity):
+    """Class for time integrated quantities."""
+
+    translation_metadata: TimeIntegrationTranslationMetadata
+
+
+@dataclass
+class PostprocessingQuantity(Quantity):
+    """Class for postprocessing quantities."""
+
+    translation_metadata: PostprocessingTranslationMetadata
+
+
+@dataclass
+class TimeIndependentQuantity(Quantity):
+    """Class for time independent input quantities."""
+
+    translation_metadata: TimeIndependentInputTranslationMetadata
 
 
 @dataclass
@@ -78,7 +101,15 @@ class TimeIntegrationMetadata:
     time_independent_input_size: int = 0
     postprocessing_array_size: int = 0
     functional_array_size: int = 0
-    quantity_list: list[Quantity] = field(default_factory=list)
+    time_integration_quantity_list: list[TimeIntegrationQuantity] = field(
+        default_factory=list
+    )
+    postprocessing_quantity_list: list[PostprocessingQuantity] = field(
+        default_factory=list
+    )
+    time_independent_input_quantity_list: list[TimeIndependentQuantity] = field(
+        default_factory=list
+    )
 
 
 def extract_time_integration_metadata(
@@ -120,7 +151,7 @@ def extract_time_integration_metadata(
                 array_size,
             )
         else:
-            quantity = Quantity(
+            quantity = TimeIntegrationQuantity(
                 type="time_integration",
                 name=quantity_name,
                 array_metadata=ArrayMetadata(),
@@ -128,7 +159,8 @@ def extract_time_integration_metadata(
             )
         quantity_list.append(quantity)
     runge_kutta_metadata = TimeIntegrationMetadata(
-        time_integration_array_size=array_size, quantity_list=quantity_list
+        time_integration_array_size=array_size,
+        time_integration_quantity_list=quantity_list,
     )
     return runge_kutta_metadata
 
@@ -171,7 +203,7 @@ def _extract_time_integration_quantity(
     quantity_name: str,
     stage_problem: om.Problem,
     array_size: int,
-) -> tuple[int, Quantity]:
+) -> tuple[int, TimeIntegrationQuantity]:
     detailed_local_quantity = stage_problem.model.get_io_metadata(
         metadata_keys=["tags", "shape", "global_shape"],
         tags=[quantity_name],
@@ -234,7 +266,7 @@ def _extract_time_integration_quantity(
 
     # We check that there is a stage_output_var, so array_metadata must exist
     # pylint: disable=possibly-used-before-assignment
-    quantity = Quantity(
+    quantity = TimeIntegrationQuantity(
         name=quantity_name,
         type="time_integration",
         array_metadata=array_metadata,
@@ -287,20 +319,20 @@ def add_time_independent_input_metadata(
                 )
             )
         else:
-            quantity = Quantity(
+            quantity = TimeIndependentQuantity(
                 type="independent_input",
                 name=quantity_name,
                 array_metadata=ArrayMetadata(),
                 translation_metadata=TimeIndependentInputTranslationMetadata(),
             )
-        runge_kutta_metadata.quantity_list.append(quantity)
+        runge_kutta_metadata.time_independent_input_quantity_list.append(quantity)
 
 
 def _extract_time_independent_quantity(
     quantity_name: str,
     stage_problem: om.Problem,
     array_size,
-) -> tuple[int, Quantity]:
+) -> tuple[int, TimeIndependentQuantity]:
     detailed_local_quantity = stage_problem.model.get_io_metadata(
         metadata_keys=["tags", "shape", "global_shape"],
         tags=[quantity_name],
@@ -336,7 +368,7 @@ def _extract_time_independent_quantity(
         )
     # We check that there is a time_independent_input_var, so array_metadata must exist
     # pylint: disable=possibly-used-before-assignment
-    quantity = Quantity(
+    quantity = TimeIndependentQuantity(
         name=quantity_name,
         type="independent_input",
         array_metadata=array_metadata,
@@ -381,7 +413,7 @@ def add_postprocessing_metadata(
         _extract_detailed_postprocessing_input_info(
             tags.pop(), postproc_problem, translation_metadata
         )
-    for quantity in runge_kutta_metadata.quantity_list:
+    for quantity in runge_kutta_metadata.time_integration_quantity_list:
         if quantity.name in translation_metadata:
             quantity.translation_metadata.postproc_input_var = translation_metadata[
                 quantity.name
@@ -419,13 +451,13 @@ def add_postprocessing_metadata(
                 )
             )
         else:
-            quantity = Quantity(
+            quantity = PostprocessingQuantity(
                 type="postprocessing",
                 name=quantity_name,
                 array_metadata=ArrayMetadata(),
                 translation_metadata=PostprocessingTranslationMetadata(),
             )
-        runge_kutta_metadata.quantity_list.append(quantity)
+        runge_kutta_metadata.postprocessing_quantity_list.append(quantity)
 
 
 def _extract_detailed_postprocessing_input_info(
@@ -454,7 +486,7 @@ def _extract_postprocessing_quantity(
     quantity_name: str,
     postproc_problem: om.Problem,
     array_size: int,
-) -> tuple[int, Quantity]:
+) -> tuple[int, PostprocessingQuantity]:
     detailed_local_quantity = postproc_problem.model.get_io_metadata(
         metadata_keys=["tags", "shape", "global_shape"],
         tags=[quantity_name],
@@ -489,7 +521,7 @@ def _extract_postprocessing_quantity(
         )
     # We check that there is a postproc_output_var, so array_metadata must exist
     # pylint: disable=possibly-used-before-assignment
-    quantity = Quantity(
+    quantity = PostprocessingQuantity(
         name=quantity_name,
         type="postprocessing",
         array_metadata=array_metadata,
@@ -509,7 +541,10 @@ def add_functional_metadata(
     array_size = 0
 
     quantities_with_functional = 0
-    for quantity in runge_kutta_metadata.quantity_list:
+    for quantity in chain(
+        runge_kutta_metadata.time_integration_quantity_list,
+        runge_kutta_metadata.postprocessing_quantity_list,
+    ):
         if quantity.name in functional_quantities_set:
             quantities_with_functional += 1
             quantity.array_metadata.functionally_integrated = True
@@ -532,7 +567,11 @@ def add_distributivity_information(
 ) -> None:
     """Adds information about the distributed structure of data to the passed
     TimeIntegrationMetadata object."""
-    for quantity in runge_kutta_metadata.quantity_list:
+    for quantity in chain(
+        runge_kutta_metadata.time_integration_quantity_list,
+        runge_kutta_metadata.postprocessing_quantity_list,
+        runge_kutta_metadata.time_independent_input_quantity_list,
+    ):
         local = np.array(quantity.array_metadata.local)
         everywhere_local = np.zeros_like(local)
         # pylint: disable=c-extension-no-member
