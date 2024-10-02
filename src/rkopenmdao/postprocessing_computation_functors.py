@@ -34,10 +34,9 @@ class PostprocessingProblemComputeFunctor:
     def fill_problem_data(self, input_vector):
         """Write data into the internal nonlinear vectors of the owned problem."""
         _, outputs, _ = self.postprocessing_problem.model.get_nonlinear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
             if (
-                quantity.type == "time_integration"
-                and quantity.array_metadata.local
+                quantity.array_metadata.local
                 and quantity.translation_metadata.postproc_input_var is not None
             ):
                 start = quantity.array_metadata.start_index
@@ -51,8 +50,8 @@ class PostprocessingProblemComputeFunctor:
     def get_problem_data(self, postproc_state: np.ndarray):
         """Extract data from the internal nonlinear vectors of the owned problem."""
         _, outputs, _ = self.postprocessing_problem.model.get_nonlinear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "postprocessing" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.postprocessing_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 postproc_state[start:end] = outputs[
@@ -99,10 +98,9 @@ class PostprocessingProblemComputeJacvecFunctor:
         """Write data into the internal linear vectors of the owned problem."""
         (_, _, d_residuals) = self.postprocessing_problem.model.get_linear_vectors()
         d_residuals.asarray()[:] *= 0.0
-        for quantity in self.time_integration_metadata.quantity_list:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
             if (
-                quantity.type == "time_integration"
-                and quantity.array_metadata.local
+                quantity.array_metadata.local
                 and quantity.translation_metadata.postproc_input_var is not None
             ):
                 start = quantity.array_metadata.start_index
@@ -116,8 +114,8 @@ class PostprocessingProblemComputeJacvecFunctor:
     def get_problem_data(self, postproc_perturbations: np.ndarray):
         """Extract data from the internal linear vectors of the owned problem."""
         _, d_outputs, _ = self.postprocessing_problem.model.get_linear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "postprocessing" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.postprocessing_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 postproc_perturbations[start:end] = d_outputs[
@@ -180,8 +178,8 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
         """Write data into the internal linear vectors of the owned problem."""
         _, d_outputs, _ = self.postprocessing_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0
-        for quantity in self.time_integration_metadata.quantity_list:
-            if quantity.type == "postprocessing" and quantity.array_metadata.local:
+        for quantity in self.time_integration_metadata.postprocessing_quantity_list:
+            if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 d_outputs[quantity.translation_metadata.postproc_output_var] = (
@@ -193,10 +191,9 @@ class PostprocessingProblemComputeTransposeJacvecFunctor:
     def get_problem_data(self, input_perturbations: np.ndarray):
         """Extract data from the internal linear vectors of the owned problem."""
         _, _, d_residuals = self.postprocessing_problem.model.get_linear_vectors()
-        for quantity in self.time_integration_metadata.quantity_list:
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
             if (
-                quantity.type == "time_integration"
-                and quantity.array_metadata.local
+                quantity.array_metadata.local
                 and quantity.translation_metadata.postproc_input_var is not None
             ):
                 start = quantity.array_metadata.start_index

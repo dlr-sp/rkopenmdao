@@ -11,9 +11,9 @@ from rkopenmdao.integration_control import IntegrationControl
 
 class TestComp1(om.ExplicitComponent):
     """
-    Models the stage of the ODE x' = x. The following formula for the stage
+    Models the stage of the ODE x' = a * x. The following formula for the stage
     results:
-    k_i = (x_n + dt * s_i)/(1 - dt * a_ii)
+    k_i = b * (x_n + dt * s_i)/(1 - dt * a_ii)
     The formulas for the fwd/rev derivatives are:
     (fwd) dk_i = (dx_n + dt * ds_i)/(1 - dt * a_ii)
     (rev) dx_n = dk_i / (1 - dt * a_ii)
@@ -29,12 +29,18 @@ class TestComp1(om.ExplicitComponent):
     def setup(self):
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
         self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
+        self.add_input("b", val=1, shape=1, tags=["time_independent_input_var", "b"])
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
         delta_t = self.options["integration_control"].delta_t
-        outputs["x_stage"] = (inputs["x"] + delta_t * inputs["acc_stages"]) / (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+        outputs["x_stage"] = (
+            inputs["b"]
+            * (inputs["x"] + delta_t * inputs["acc_stages"])
+            / (
+                1
+                - delta_t * self.options["integration_control"].butcher_diagonal_element
+            )
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
@@ -43,16 +49,28 @@ class TestComp1(om.ExplicitComponent):
             1 - delta_t * self.options["integration_control"].butcher_diagonal_element
         )
         if mode == "fwd":
-            d_outputs["x_stage"] += d_inputs["x"] / divisor
-            d_outputs["x_stage"] += delta_t * d_inputs["acc_stages"] / divisor
+            d_outputs["x_stage"] += inputs["b"] * d_inputs["x"] / divisor
+            d_outputs["x_stage"] += (
+                inputs["b"] * delta_t * d_inputs["acc_stages"] / divisor
+            )
+            d_outputs["x_stage"] += (
+                (inputs["x"] + delta_t * inputs["acc_stages"]) / divisor * d_inputs["b"]
+            )
         elif mode == "rev":
-            d_inputs["x"] += d_outputs["x_stage"] / divisor
-            d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
+            d_inputs["x"] += inputs["b"] * d_outputs["x_stage"] / divisor
+            d_inputs["acc_stages"] += (
+                inputs["b"] * delta_t * d_outputs["x_stage"] / divisor
+            )
+            d_inputs["b"] += (
+                (inputs["x"] + delta_t * inputs["acc_stages"])
+                / divisor
+                * d_outputs["x_stage"]
+            )
 
 
-def solution_test1(time, initial_value, initial_time):
+def solution_test1(time, initial_value, initial_time, param=1.0):
     """Analytical solution to the ODE of the above component."""
-    return initial_value * np.exp(time - initial_time)
+    return initial_value * np.exp(param * (time - initial_time))
 
 
 class TestComp2(om.ExplicitComponent):

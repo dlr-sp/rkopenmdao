@@ -139,11 +139,76 @@ def test_component_integration(
         result[i] = runge_kutta_prob[quantity + "_final"]
 
     # relatively coarse, but this isn't supposed to test the accuracy,
-    # its just to make sure the solution is in the right region
+    # it's just to make sure the solution is in the right region
     assert test_functor(
         initial_time + 0.01,
         initial_values,
         initial_time,
+    ) == pytest.approx(result, rel=1e-4)
+
+
+@pytest.mark.rk
+@pytest.mark.rk_openmdao
+@pytest.mark.parametrize(
+    "test_class, test_functor, initial_time, initial_values",
+    (
+        [TestComp1, solution_test1, 0.0, np.array([1.0])],
+        [TestComp1, solution_test1, 1.0, np.array([1.0])],
+    ),
+)
+@pytest.mark.parametrize("parameter", [-1.0, 0.0, 2.0])
+@pytest.mark.parametrize(
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+)
+@pytest.mark.parametrize("quantities", [["x"]])
+def test_component_integration_with_parameter(
+    test_class,
+    test_functor,
+    initial_time,
+    initial_values,
+    parameter,
+    butcher_tableau,
+    quantities,
+):
+    """Tests the time integration of the different components."""
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    time_integration_prob = om.Problem()
+    time_integration_prob.model.add_subsystem(
+        "test_comp", test_class(integration_control=integration_control)
+    )
+
+    time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
+        solve_subsystems=True
+    )
+    time_integration_prob.model.linear_solver = om.ScipyKrylov()
+
+    runge_kutta_prob = om.Problem()
+    runge_kutta_prob.model.add_subsystem(
+        "rk_integrator",
+        RungeKuttaIntegrator(
+            time_stage_problem=time_integration_prob,
+            butcher_tableau=butcher_tableau,
+            integration_control=integration_control,
+            time_integration_quantities=quantities,
+            time_independent_input_quantities=["b"],
+        ),
+        promotes=["*"],
+    )
+
+    runge_kutta_prob.setup()
+    for i, quantity in enumerate(quantities):
+        runge_kutta_prob[quantity + "_initial"] = initial_values[i]
+    runge_kutta_prob["b"] = parameter
+    runge_kutta_prob.run_model()
+
+    result = np.zeros_like(initial_values)
+    for i, quantity in enumerate(quantities):
+        result[i] = runge_kutta_prob[quantity + "_final"]
+
+    # relatively coarse, but this isn't supposed to test the accuracy,
+    # it's just to make sure the solution is in the right region
+    assert test_functor(
+        initial_time + 0.01, initial_values, initial_time, parameter
     ) == pytest.approx(result, rel=1e-4)
 
 
@@ -267,6 +332,73 @@ def test_time_integration_partials(
 
     runge_kutta_prob.setup()
 
+    runge_kutta_prob.run_model()
+    if checkpointing_implementation == NoCheckpointer:
+        with pytest.raises(NotImplementedError):
+            runge_kutta_prob.check_partials()
+
+    else:
+        data = runge_kutta_prob.check_partials()
+        assert_check_partials(data)
+
+
+@pytest.mark.rk
+@pytest.mark.rk_openmdao
+@pytest.mark.parametrize(
+    "test_class, initial_time",
+    (
+        [TestComp1, 0.0],
+        [TestComp1, 1.0],
+    ),
+)
+@pytest.mark.parametrize("parameter", [1.0])
+@pytest.mark.parametrize(
+    "butcher_tableau",
+    [
+        implicit_euler,
+        two_stage_dirk,
+        runge_kutta_four,
+    ],
+)
+@pytest.mark.parametrize(
+    "checkpointing_implementation",
+    [
+        NoCheckpointer,
+        AllCheckpointer,
+        PyrevolveCheckpointer,
+    ],
+)
+def test_time_integration_with_parameter_partials(
+    test_class, initial_time, parameter, butcher_tableau, checkpointing_implementation
+):
+    """Tests the partials of the time integration of the different components."""
+    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    time_integration_prob = om.Problem()
+    time_integration_prob.model.add_subsystem(
+        "test_comp", test_class(integration_control=integration_control)
+    )
+
+    time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
+        solve_subsystems=True
+    )
+    time_integration_prob.model.linear_solver = om.ScipyKrylov()
+
+    runge_kutta_prob = om.Problem()
+    runge_kutta_prob.model.add_subsystem(
+        "rk_integrator",
+        RungeKuttaIntegrator(
+            time_stage_problem=time_integration_prob,
+            butcher_tableau=butcher_tableau,
+            integration_control=integration_control,
+            time_integration_quantities=["x"],
+            time_independent_input_quantities=["b"],
+            checkpointing_type=checkpointing_implementation,
+        ),
+        promotes=["*"],
+    )
+
+    runge_kutta_prob.setup()
+    runge_kutta_prob["b"] = parameter
     runge_kutta_prob.run_model()
     if checkpointing_implementation == NoCheckpointer:
         with pytest.raises(NotImplementedError):
