@@ -27,7 +27,7 @@ class ButcherTableau:
         The weight vector of the Butcher tableau.
     butcher_time_stages: np.ndarray, optional
         the time stages of the Butcher tableau.
-    p: int, optional
+    _p: int, optional
         The order of the global truncation error of the Butcher tableau.
     name: str, optional
         the name of the Butcher tableau.
@@ -205,9 +205,9 @@ class EmbeddedButcherTableau(ButcherTableau):
         The embedded weights of the Butcher tableau.
     butcher_time_stages: np.ndarray, optional
         the time stages of the Butcher tableau.
-    p: int, optional
+    _p: int, optional
         The order of the global truncation error of the main Butcher tableau.
-    phat: int, optional
+    _phat: int, optional
         The order of the global truncation error of the second Butcher tableau.
     name: str, optional
         the name of the Butcher tableau.
@@ -238,7 +238,7 @@ class EmbeddedButcherTableau(ButcherTableau):
                             ):
         """
 
-        Constructs an EmeddedButcherTableau with an existing ButcherTableau and adaptive weights.
+        Constructs an EmbeddedButcherTableau with an existing ButcherTableau and adaptive weights.
         Parameters
         ----------
         butcher_tableau: ButcherTableau
@@ -298,3 +298,26 @@ class EmbeddedButcherTableau(ButcherTableau):
                               p=self._phat,
                               name="Embedded: " + self.name
                               )
+
+    def __str__(self):
+        butcher_time_stages = np.array([repr(element) for element in self.butcher_time_stages])
+        butcher_matrix = np.array([[repr(element) for element in lst] for lst in self.butcher_matrix])
+        butcher_weight_vector = np.array([repr(element) for element in self.butcher_weight_vector])
+        butcher_adaptive_weights_vector = np.array([repr(element) for element in self.butcher_adaptive_weights])
+        len_max, col_max = _get_column_widths([butcher_matrix, butcher_weight_vector,
+                                               butcher_time_stages, butcher_adaptive_weights_vector])
+        s = self.name + " (Embedded)\n"
+        for i in range(len(self)):
+            s += butcher_time_stages[i].ljust(col_max + 1) + '|'
+            for j in range(len(self)):
+                s += butcher_matrix[i, j].ljust(col_max + 1)
+            s = s.rstrip() + '\n'
+        s += '_' * (col_max + 1) + '|' + ('_' * (col_max + 1) * len(self)) + '\n'
+        s += ' ' * (col_max + 1) + '|'
+        for j in range(len(self)):
+            s += butcher_weight_vector[j].ljust(col_max + 1)
+        s += '\n' + '-' * (col_max + 1) + '|' + ('-' * (col_max + 1) * len(self)) + '\n'
+        s += ' ' * (col_max + 1) + '|'
+        for j in range(len(self)):
+            s += butcher_adaptive_weights_vector[j].ljust(col_max+1)
+        return s.rstrip()

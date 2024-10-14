@@ -44,10 +44,6 @@ __all__ = [
     "fifth_order_six_stage_esdirk",
     "embedded_heun_euler",
     "embedded_runge_kutta_fehlberg",
-    "embedded_second_order_two_stage_sdirk",
-    "embedded_third_order_three_stage_esdirk",
-    "embedded_third_order_five_stage_esdirk",
-    "embedded_fourth_order_five_stage_esdirk"
 
 ]
 # one stage methods
@@ -61,25 +57,21 @@ implicit_midpoint = ButcherTableau(np.array([[0.5]]), np.array([1.0]), np.array(
 # two stage methods
 
 
-def create_second_order_two_stage_sdirk(embedded=False):
+def create_second_order_two_stage_sdirk():
     gamma = (2.0 - np.sqrt(2.0)) / 2.0
-    tableau = ButcherTableau(
+    tableau = EmbeddedButcherTableau(
         np.array([[gamma, 0.0], [1 - gamma, gamma]]),
         np.array([1 - gamma, gamma]),
+        np.array([0.5, 0.5]),
         np.array([gamma, 1.0]),
         p=2,
+        phat=1,
         name="SDIRK 2-stage, 2nd order"
     )
-    if embedded:
-        tableau = EmbeddedButcherTableau.from_butchertableau(tableau,
-                                                             np.array([0.5, 0.5]),
-                                                             phat=1)
     return tableau
 
 
 second_order_two_stage_sdirk = create_second_order_two_stage_sdirk()
-embedded_second_order_two_stage_sdirk = create_second_order_two_stage_sdirk(True)
-
 
 def create_third_order_two_stage_sdirk():
     gamma = 0.5 + np.sqrt(3.0) / 6
@@ -98,10 +90,12 @@ third_order_two_stage_sdirk = create_third_order_two_stage_sdirk()
 
 
 # three stage methods
-def create_second_order_three_stage_esdirk(embedded=False):
+def create_second_order_three_stage_esdirk():
     gamma = (2.0 - np.sqrt(2.0)) / 2.0
     b2 = (1 - 2 * gamma) / (4 * gamma)
-    tableau = ButcherTableau(
+    b2_hat = gamma * (-2 + 7 * gamma - 5 * gamma ** 2 + 4 * gamma ** 3) / (2 * (2 * gamma - 1))
+    b3_hat = -2 * gamma ** 2 * (1 - gamma + gamma ** 2) / (2 * gamma - 1)
+    tableau = EmbeddedButcherTableau(
         np.array(
             [
                 [0.0, 0.0, 0.0],
@@ -110,25 +104,19 @@ def create_second_order_three_stage_esdirk(embedded=False):
             ]
         ),
         np.array([1 - b2 - gamma, b2, gamma]),
+        np.array([1 - b2_hat - b3_hat, b2_hat, b3_hat]),
         np.array([0.0, 2 * gamma, 1.0]),
         p=2,
+        phat=1,
         name="ESDIRK 3-stage, 2nd order"
     )
-    if embedded:
-        b2_hat = gamma * (-2 + 7 * gamma - 5 * gamma ** 2 + 4 * gamma ** 3) / (2 * (2 * gamma - 1))
-        b3_hat = -2 * gamma ** 2 * (1 - gamma + gamma ** 2) / (2 * gamma - 1)
-        tableau = EmbeddedButcherTableau.from_butchertableau(tableau,
-                                                             np.array([1 - b2_hat - b3_hat, b2_hat, b3_hat]),
-                                                             phat=1
-                                                             )
     return tableau
 
 
 second_order_three_stage_esdirk = create_second_order_three_stage_esdirk()
-embedded_second_order_three_stage_esdirk = create_second_order_three_stage_esdirk(True)
 
 
-def create_third_order_three_stage_esdirk(embedded=False):
+def create_third_order_three_stage_esdirk():
     gamma = (3.0 + np.sqrt(3.0)) / 6.0
     c3 = 2 * gamma - np.sqrt((2 + np.sqrt(3.0)) / 3)
     a32 = c3 * (c3 - 2 * gamma) / (4 * gamma)
@@ -147,27 +135,10 @@ def create_third_order_three_stage_esdirk(embedded=False):
         p=2,
         name="ESDIRK 3-stage, 3rd order"
     )
-    if embedded:
-        polynomial = 1 - 6 * gamma + 6 * gamma ** 2
-        linear = 2 * gamma - c3
-        b2_hat = c3 * (-1 + 6 * gamma - 24 * gamma ** 3 + 12 * gamma ** 4 - 6 * gamma ** 5) / \
-                      (4 * gamma * linear * polynomial) + \
-                      (3 - 27 * gamma + 68 * gamma ** 2 - 55 * gamma ** 3 + 21 * gamma ** 4 - 6 * gamma ** 5) / \
-                      (2 * linear * polynomial)
-        b3_hat = - gamma * (-2 + 21 * gamma - 68 * gamma ** 2 + 79 * gamma ** 3 - 33 * gamma ** 4 + 12 * gamma ** 5) / \
-                           (c3 * -linear * polynomial)
-        b4_hat = - 3 * gamma ** 2 * (-1 + 4 * gamma - 2 * gamma ** 2 + gamma ** 3) / polynomial
-        tableau = EmbeddedButcherTableau.from_butchertableau(tableau,
-                                                             np.array([1 - b2_hat - b3_hat - b4_hat,
-                                                                       b2_hat,
-                                                                       b3_hat,
-                                                                       b4_hat]),
-                                                             phat=2)
     return tableau
 
 
 third_order_three_stage_esdirk = create_third_order_three_stage_esdirk()
-embedded_third_order_three_stage_esdirk = create_third_order_three_stage_esdirk(True)
 
 
 def create_third_order_three_stage_sdirk():
@@ -204,7 +175,18 @@ def create_third_order_four_stage_esdirk():
     a32 = c3 * (c3 - 2 * gamma) / (4 * gamma)
     b2 = (-2 + 3 * c3 + 6 * gamma * (1 - c3)) / (12 * gamma * (c3 - 2 * gamma))
     b3 = (1 - 6 * gamma + 6 * gamma ** 2) / (3 * c3 * (c3 - 2 * gamma))
-    tableau = ButcherTableau(
+    # for the adaptive part
+    polynomial = 1 - 6 * gamma + 6 * gamma ** 2
+    linear = 2 * gamma - c3
+    b2_hat = c3 * (-1 + 6 * gamma - 24 * gamma ** 3 + 12 * gamma ** 4 - 6 * gamma ** 5) / \
+             (4 * gamma * linear * polynomial) + \
+             (3 - 27 * gamma + 68 * gamma ** 2 - 55 * gamma ** 3 + 21 * gamma ** 4 - 6 * gamma ** 5) / \
+             (2 * linear * polynomial)
+    b3_hat = - gamma * (-2 + 21 * gamma - 68 * gamma ** 2 + 79 * gamma ** 3 - 33 * gamma ** 4 + 12 * gamma ** 5) / \
+             (c3 * -linear * polynomial)
+    b4_hat = - 3 * gamma ** 2 * (-1 + 4 * gamma - 2 * gamma ** 2 + gamma ** 3) / polynomial
+
+    tableau = EmbeddedButcherTableau(
         np.array(
             [
                 [0.0, 0.0, 0.0, 0.0],
@@ -214,15 +196,16 @@ def create_third_order_four_stage_esdirk():
             ]
         ),
         np.array([1 - b2 - b3 - gamma, b2, b3, gamma]),
+        np.array([1 - b2_hat - b3_hat - b4_hat, b2_hat, b3_hat, b4_hat]),
         np.array([0.0, 2 * gamma, c3, 1]),
         p=3,
+        phat=2,
         name="ESDIRK 4-stage, 3rd order"
     )
     return tableau
 
 
 third_order_four_stage_esdirk = create_third_order_four_stage_esdirk()
-
 
 def create_third_order_four_stage_sdirk():
     gamma = 9 / 40
@@ -320,7 +303,7 @@ runge_kutta_four = ButcherTableau(
 
 # five stage methods:
 
-third_order_five_stage_esdirk = ButcherTableau(
+third_order_five_stage_esdirk = EmbeddedButcherTableau(
     np.array(
         [
             [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -351,23 +334,23 @@ third_order_five_stage_esdirk = ButcherTableau(
             9 / 40,
         ]
     ),
+    np.array(
+        [
+            4555948517383 / 24713416420891,
+            4555948517383 / 24713416420891,
+            -7107561914881 / 25547637784726,
+            30698249 / 44052120,
+            49563 / 233080
+        ]
+    ),
     np.array([0.0, 9 / 20, 9 * (2 + 2 ** 0.5) / 40, 0.8, 1]),
     p=3,
+    phat=2,
     name="ESDIRK 5-stage, 3rd order"
 )
 
-embedded_third_order_five_stage_esdirk = EmbeddedButcherTableau.from_butchertableau(
-                                                                    third_order_five_stage_esdirk,
-                                                                    np.array(
-                                                                            [4555948517383 / 24713416420891,
-                                                                             4555948517383 / 24713416420891,
-                                                                             -7107561914881 / 25547637784726,
-                                                                             30698249 / 44052120,
-                                                                             49563 / 233080]),
-                                                                    phat=3)
 
-
-def create_fourth_order_five_stage_esdirk(embedded=False):
+def create_fourth_order_five_stage_esdirk():
     gamma = 0.43586652150845899941601945
     c3 = (2 * gamma * (2 - 9 * gamma + 12 * gamma ** 2)) / (
             1 - 6 * gamma + 12 * gamma ** 2
@@ -395,7 +378,21 @@ def create_fourth_order_five_stage_esdirk(embedded=False):
     a43 = ((c4 - c3) * c4 * (c4 - 2 * gamma) * phi4) / (
             c3 * (c3 - 2 * gamma) * (4 * c3 * phi1 - phi2)
     )
-    tableau = ButcherTableau(
+    # for the adaptive part
+    phi1_hat = 2 - 43 * gamma + 336 * gamma ** 2 - 1194 * gamma ** 3 + 1996 * gamma ** 4 - \
+               1336 * gamma * 5 + 168 * gamma ** 6 + 96 * gamma ** 7
+    b5_hat = 4 * gamma ** 2 * (-1 + 9 * gamma - 18 * gamma ** 2 + 6 * gamma ** 3 - 2 * gamma ** 4) / \
+             (- 1 + 12 * gamma - 36 * gamma ** 2 + 24 * gamma ** 3)
+    b4_hat = - gamma * phi1_hat * (-3 + 4 * c3 + 20 * gamma - 24 * c3 * gamma -
+                                   24 * gamma ** 2 + 24 * c3 * gamma ** 2) / \
+             (3 * c4 * (c4 - c3) * (c4 - 2 * gamma) * (-1 + 12 * gamma -
+                                                       36 * gamma ** 2 + 24 * gamma ** 3) ** 2)
+    b3_hat = (1 - 3 * b5_hat - 3 * b4_hat * c4 ** 2 - 3 * gamma + 6 * b5_hat * gamma + 6 * b4_hat * c4 * gamma) / \
+             (3 * c3 * (c3 - 2 * gamma))
+    b2_hat = (2 - 6 * b5_hat - 3 * c3 + 6 * b5_hat * c3 + 6 * b4_hat * c3 * c4 - 6 * b4_hat * c4 ** 2) / \
+             (12 * gamma * (2 * gamma - c3))
+
+    tableau = EmbeddedButcherTableau(
         np.array(
             [
                 [0.0, 0.0, 0.0, 0.0, 0.0],
@@ -406,38 +403,17 @@ def create_fourth_order_five_stage_esdirk(embedded=False):
             ]
         ),
         np.array([1 - b2 - b3 - b4 - gamma, b2, b3, b4, gamma]),
+        np.array([1 - b5_hat - b4_hat - b3_hat - b2_hat, b2_hat, b3_hat, b4_hat, b5_hat]),
         np.array([0.0, 2 * gamma, c3, c4, 1.0]),
         p=4,
+        phat=3,
         name="ESDIRK 5-stage, 4th order"
     )
-    if embedded:
-        phi1_hat = 2 - 43 * gamma + 336 * gamma ** 2 - 1194 * gamma ** 3 + 1996 * gamma ** 4 - \
-                    1336 * gamma * 5 + 168 * gamma ** 6 + 96 * gamma ** 7
-        b5_hat = 4 * gamma ** 2 * (-1 + 9 * gamma - 18 * gamma ** 2 + 6 * gamma ** 3 - 2 * gamma ** 4) / \
-                                  (- 1 + 12 * gamma - 36 * gamma ** 2 + 24 * gamma ** 3)
-        b4_hat = - gamma * phi1_hat * (-3 + 4 * c3 + 20 * gamma - 24 * c3 * gamma -
-                                       24 * gamma ** 2 + 24 * c3 * gamma ** 2) / \
-                                      (3 * c4 * (c4 - c3) * (c4 - 2 * gamma) * (-1 + 12 * gamma -
-                                                                                36 * gamma ** 2 + 24 * gamma ** 3)**2)
-        b3_hat = (1 - 3 * b5_hat - 3 * b4_hat * c4 ** 2 - 3 * gamma + 6 * b5_hat * gamma + 6 * b4_hat * c4 * gamma) / \
-                 (3 * c3 * (c3 - 2 * gamma))
-        b2_hat = (2 - 6 * b5_hat - 3 * c3 + 6 * b5_hat * c3 + 6 * b4_hat * c3 * c4 - 6 * b4_hat * c4 ** 2) / \
-                 (12 * gamma * (2 * gamma - c3))
-        tableau = EmbeddedButcherTableau.from_butchertableau(tableau,
-                                                             np.array([1 - b5_hat - b4_hat - b3_hat - b2_hat,
-                                                                       b2_hat,
-                                                                       b3_hat,
-                                                                       b4_hat,
-                                                                       b5_hat]),
-                                                             phat=3
-                                                             )
 
     return tableau
 
 
 fourth_order_five_stage_esdirk = create_fourth_order_five_stage_esdirk()
-embedded_fourth_order_five_stage_esdirk = create_fourth_order_five_stage_esdirk(True)
-
 fourth_order_five_stage_sdirk = ButcherTableau(
     np.array(
         [

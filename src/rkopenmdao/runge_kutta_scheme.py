@@ -27,6 +27,8 @@ class RungeKuttaScheme:
     stage_computation_functor_transposed_jacvec: Callable[[np.ndarray, float, float, float],Tuple[np.ndarray,np.ndarray]
         The Backwards derivative of the stage.
         Has the following form: (stage_perturbation, stage_time, delta_t, butcher_diagonal_element).
+    use_adaptive_time_stepping: bool
+        Whether to use adaptive time stepping.
     error_controller: ErrorController
         Error controller that estimates the next time-difference jumps of a Runge-Kutta scheme.
 
@@ -48,6 +50,7 @@ class RungeKuttaScheme:
         stage_computation_functor_transposed_jacvec: Callable[
             [np.ndarray, float, float, float], Tuple[np.ndarray, np.ndarray]
         ],
+        use_adaptive_time_stepping: bool = False,
         # stage_perturbation, stage_time, delta_t, butcher_diagonal_element
         # -> old_state_perturbation, accumulated_stages_perturbation
         error_controller: ErrorController = None
@@ -58,7 +61,7 @@ class RungeKuttaScheme:
         self.stage_computation_functor_transposed_jacvec = (
             stage_computation_functor_transposed_jacvec
         )
-
+        self.use_adaptive_time_stepping = use_adaptive_time_stepping
         if self.butcher_tableau.is_embedded and not error_controller:
             self.error_controller = Integral(self.butcher_tableau.min_p_order())
         else:
@@ -102,7 +105,7 @@ class RungeKuttaScheme:
             delta_t * self.butcher_tableau.butcher_weight_vector,
             ((0,), (0,)),
         )
-        if self.butcher_tableau.is_embedded:
+        if self.butcher_tableau.is_embedded and self.use_adaptive_time_stepping:
             new_state_embedded = old_state.copy()
             new_state_embedded += np.tensordot(
                 stage_field,
@@ -210,7 +213,3 @@ class RungeKuttaScheme:
     ) -> np.ndarray:
         """Currently not needed, keeping for later if necessary."""
         return new_state_perturbation + delta_t * stage_perturbation_field.sum(axis=0)
-
-
-
-
