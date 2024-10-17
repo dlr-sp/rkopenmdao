@@ -62,8 +62,8 @@ class ErrorController:
     b: float = 0
     tol: float = 1e-3
     safety_factor: float = 0.95
-    name: str = "ErrorController"
     error_estimator: ErrorEstimator = SimpleErrorEstimator()
+    name: str = "ErrorController"
     local_error_norms: list = field(init=False, repr=False)
     delta_time_steps: list = field(default_factory=lambda: [], repr=False)
 

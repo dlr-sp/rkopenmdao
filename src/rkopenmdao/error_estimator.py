@@ -42,11 +42,6 @@ class SimpleErrorEstimator(ErrorEstimator):
         """
         self.ord = ord
         self.comm = comm
-        self._parallel_setup()
-
-    def _parallel_setup(self):
-        self.rank = self.comm.Get_rank()
-        self.nprocs = self.comm.Get_size()
 
     def __call__(self, u: np.ndarray, embedded_u: np.ndarray) -> float:
         """
@@ -91,7 +86,7 @@ class ImprovedErrorEstimator(ErrorEstimator):
     __str__():
         prints the Lp/Lebesgue space and the attributes
         """
-    def __init__(self, ord=2, eta=1e-3, eps=1e-3):
+    def __init__(self, ord=2, eta=1e-3, eps=1e-3, comm=MPI.COMM_WORLD):
         """
         Parameters
         ----------
@@ -105,12 +100,7 @@ class ImprovedErrorEstimator(ErrorEstimator):
         self.ord = ord
         self.eta = eta
         self.eps = eps
-        self._parallel_setup()
-
-    def _parallel_setup(self):
-        self.comm = MPI.COMM_WORLD
-        self.rank = self.comm.Get_rank()
-        self.nprocs = self.comm.Get_size()
+        self.comm = comm
 
     def __call__(self, u: np.ndarray, embedded_u: np.ndarray) -> float:
         """

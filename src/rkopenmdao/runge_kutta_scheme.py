@@ -8,6 +8,8 @@ from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.error_controller import ErrorController
 from rkopenmdao.error_controllers import Integral
 
+from rkopenmdao.errors import RungeKuttaError
+
 
 class RungeKuttaScheme:
     """Implements functions used to apply a (embedded) Runge-Kutta method a function represented by
@@ -96,7 +98,7 @@ class RungeKuttaScheme:
         )
 
     def compute_step(
-        self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray
+        self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray, max_delta_t: float = None
     ) -> (np.ndarray, float, bool):
         """Computes the next state and """
         new_state = old_state.copy()
@@ -112,7 +114,12 @@ class RungeKuttaScheme:
                 delta_t * self.butcher_tableau.butcher_adaptive_weights,
                 ((0,), (0,)),
             )
-            return new_state, *self.error_controller(new_state, new_state_embedded, delta_t)
+            delta_t_new, accepted = self.error_controller(new_state, new_state_embedded, delta_t)
+            if max_delta_t:
+                delta_t_new = min(delta_t_new, max_delta_t)
+            return new_state, delta_t_new, accepted
+        elif not self.butcher_tableau.is_embedded and self.use_adaptive_time_stepping:
+            raise RungeKuttaError("Impossible to run adaptive scheme on non-embedded butcher tableau.")
         return new_state, delta_t, True
 
     def compute_stage_jacvec(

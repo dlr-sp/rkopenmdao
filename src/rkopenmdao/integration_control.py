@@ -1,6 +1,22 @@
 # pylint: disable=missing-module-docstring
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+
+@dataclass
+class TerminationCriterion:
+    """
+    Termination Criterion for Runge-Kutta integrator. Can either be by number of time steps or by end time.
+    Parameters
+    ---------
+    criterion: str
+        Stopping criterion to use in Runge-Kutta integrator. Can either be 'num_steps', to set a number of fixed steps,
+        or 'end_time', to set the end time of the Runge-Kutta integrator.
+    value: [int, float]
+        Value of criterion to use in Runge-Kutta integrator; either number of time steps or end time.
+    """
+    criterion: str  # ['num_steps', 'end_time']
+    value: [int, float]
 
 
 @dataclass
@@ -16,29 +32,54 @@ class IntegrationControl:
 
     # General information
     initial_time: float
-    num_steps: int
-
+    termination_criterion: TerminationCriterion
     # We later probably want step size control, so then it would be step data
-    delta_t: float
-
+    initial_delta_t: float
     # Step data
-    step: int = 0
-    step_time_old: float = 0.0
-    step_time_new: float = 0.0
-
+    initial_step: int = 0
+    _delta_t: float = field(init=False)
+    smallest_delta_t: float = field(init=False)
+    step: int = field(init=False)
+    step_time: float = field(init=False)
     # Stage data
-    stage: int = 0
-    stage_time: float = 0.0
-    butcher_diagonal_element: float = 0.0
+    stage: int = field(init=False)
+    stage_time: float = field(init=False)
+    butcher_diagonal_element: float = field(init=False)
+
+    def __post_init__(self):
+        self.step = self.initial_step
+        self.step_time = self.initial_time
+        self.smallest_delta_t = self.initial_delta_t
+        self.delta_t = self.initial_delta_t
+
+        self.stage = 0
+        self.stage_time = self.initial_time
+        self.butcher_diagonal_element = 0.0
+
+    @property
+    def delta_t(self):
+        return self._delta_t
+
+    @delta_t.setter
+    def delta_t(self, delta_t):
+        self._delta_t = delta_t
+        if self.smallest_delta_t > delta_t:
+            self.smallest_delta_t = delta_t
+
+    def remaining_time(self):
+        if self.termination_criterion.criterion == 'end_time':
+            return self.termination_criterion.value - self.step_time
+        else:
+            raise TypeError("Termination criteria must be end_time.")
 
     def reset(self):
         """
         Returns the instance to its initial state.
         """
-        self.step = 0
-        self.step_time_old = self.initial_time
-        self.step_time_new = self.initial_time
+        self.__post_init__()
 
-        self.stage = 0
-        self.stage_time = self.initial_time
-        self.butcher_diagonal_element = 0.0
+    def increment_step(self):
+        self.step += 1
+
+    def decrement_step(self):
+        self.step -= 1
