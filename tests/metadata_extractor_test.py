@@ -845,7 +845,7 @@ def test_metadata_parallel_group_correct():
             TimeIntegrationQuantity(
                 "y",
                 "time_integration",
-                ArrayMetadata(distributed=True),
+                ArrayMetadata(global_shape=(3, 2), distributed=True),
                 TimeIntegrationTranslationMetadata(),
             ),
         ]
@@ -854,7 +854,7 @@ def test_metadata_parallel_group_correct():
             TimeIntegrationQuantity(
                 "x",
                 "time_integration",
-                ArrayMetadata(distributed=True),
+                ArrayMetadata(global_shape=(2, 3), distributed=True),
                 TimeIntegrationTranslationMetadata(),
             ),
             TimeIntegrationQuantity(
