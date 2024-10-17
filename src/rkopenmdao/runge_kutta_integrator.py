@@ -3,7 +3,6 @@
 from __future__ import annotations
 from itertools import chain
 
-import h5py
 import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
@@ -624,7 +623,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.options["integration_control"].initial_time,
                 self._serialized_state,
                 self._postprocessing_state,
-                open_mode="r+",
             )
 
     def _write_out(
@@ -633,7 +631,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         time: float,
         serialized_state: np.ndarray,
         postprocessing_state=None,
-        open_mode="r+",
     ):
         if self._file_writer is not None:
             self._file_writer.write_step(
@@ -847,7 +844,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 time,
                 self._serialized_state,
                 self._postprocessing_state,
-                open_mode="r+",
             )
 
     def compute_jacvec_product(
