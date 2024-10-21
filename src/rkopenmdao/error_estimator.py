@@ -8,7 +8,7 @@ class ErrorEstimator(ABC):
     Solves a norm for the difference of two vectors Delta = U - U_embedded
     """
     @abstractmethod
-    def __init__(self, quantity_metadata: dict):
+    def __init__(self, ord: int, comm: MPI.COMM_WORLD, quantity_metadata: dict):
         pass
 
     @abstractmethod
@@ -33,7 +33,7 @@ class SimpleErrorEstimator(ErrorEstimator):
     __str__()
         prints the Lp/Lebesgue space.
     """
-    def __init__(self, ord=2, comm=MPI.COMM_WORLD):
+    def __init__(self, ord=2, quantity_metadata=None, comm=MPI.COMM_WORLD):
         """
         Parameters
         ----------
@@ -86,7 +86,7 @@ class ImprovedErrorEstimator(ErrorEstimator):
     __str__():
         prints the Lp/Lebesgue space and the attributes
         """
-    def __init__(self, ord=2, eta=1e-3, eps=1e-3, comm=MPI.COMM_WORLD):
+    def __init__(self, ord=2, eta=1e-3, eps=1e-3, quantity_metadata=None, comm=MPI.COMM_WORLD):
         """
         Parameters
         ----------

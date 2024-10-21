@@ -64,8 +64,8 @@ class RungeKuttaScheme:
             stage_computation_functor_transposed_jacvec
         )
         self.use_adaptive_time_stepping = use_adaptive_time_stepping
-        if self.butcher_tableau.is_embedded and not error_controller:
-            self.error_controller = Integral(self.butcher_tableau.min_p_order())
+        if use_adaptive_time_stepping and not error_controller:
+            raise RungeKuttaError("An error controller must be passed if Butcher Tableau is embedded")
         else:
             self.error_controller = error_controller
 
@@ -98,7 +98,7 @@ class RungeKuttaScheme:
         )
 
     def compute_step(
-        self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray, max_delta_t: float = None
+        self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray, remaining_t: float = None
     ) -> (np.ndarray, float, bool):
         """Computes the next state and """
         new_state = old_state.copy()
@@ -115,8 +115,8 @@ class RungeKuttaScheme:
                 ((0,), (0,)),
             )
             delta_t_new, accepted = self.error_controller(new_state, new_state_embedded, delta_t)
-            if max_delta_t:
-                delta_t_new = min(delta_t_new, max_delta_t)
+            if remaining_t:
+                delta_t_new = min(delta_t_new, remaining_t)
             return new_state, delta_t_new, accepted
         elif not self.butcher_tableau.is_embedded and self.use_adaptive_time_stepping:
             raise RungeKuttaError("Impossible to run adaptive scheme on non-embedded butcher tableau.")
@@ -131,7 +131,7 @@ class RungeKuttaScheme:
         accumulated_stages_perturbation: np.ndarray,
         **linearization_args
     ) -> np.ndarray:
-        """Computes the matrix-vector-product of the jacobian of the stage wrt. to the
+        """Computes the matrix-vector-product of the Jacobian of the stage wrt. to the
         old state and the accumulated stages."""
         if hasattr(self.stage_computation_functor_jacvec, "linearize"):
             self.stage_computation_functor_jacvec.linearize(**linearization_args)
@@ -179,7 +179,7 @@ class RungeKuttaScheme:
         joined_perturbation: np.ndarray,
         **linearization_args
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Computes the matrix-vector-product of the transposed of the jacobian of the
+        """Computes the matrix-vector-product of the transposed of the Jacobian of the
         stage wrt. to the old state and the accumulated stages."""
         if hasattr(self.stage_computation_functor_transposed_jacvec, "linearize"):
             self.stage_computation_functor_transposed_jacvec.linearize(

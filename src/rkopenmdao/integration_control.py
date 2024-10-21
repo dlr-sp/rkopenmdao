@@ -1,6 +1,7 @@
 # pylint: disable=missing-module-docstring
 
 from dataclasses import dataclass, field
+import numpy as np
 
 
 @dataclass
@@ -71,6 +72,16 @@ class IntegrationControl:
             return self.termination_criterion.value - self.step_time
         else:
             raise TypeError("Termination criteria must be end_time.")
+
+    def iteration_control(self):
+        if self.termination_criterion.criterion == 'num_steps':
+            if self.step != self.termination_criterion.value:
+                return True
+        if self.termination_criterion.criterion == 'end_time':
+            if (np.abs(self.remaining_time())
+                    >= min(1e-13, self.smallest_delta_t)):
+                return True
+        return False
 
     def reset(self):
         """

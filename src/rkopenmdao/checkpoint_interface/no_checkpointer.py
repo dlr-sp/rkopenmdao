@@ -19,18 +19,11 @@ class NoCheckpointer(CheckpointInterface):
         """Doesn't checkpoint, so does nothing"""
 
     def iterate_forward(self, initial_state):
-        """Runs time intgration from start to finish."""
+        """Runs time integration from start to finish."""
         self._state = initial_state
-        if self.integration_control.termination_criterion.criterion == 'num_steps':
-            while self.integration_control.step != self.integration_control.termination_criterion.value:
-                self._state = self.run_step_func(self._state.copy())
-                self.integration_control.increment_step()
-        elif self.integration_control.termination_criterion.criterion == 'end_time':
-            while (np.abs(self.integration_control.remaining_time())
-                   >= min(1e-13, self.integration_control.smallest_delta_t)):
-                self._state = self.run_step_func(self._state.copy())
-                self.integration_control.increment_step()
-
+        while self.integration_control.iteration_control():
+            self._state = self.run_step_func(self._state.copy())[0]
+            self.integration_control.increment_step()
 
     def iterate_reverse(self, final_state_perturbation):
         """Does nothing"""

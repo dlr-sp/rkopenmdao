@@ -4,15 +4,6 @@ from rkopenmdao.error_estimator import *
 import numpy as np
 
 
-def _three_queue_controller(_list: list, val) -> list:
-    if len(_list) == 0:
-        _list = 3*[val]
-    else:
-        _list[:0] = [val]
-        _list.pop()
-    return _list
-
-
 @dataclass
 class ErrorController:
     r"""
@@ -56,32 +47,55 @@ class ErrorController:
         Prints the class data
     """
     alpha: float
+    error_estimator: ErrorEstimator = None
     beta: float = 0
     gamma: float = 0
     a: float = 0
     b: float = 0
     tol: float = 1e-3
     safety_factor: float = 0.95
-    error_estimator: ErrorEstimator = SimpleErrorEstimator()
     name: str = "ErrorController"
-    local_error_norms: list = field(init=False, repr=False)
-    delta_time_steps: list = field(default_factory=lambda: [], repr=False)
+    _local_error_norms: list = field(init=False, repr=False)
+    _delta_time_steps: list = field(init=False, repr=False)
 
     def __post_init__(self):
-        self.local_error_norms = 3 * [self.tol]
+        self.local_error_norms = None
+        self.delta_time_steps = None
 
-    def _estimate_next_step_function(self):
+    @property
+    def local_error_norms(self):
+        return self._local_error_norms
+
+    @local_error_norms.setter
+    def local_error_norms(self, local_error_norms):
+        if local_error_norms is None:
+            self._local_error_norms = 2*[self.tol]
+        else:
+            self._local_error_norms = local_error_norms
+
+    @property
+    def delta_time_steps(self):
+        return self._delta_time_steps
+
+    @delta_time_steps.setter
+    def delta_time_steps(self, delta_time_steps):
+        if delta_time_steps is None:
+            self._delta_time_steps = 2 * [delta_time_steps]
+        else:
+            self._delta_time_steps = delta_time_steps
+
+    def _estimate_next_step_function(self, current_norm, current_time):
         """
         Solves the equation
         """
         if 0 in self.local_error_norms:
-            return self.delta_time_steps[0]
-        delta_time_new = self.safety_factor * self.delta_time_steps[0]
-        delta_time_new *= (self.tol / self.local_error_norms[0]) ** self.alpha
-        delta_time_new *= (self.local_error_norms[1] / self.tol) ** self.beta
-        delta_time_new *= (self.tol / self.local_error_norms[2]) ** self.gamma
-        delta_time_new *= (self.delta_time_steps[0] / self.delta_time_steps[1]) ** self.a
-        delta_time_new *= (self.delta_time_steps[1] / self.delta_time_steps[2]) ** self.b
+            return current_time
+        delta_time_new = self.safety_factor * current_time
+        delta_time_new *= (self.tol / current_norm) ** self.alpha
+        delta_time_new *= (self.local_error_norms[0] / self.tol) ** self.beta
+        delta_time_new *= (self.tol / self.local_error_norms[1]) ** self.gamma
+        delta_time_new *= (current_time / self.delta_time_steps[0]) ** self.a
+        delta_time_new *= (self.delta_time_steps[0] / self.delta_time_steps[1]) ** self.b
         return delta_time_new
 
     def __call__(self,
@@ -92,13 +106,15 @@ class ErrorController:
         """
         Estimates next possible step size for a given state and embedded solution
         and returns whether the next step size meets the tolerance.
-        
+
         Parameters
         ----------
         solution : np.ndarray
-            The solution of the current time step
+            The solution of the current time step.
         embedded_solution : np.ndarray
-            The embedded solution of the current time step
+            The embedded solution of the current time step.
+        delta_t:
+            current time step size.
         
         Returns
         -------
@@ -107,12 +123,15 @@ class ErrorController:
             2. True if for current step size the norm is in tolerance, otherwise False
         """
         current_norm = self.error_estimator(solution, embedded_solution)
-        self.local_error_norms = _three_queue_controller(self.local_error_norms, current_norm)
-        self.delta_time_steps = _three_queue_controller(self.delta_time_steps, delta_t)
-        delta_t_new = self._estimate_next_step_function()
+        delta_t_new = self._estimate_next_step_function(current_norm,  delta_t)
+        # possibilities:  1. create a boolean flag
+        #                 2. make a copy before calling function
+        #                 3. change interface s.t. pushing the queue after estimation of next step
         if current_norm <= self.tol:
-            return delta_t_new, True
-        return delta_t_new, False
+            self.local_error_norms = [current_norm, self._local_error_norms[0]]
+            self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
+            return delta_t_new, True  # Step accepted
+        return delta_t_new, False  # Step rejected
 
     def __str__(self):
         """
