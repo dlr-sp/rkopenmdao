@@ -11,7 +11,7 @@ import h5py
 from mpi4py.MPI import Comm
 import numpy as np
 
-from .metadata_extractor import TimeIntegrationMetadata
+from .metadata_extractor import Quantity, TimeIntegrationMetadata
 
 
 @dataclass
@@ -23,17 +23,13 @@ class FileWriterInterface(ABC):
     comm: Comm
 
     @abstractmethod
-    def setup_file(self):
-        """Creates file and prepares other necessary one-time work."""
-
-    @abstractmethod
     def write_step(
         self,
         step: int,
         time: float,
         time_integration_data: np.ndarray,
         postprocessing_data: np.ndarray,
-    ):
+    ) -> None:
         """Writes out step to file"""
 
 
@@ -41,7 +37,7 @@ class FileWriterInterface(ABC):
 class Hdf5FileWriter(FileWriterInterface):
     """File writer using h5py to write out to HDF5-files."""
 
-    def setup_file(self):
+    def __post_init__(self):
         if self.comm.rank == 0:
             written_out_quantities = chain(
                 self.time_integration_metadata.time_integration_quantity_list,
@@ -57,7 +53,11 @@ class Hdf5FileWriter(FileWriterInterface):
         time: float,
         time_integration_data: np.ndarray,
         postprocessing_data: np.ndarray,
-    ):
+    ) -> None:
+        data_map = {
+            "time_integration": time_integration_data,
+            "postprocessing": postprocessing_data,
+        }
         with h5py.File(self.file_name, mode="r+", driver="mpio", comm=self.comm) as f:
             for quantity in chain(
                 self.time_integration_metadata.time_integration_quantity_list,
@@ -70,28 +70,26 @@ class Hdf5FileWriter(FileWriterInterface):
                 )
                 dataset.attrs["time"] = time
                 if quantity.array_metadata.local:
+                    write_indices = self.get_write_indices(quantity)
                     start_array = quantity.array_metadata.start_index
                     end_array = quantity.array_metadata.end_index
-                    start_tuple = np.unravel_index(
-                        quantity.array_metadata.global_start_index,
-                        quantity.array_metadata.global_shape,
-                    )
-                    end_tuple = np.unravel_index(
-                        quantity.array_metadata.global_end_index - 1,
-                        quantity.array_metadata.global_shape,
-                    )
-                    access_list = []
-                    for start_index, end_index in zip(start_tuple, end_tuple):
-                        access_list.append(slice(start_index, end_index + 1))
-                    if quantity.type == "time_integration":
-                        f[quantity.name][str(step)][tuple(access_list)] = (
-                            time_integration_data[start_array:end_array].reshape(
-                                quantity.array_metadata.shape
-                            )
-                        )
-                    elif quantity.type == "postprocessing":
-                        f[quantity.name][str(step)][tuple(access_list)] = (
-                            postprocessing_data[start_array:end_array].reshape(
-                                quantity.array_metadata.shape
-                            )
-                        )
+                    f[quantity.name][str(step)][write_indices] = data_map[
+                        quantity.type
+                    ][start_array:end_array].reshape(quantity.array_metadata.shape)
+
+    @staticmethod
+    def get_write_indices(quantity: Quantity) -> tuple:
+        """Gets indices of where to write the local part of the quantity
+        into the respective HDF5 dataset."""
+        start_tuple = np.unravel_index(
+            quantity.array_metadata.global_start_index,
+            quantity.array_metadata.global_shape,
+        )
+        end_tuple = np.unravel_index(
+            quantity.array_metadata.global_end_index - 1,
+            quantity.array_metadata.global_shape,
+        )
+        access_list = []
+        for start_index, end_index in zip(start_tuple, end_tuple):
+            access_list.append(slice(start_index, end_index + 1))
+        return tuple(access_list)

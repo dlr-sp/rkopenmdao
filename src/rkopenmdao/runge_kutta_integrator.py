@@ -299,7 +299,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_runge_kutta_scheme()
         self._setup_postprocessor()
         self._configure_write_out()
-        self._setup_write_file()
         self._setup_checkpointing()
 
     def _setup_inner_problems(self):
@@ -542,10 +541,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._file_writer = self.options["file_writing_implementation"](
                 self.options["write_file"], self._time_integration_metadata, self.comm
             )
-
-    def _setup_write_file(self):
-        if self._file_writer is not None:
-            self._file_writer.setup_file()
 
     def _setup_checkpointing(self):
         self._checkpointer = self.options["checkpointing_type"](
