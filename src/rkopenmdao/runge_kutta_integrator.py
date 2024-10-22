@@ -3,7 +3,6 @@
 from __future__ import annotations
 from itertools import chain
 
-import h5py
 import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
@@ -34,6 +33,8 @@ from .metadata_extractor import (
     Quantity,
     TimeIntegrationMetadata,
 )
+
+from .file_writer import FileWriterInterface, Hdf5FileWriter
 
 
 class RungeKuttaIntegrator(om.ExplicitComponent):
@@ -77,6 +78,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _cached_input: tuple[np.ndarray, np.ndarray]
 
     _disable_write_out: bool
+    _file_writer: FileWriterInterface | None
 
     _checkpointer: CheckpointInterface | None
 
@@ -110,7 +112,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._time_integration_metadata = None
 
         self._cached_input = (np.full(0, np.nan), np.full(0, np.nan))
+
         self._disable_write_out = False
+        self._file_writer = None
 
         self._checkpointer = None
 
@@ -164,6 +168,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             diagonal element of the butcher tableau, or the current time step and stage,
             which then can be read by anyone else holding the same instance (like e.g.
             components in the time_stage_problem).""",
+        )
+        self.options.declare(
+            "file_writing_implementation",
+            default=Hdf5FileWriter,
+            check_valid=self.check_file_writer_type,
+            desc="Defines what kind of file writing should be used.",
         )
 
         self.options.declare(
@@ -273,6 +283,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if not issubclass(value, CheckpointInterface):
             raise TypeError(f"{value} is not a subclass of CheckpointInterface")
 
+    @staticmethod
+    def check_file_writer_type(name, value):
+        """Checks whether the passed file writing type for the options is an actual
+        subclass of FileWriterInterface"""
+        # pylint: disable=unused-argument
+        # OpenMDAO needs that specific interface, even if we don't need it fully.
+        if not issubclass(value, FileWriterInterface):
+            raise TypeError(f"{value} is not a subclass of FileWriterInterface")
+
     def setup(self):
         self._setup_inner_problems()
         self._setup_variables()
@@ -280,7 +299,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_runge_kutta_scheme()
         self._setup_postprocessor()
         self._configure_write_out()
-        self._setup_write_file()
         self._setup_checkpointing()
 
     def _setup_inner_problems(self):
@@ -519,51 +537,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _configure_write_out(self):
         self._disable_write_out = self.options["write_out_distance"] == 0
-
-    def _setup_write_file(self):
         if not self._disable_write_out:
-            delta_t = self.options["integration_control"].delta_t
-            initial_time = self.options["integration_control"].initial_time
-            num_steps = self.options["integration_control"].num_steps
-            written_out_quantities = chain(
-                self._time_integration_metadata.time_integration_quantity_list,
-                self._time_integration_metadata.postprocessing_quantity_list,
+            self._file_writer = self.options["file_writing_implementation"](
+                self.options["write_file"], self._time_integration_metadata, self.comm
             )
-            for i in range(self.comm.size):
-                if i == self.comm.rank:
-                    with h5py.File(
-                        self.options["write_file"], mode="w" if i == 0 else "r+"
-                    ) as f:
-                        for quantity in written_out_quantities:
-                            for j in range(
-                                0,
-                                num_steps,
-                                self.options["write_out_distance"],
-                            ):
-                                # check whether dataset was already created by other
-                                # process
-                                path = quantity.name + "/" + str(j)
-                                if path not in f:
-                                    dataset = f.create_dataset(
-                                        path,
-                                        data=np.full(
-                                            quantity.array_metadata.global_shape, np.nan
-                                        ),
-                                    )
-                                    dataset.attrs["time"] = j * delta_t + initial_time
-                            path = quantity.name + "/" + str(num_steps)
-                            if path not in f:
-                                dataset = f.create_dataset(
-                                    path,
-                                    data=np.full(
-                                        quantity.array_metadata.global_shape, np.nan
-                                    ),
-                                )
-                                dataset.attrs["time"] = (
-                                    num_steps * delta_t + initial_time
-                                )
-                if self.comm.size > 1:
-                    self.comm.Barrier()
 
     def _setup_checkpointing(self):
         self._checkpointer = self.options["checkpointing_type"](
@@ -638,64 +615,22 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print(self.comm.rank, "-----------------------------------------------")
             self._write_out(
                 0,
+                self.options["integration_control"].initial_time,
                 self._serialized_state,
                 self._postprocessing_state,
-                open_mode="r+",
             )
 
     def _write_out(
         self,
         step: int,
+        time: float,
         serialized_state: np.ndarray,
         postprocessing_state=None,
-        open_mode="r+",
     ):
-        further_args = {}
-        if self.comm.size > 1:
-            further_args["driver"] = "mpio"
-            further_args["comm"] = self.comm
-        with h5py.File(self.options["write_file"], mode=open_mode, **further_args) as f:
-            if self.comm.size > 1:
-                f.atomic = True
-            for quantity in chain(
-                self._time_integration_metadata.time_integration_quantity_list,
-                self._time_integration_metadata.postprocessing_quantity_list,
-            ):
-                start = quantity.array_metadata.start_index
-                end = quantity.array_metadata.end_index
-                # check whether data has already been written on dataset by checking
-                # first element
-                if np.isnan(
-                    f[quantity.name][str(step)][
-                        np.unravel_index(
-                            quantity.array_metadata.global_start_index,
-                            quantity.array_metadata.global_shape,
-                        )
-                    ]
-                ):
-                    start_tuple = np.unravel_index(
-                        quantity.array_metadata.global_start_index,
-                        quantity.array_metadata.global_shape,
-                    )
-                    end_tuple = np.unravel_index(
-                        quantity.array_metadata.global_end_index - 1,
-                        quantity.array_metadata.global_shape,
-                    )
-                    access_list = []
-                    for start_index, end_index in zip(start_tuple, end_tuple):
-                        access_list.append(slice(start_index, end_index + 1))
-                    if quantity.type == "time_integration":
-                        f[quantity.name][str(step)][tuple(access_list)] = (
-                            serialized_state[start:end].reshape(
-                                quantity.array_metadata.shape
-                            )
-                        )
-                    elif quantity.type == "postprocessing":
-                        f[quantity.name][str(step)][tuple(access_list)] = (
-                            postprocessing_state[start:end].reshape(
-                                quantity.array_metadata.shape
-                            )
-                        )
+        if self._file_writer is not None:
+            self._file_writer.write_step(
+                step, time, serialized_state, postprocessing_state
+            )
 
     def _compute_functional_phase(self):
         if self._functional_quantities:
@@ -894,15 +829,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _run_step_write_out_phase(self):
         step = self.options["integration_control"].step
+        time = self.options["integration_control"].step_time_new
         if not self._disable_write_out and (
             step % self.options["write_out_distance"] == 0
             or step == self.options["integration_control"].num_steps
         ):
             self._write_out(
                 step,
+                time,
                 self._serialized_state,
                 self._postprocessing_state,
-                open_mode="r+",
             )
 
     def compute_jacvec_product(

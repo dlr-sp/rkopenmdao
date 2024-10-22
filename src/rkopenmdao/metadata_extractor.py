@@ -125,7 +125,7 @@ def extract_time_integration_metadata(
     )
     global_quantities = stage_problem.model.get_io_metadata(
         iotypes="output",
-        metadata_keys=["tags"],
+        metadata_keys=["tags", "global_shape"],
         tags=time_integration_quantity_list,
         get_remote=True,
     )
@@ -154,7 +154,7 @@ def extract_time_integration_metadata(
             quantity = TimeIntegrationQuantity(
                 type="time_integration",
                 name=quantity_name,
-                array_metadata=ArrayMetadata(),
+                array_metadata=ArrayMetadata(global_shape=data["global_shape"]),
                 translation_metadata=TimeIntegrationTranslationMetadata(),
             )
         quantity_list.append(quantity)
@@ -291,7 +291,7 @@ def add_time_independent_input_metadata(
     )
     global_quantities = stage_problem.model.get_io_metadata(
         iotypes="input",
-        metadata_keys=["tags"],
+        metadata_keys=["tags", "global_shape"],
         tags=time_independent_input_quantity_list,
         get_remote=True,
     )
@@ -322,7 +322,7 @@ def add_time_independent_input_metadata(
             quantity = TimeIndependentQuantity(
                 type="independent_input",
                 name=quantity_name,
-                array_metadata=ArrayMetadata(),
+                array_metadata=ArrayMetadata(global_shape=data["global_shape"]),
                 translation_metadata=TimeIndependentInputTranslationMetadata(),
             )
         runge_kutta_metadata.time_independent_input_quantity_list.append(quantity)
@@ -427,7 +427,7 @@ def add_postprocessing_metadata(
     )
     global_postproc_quantities = postproc_problem.model.get_io_metadata(
         iotypes="output",
-        metadata_keys=["tags"],
+        metadata_keys=["tags", "global_shape"],
         tags=postprocessing_quantity_list,
         get_remote=True,
     )
@@ -454,7 +454,7 @@ def add_postprocessing_metadata(
             quantity = PostprocessingQuantity(
                 type="postprocessing",
                 name=quantity_name,
-                array_metadata=ArrayMetadata(),
+                array_metadata=ArrayMetadata(global_shape=data["global_shape"]),
                 translation_metadata=PostprocessingTranslationMetadata(),
             )
         runge_kutta_metadata.postprocessing_quantity_list.append(quantity)

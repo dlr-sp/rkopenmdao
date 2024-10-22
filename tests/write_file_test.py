@@ -51,7 +51,7 @@ def test_monodisciplinary(write_out_distance, write_file):
         for i in range(1, write_out_distance):
             assert str(i) not in f["x"].keys()
         assert str(100) in f["x"].keys()
-        assert time_int_prob["rk_integration.x_final"] == f["x"][str(100)]
+        assert time_int_prob["rk_integration.x_final"] == f["x"][str(100)][:]
 
 
 @pytest.mark.rk
