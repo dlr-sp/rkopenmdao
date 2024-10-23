@@ -815,14 +815,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _run_step(self, serialized_state):
         if self.comm.rank == 0:
-            print(f"\nStarting step {self.options["integration_control"].step} of compute.\n")
+            print(f"\nStarting step {self.options['integration_control'].step} of compute.\n")
         self._run_step_preparation_phase(serialized_state)
         self._run_step_time_integration_phase()
         self._run_step_postprocessing_phase()
         self._run_step_functional_phase()
         self._run_step_write_out_phase()
         if self.comm.rank == 0:
-            print(f"\nFinishing step {self.options["integration_control"].step} of compute.\n")
+            print(f"\nFinishing step {self.options['integration_control'].step} of compute.\n")
         return self._serialized_state, self._error_controller.delta_time_steps, self._error_controller.local_error_norms
 
     def _run_step_preparation_phase(self, serialized_state):
@@ -975,13 +975,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _compute_jacvec_fwd_run_steps(self):
         while self.options["integration_control"].termination_condition_status():
             if self.comm.rank == 0:
-                print(f"\nStarting step {self.options["integration_control"].step} of fwd-mode jacvec product.\n")
+                print(f"\nStarting step {self.options['integration_control'].step} of fwd-mode jacvec product.\n")
             self._compute_jacvec_fwd_run_steps_preparation_phase()
             self._compute_jacvec_fwd_run_steps_time_integration_phase()
             self._compute_jacvec_fwd_run_steps_postprocessing_phase()
             self._compute_jacvec_fwd_run_steps_functional_phase()
             if self.comm.rank == 0:
-                print(f"\nFinished step {self.options["integration_control"].step} of fwd-mode jacvec product.\n")
+                print(f"\nFinished step {self.options['integration_control'].step} of fwd-mode jacvec product.\n")
 
     def _compute_jacvec_fwd_run_steps_preparation_phase(self):
         self._update_integration_control_step()
@@ -1212,7 +1212,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self, serialized_state, serialized_state_perturbations
     ):
         if self.comm.rank == 0:
-            print(f"\nStarting step {self.options["integration_control"].step} of rev-mode jacvec product.\n")
+            print(f"\nStarting step {self.options['integration_control'].step} of rev-mode jacvec product.\n")
         self._serialized_state = serialized_state
         self._serialized_state_perturbations = serialized_state_perturbations
         new_serialized_state_perturbations = serialized_state_perturbations.copy()
@@ -1230,7 +1230,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Starting stage {stage} of the fwd iteration of rev-mode jvp in\n"
-                    f"step {self.options["integration_control"].step}."
+                    f"step {self.options['integration_control'].step}."
                 )
             self._stage_computation(stage)
             inputs_cache[stage] = prob_inputs.asarray(copy=True)
@@ -1238,7 +1238,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Finished stage {stage} of the fwd iteration of rev-mode jvp in\n"
-                    f"step {self.options["integration_control"].step}."
+                    f"step {self.options['integration_control'].step}."
                 )
         # backward iteration
 
@@ -1246,7 +1246,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Starting stage {stage} of the rev iteration of rev-mode jvp in\n"
-                    f"step {self.options["integration_control"].step}."
+                    f"step {self.options['integration_control'].step}."
                 )
             linearization_args = {
                 "inputs": inputs_cache[stage],
@@ -1276,7 +1276,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Finished stage {stage} of the rev iteration of reve-mode jvp in\n"
-                    f"step {self.options["integration_control"].step}."
+                    f"step {self.options['integration_control'].step}."
                 )
         self._serialized_state_perturbations = new_serialized_state_perturbations
         if self.options["postprocessing_problem"] is not None:
@@ -1285,5 +1285,5 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._add_functional_perturbations_to_state_perturbations(self.options["integration_control"].step - 1)
 
         if self.comm.rank == 0:
-            print(f"\nFinishing step {self.options["integration_control"].step} of rev-mode jacvec product.\n")
+            print(f"\nFinishing step {self.options['integration_control'].step} of rev-mode jacvec product.\n")
         return self._serialized_state_perturbations
