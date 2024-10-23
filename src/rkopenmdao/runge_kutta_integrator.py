@@ -11,6 +11,8 @@ from .butcher_tableau import ButcherTableau
 from .functional_coefficients import FunctionalCoefficients, EmptyFunctionalCoefficients
 from .integration_control import IntegrationControl
 from .runge_kutta_scheme import RungeKuttaScheme
+from .error_controller import ErrorController
+from .error_estimator import ErrorEstimator, SimpleErrorEstimator
 from .time_stage_problem_computation_functors import (
     TimeStageProblemComputeFunctor,
     TimeStageProblemComputeJacvecFunctor,
@@ -48,6 +50,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                      - (optional) linear combinations of quantities over time
     """
 
+    _quantity_metadata: dict
     _functional_quantities: list
     _of_vars: list
     _wrt_vars: list
@@ -62,6 +65,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _serialized_state_perturbations_from_functional: np.ndarray | None
     _accumulated_stage_perturbations: np.ndarray | None
     _stage_perturbations_cache: np.ndarray | None
+    _error_estimator: ErrorEstimator | None
+    _error_controller: ErrorController | None
 
     _independent_input_array: np.ndarray | None
     _independent_input_perturbations: np.ndarray | None
@@ -98,6 +103,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._serialized_state_perturbations_from_functional = None
         self._accumulated_stage_perturbations = None
         self._stage_perturbations_cache = None
+        self._error_controller = None
 
         self._independent_input_array = None
         self._independent_input_perturbations = None
@@ -270,8 +276,42 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             "checkpoint_options",
             types=dict,
             default={},
-            desc="""Additional options passed the the checkpointer. Valid options depend
-            on the used checkpointing_type""",
+            desc="""Additional options passed to the checkpointer. Valid options depend
+                   on the used checkpointing_type""",
+        )
+
+        self.options.declare(
+            "error_estimator_type",
+            check_valid=self.check_error_estimator_type,
+            default=SimpleErrorEstimator,
+            desc="""Type of ErrorEstimator used. Must be a subclass of ErrorEstimator"""
+        )
+
+        self.options.declare(
+            "error_estimator_options",
+            types=dict,
+            default={},
+            desc="""Additional options passed to the ErrorController. Valid options depend on the 
+            error_estimator_type"""
+        )
+
+        self.options.declare(
+            "error_controller",
+            desc="""Error controller for adaptive time stepping of the Runge-Kutta Scheme."""
+        )
+
+        self.options.declare(
+            "error_controller_options",
+            types=dict,
+            default={},
+            desc="""Options for the error controller class. Valid options depend of the error controller type.""",
+        )
+
+        self.options.declare(
+            "adaptive_time_stepping",
+            types=bool,
+            default=False,
+            desc="A flag that indicates whether to use the adaptive scheme."
         )
 
     @staticmethod
@@ -292,14 +332,32 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if not issubclass(value, FileWriterInterface):
             raise TypeError(f"{value} is not a subclass of FileWriterInterface")
 
+    @staticmethod
+    def check_error_estimator_type(name, value):
+        """Checks whether the passed checkpointing type for the options is an actual
+        subclass of CheckpointInterface"""
+        # pylint: disable=unused-argument
+        # OpenMDAO needs that specific interface, even if we don't need it fully.
+        if not issubclass(value, ErrorEstimator):
+            raise TypeError(f"{value} is not a subclass of CheckpointInterface")
+
     def setup(self):
         self._setup_inner_problems()
         self._setup_variables()
         self._setup_arrays()
+        self._setup_error_estimator()
+        self._setup_error_controller()
         self._setup_runge_kutta_scheme()
         self._setup_postprocessor()
         self._configure_write_out()
         self._setup_checkpointing()
+
+    def _setup_error_controller(self):
+        p = self.options["butcher_tableau"].min_p_order
+        self._error_controller = self.options["error_controller"](p=p,
+                                                                  **self.options["error_controller_options"],
+                                                                  error_estimator=self.options["error_estimator"]
+                                                                  )
 
     def _setup_inner_problems(self):
         self.options["time_stage_problem"].setup()
@@ -511,6 +569,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._of_vars,
                 self._wrt_vars,
             ),
+            self.options["adaptive_time_stepping"],
+            self._error_controller
         )
 
     def _setup_postprocessor(self):
@@ -545,10 +605,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _setup_checkpointing(self):
         self._checkpointer = self.options["checkpointing_type"](
             array_size=self._time_integration_metadata.time_integration_array_size,
-            num_steps=self.options["integration_control"].num_steps,
+            integration_control=self.options["integration_control"],
             run_step_func=self._run_step,
             run_step_jacvec_rev_func=self._run_step_jacvec_rev,
             **self.options["checkpoint_options"],
+        )
+
+    def _setup_error_estimator(self):
+        self._error_estimator = self.options["error_estimator_type"](
+            **self.options["error_estimator_options"],
+            comm=self.comm,
         )
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
@@ -747,42 +813,52 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     start:end
                 ].reshape(quantity.array_metadata.shape)
 
-    def _run_step(self, step, serialized_state):
+    def _run_step(self, serialized_state):
         if self.comm.rank == 0:
-            print(f"\nStarting step {step} of compute.\n")
-        self._run_step_preparation_phase(step, serialized_state)
+            print(f"\nStarting step {self.options['integration_control'].step} of compute.\n")
+        self._run_step_preparation_phase(serialized_state)
         self._run_step_time_integration_phase()
         self._run_step_postprocessing_phase()
         self._run_step_functional_phase()
         self._run_step_write_out_phase()
         if self.comm.rank == 0:
-            print(f"\nFinishing step {step} of compute.\n")
-        return self._serialized_state
+            print(f"\nFinishing step {self.options['integration_control'].step} of compute.\n")
+        return self._serialized_state, self._error_controller.delta_time_steps, self._error_controller.local_error_norms
 
-    def _run_step_preparation_phase(self, step, serialized_state):
-        self._update_integration_control_step(step)
+    def _run_step_preparation_phase(self, serialized_state):
+        self._update_integration_control_step()
         self._serialized_state = serialized_state
 
-    def _update_integration_control_step(self, step):
-        initial_time = self.options["integration_control"].initial_time
+    def _update_integration_control_step(self):
         delta_t = self.options["integration_control"].delta_t
-        self.options["integration_control"].step = step
-        time = initial_time + (step - 1) * delta_t
-        self.options["integration_control"].step_time_old = time
-        self.options["integration_control"].step_time_new = time + delta_t
+        step = self.options["integration_control"].step
+        if step == 0:
+            self.options["integration_control"].step_time = self.options["integration_control"].initial_time
+        else:
+            self.options["integration_control"].step_time = self.options["integration_control"].step_time + delta_t
 
     def _run_step_time_integration_phase(self):
-        delta_t = self.options["integration_control"].delta_t
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        for stage in range(butcher_tableau.number_of_stages()):
-            self._stage_computation(stage)
-        self._serialized_state = self._runge_kutta_scheme.compute_step(
-            delta_t, self._serialized_state, self._stage_cache
-        )
+        delta_t = self.options["integration_control"].delta_t
+        accepted = False
+
+        while not accepted:
+            for stage in range(butcher_tableau.number_of_stages()):
+                self._stage_computation(stage)
+            if self.options["integration_control"].termination_criterion == 'num_steps':
+                temp_serialized_state, delta_t, accepted\
+                    = self._runge_kutta_scheme.compute_step(delta_t, self._serialized_state, self._stage_cache)
+            elif self.options["integration_control"].termination_criterion == 'time_step':
+                temp_serialized_state, delta_t, accepted \
+                    = self._runge_kutta_scheme.compute_step(delta_t, self._serialized_state,
+                                                            self._stage_cache,
+                                                            self.options["integration_control"].remaining_time)
+        self.options["integration_control"].delta_t = delta_t
+        self._serialized_state = temp_serialized_state
 
     def _stage_computation(self, stage):
         delta_t = self.options["integration_control"].delta_t
-        time = self.options["integration_control"].step_time_old
+        time = self.options["integration_control"].step_time
         step = self.options["integration_control"].step
         if self.comm.rank == 0:
             print(f"Starting stage {stage} of compute in step {step}.")
@@ -829,7 +905,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _run_step_write_out_phase(self):
         step = self.options["integration_control"].step
-        time = self.options["integration_control"].step_time_new
+        time = self.options["integration_control"].step_time
         if not self._disable_write_out and (
             step % self.options["write_out_distance"] == 0
             or step == self.options["integration_control"].num_steps
@@ -897,24 +973,23 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 print("Finished computation of functional contribution.")
 
     def _compute_jacvec_fwd_run_steps(self):
-        num_steps = self.options["integration_control"].num_steps
-        for step in range(1, num_steps + 1):
+        while self.options["integration_control"].termination_condition_status():
             if self.comm.rank == 0:
-                print(f"\nStarting step {step} of fwd-mode jacvec product.\n")
-            self._compute_jacvec_fwd_run_steps_preparation_phase(step)
+                print(f"\nStarting step {self.options['integration_control'].step} of fwd-mode jacvec product.\n")
+            self._compute_jacvec_fwd_run_steps_preparation_phase()
             self._compute_jacvec_fwd_run_steps_time_integration_phase()
             self._compute_jacvec_fwd_run_steps_postprocessing_phase()
             self._compute_jacvec_fwd_run_steps_functional_phase()
             if self.comm.rank == 0:
-                print(f"\nFinished step {step} of fwd-mode jacvec product.\n")
+                print(f"\nFinished step {self.options['integration_control'].step} of fwd-mode jacvec product.\n")
 
-    def _compute_jacvec_fwd_run_steps_preparation_phase(self, step):
-        self._update_integration_control_step(step)
+    def _compute_jacvec_fwd_run_steps_preparation_phase(self):
+        self._update_integration_control_step()
 
     def _compute_jacvec_fwd_run_steps_time_integration_phase(self):
         delta_t = self.options["integration_control"].delta_t
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        time = self.options["integration_control"].step_time_old
+        time = self.options["integration_control"].step_time
         step = self.options["integration_control"].step
         for stage in range(butcher_tableau.number_of_stages()):
             if self.comm.rank == 0:
@@ -970,17 +1045,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
     def _compute_jacvec_fwd_run_steps_postprocessing_phase(self):
-        if self.options["postprocessing_problem"] is not None:
-            if self.comm.rank == 0:
-                print("Starting postprocessing.")
-            self._postprocessor.postprocess(self._serialized_state)
-            self._postprocessing_state_perturbations = (
-                self._postprocessor.postprocess_jacvec(
-                    self._serialized_state_perturbations
-                )
-            )
-            if self.comm.rank == 0:
-                print("Finished postprocessing.")
+        self._compute_jacvec_fwd_postprocessing_phase()
 
     def _compute_jacvec_fwd_run_steps_functional_phase(self):
         step = self.options["integration_control"].step
@@ -1144,20 +1209,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 print("Finished postprocessing.")
 
     def _run_step_jacvec_rev(
-        self, step, serialized_state, serialized_state_perturbations
+        self, serialized_state, serialized_state_perturbations
     ):
         if self.comm.rank == 0:
-            print(f"\nStarting step {step} of rev-mode jacvec product.\n")
+            print(f"\nStarting step {self.options['integration_control'].step} of rev-mode jacvec product.\n")
         self._serialized_state = serialized_state
         self._serialized_state_perturbations = serialized_state_perturbations
         new_serialized_state_perturbations = serialized_state_perturbations.copy()
-        initial_time = self.options["integration_control"].initial_time
         delta_t = self.options["integration_control"].delta_t
+        self._update_integration_control_step()
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        self.options["integration_control"].step = step
-        time = initial_time + (step - 1) * delta_t
-        self.options["integration_control"].step_time_old = time
-        self.options["integration_control"].step_time_new = time + delta_t
 
         inputs_cache = {}
         outputs_cache = {}
@@ -1169,7 +1230,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Starting stage {stage} of the fwd iteration of rev-mode jvp in\n"
-                    f"step {step}."
+                    f"step {self.options['integration_control'].step}."
                 )
             self._stage_computation(stage)
             inputs_cache[stage] = prob_inputs.asarray(copy=True)
@@ -1177,7 +1238,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Finished stage {stage} of the fwd iteration of rev-mode jvp in\n"
-                    f"step {step}."
+                    f"step {self.options['integration_control'].step}."
                 )
         # backward iteration
 
@@ -1185,7 +1246,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Starting stage {stage} of the rev iteration of rev-mode jvp in\n"
-                    f"step {step}."
+                    f"step {self.options['integration_control'].step}."
                 )
             linearization_args = {
                 "inputs": inputs_cache[stage],
@@ -1201,8 +1262,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._stage_perturbations_cache[stage, :],
                 parameter_perturbation,
             ) = self._runge_kutta_scheme.compute_stage_transposed_jacvec(
-                stage, delta_t, time, joined_perturbations, **linearization_args
+                stage, self.options["integration_control"].delta_t,
+                self.options["integration_control"].step_time,
+                joined_perturbations, **linearization_args
             )
+            new_serialized_state_perturbations += self.options["integration_control"].delta_t * wrt_old_state
             new_serialized_state_perturbations += delta_t * wrt_old_state
             self._independent_input_perturbations += (
                 delta_t
@@ -1212,14 +1276,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             if self.comm.rank == 0:
                 print(
                     f"Finished stage {stage} of the rev iteration of reve-mode jvp in\n"
-                    f"step {step}."
+                    f"step {self.options['integration_control'].step}."
                 )
         self._serialized_state_perturbations = new_serialized_state_perturbations
         if self.options["postprocessing_problem"] is not None:
             self._postprocessor.postprocess(self._serialized_state)
 
-        self._add_functional_perturbations_to_state_perturbations(step - 1)
+        self._add_functional_perturbations_to_state_perturbations(self.options["integration_control"].step - 1)
 
         if self.comm.rank == 0:
-            print(f"\nFinishing step {step} of rev-mode jacvec product.\n")
+            print(f"\nFinishing step {self.options['integration_control'].step} of rev-mode jacvec product.\n")
         return self._serialized_state_perturbations

@@ -50,7 +50,10 @@ class PyrevolveCheckpointer(CheckpointInterface):
             else:
                 self.revolver_options[key] = value
         self.revolver_options["checkpoint"] = checkpoint
-        self.revolver_options["n_timesteps"] = self.num_steps
+        if self.integration_control.termination_criterion == 'num_steps':
+            self.revolver_options["n_timesteps"] = self.integration_control.termination_criterion.value
+        else:
+            raise TypeError("Does not support online checkpointing")
         if "n_checkpoints" not in self.revolver_options:
             if self.revolver_type not in ["MultiLevel", "Base"]:
                 self.revolver_options["n_checkpoints"] = (
