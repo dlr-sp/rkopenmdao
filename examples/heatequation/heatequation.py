@@ -1,6 +1,6 @@
 # pylint: disable=missing-module-docstring
-from typing import Union
-from typing import Callable
+from __future__ import annotations
+from collections.abc import Callable
 import numpy as np
 from scipy.sparse.linalg import LinearOperator, gmres
 import h5py
@@ -22,7 +22,7 @@ class HeatEquation:
         heat_inhomogeneity_function: Callable[[float, float, float], float],
         heat_boundary_condition: boundary.BoundaryCondition,
         heat_diffusivity: float,
-        initial_value: Union[np.ndarray, Callable[[float, float], float]],
+        initial_value: np.ndarray | Callable[[float, float], float],
         solver_options: dict,
         start_time=0.0,
     ):

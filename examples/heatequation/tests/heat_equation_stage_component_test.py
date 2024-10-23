@@ -77,7 +77,7 @@ def test_heat_equation_stage_component_zero_vector(
         boundary_condition,
         1.0,
         lambda x, y: 1,
-        {"tol": 1e-10, "atol": "legacy"},
+        {"rtol": 1e-10, "atol": 1e-15},
     )
 
     integration_control = IntegrationControl(0.0, 1, delta_t)
@@ -160,7 +160,7 @@ def test_heat_equation_stage_component_zero_vector_with_one_boundary(
         boundary_condition,
         1.0,
         lambda x, y: 1,
-        {"tol": 1e-10, "atol": "legacy"},
+        {"rtol": 1e-10, "atol": 1e-15},
     )
 
     integration_control = IntegrationControl(0.0, 1, 1, delta_t)
@@ -221,7 +221,7 @@ def test_heat_equation_stage_component_zero_vector_with_all_boundary(
         boundary_condition,
         1.0,
         lambda x, y: 1,
-        {"tol": 1e-10, "atol": "legacy"},
+        {"rtol": 1e-10, "atol": 1e-15},
     )
 
     integration_control = IntegrationControl(0.0, 1, 1, delta_t)
@@ -302,7 +302,7 @@ def test_heat_equation_stage_component_partials(
         boundary_condition,
         1.0,
         lambda x, y: 1,
-        {"tol": 1e-10, "atol": "legacy"},
+        {"rtol": 1e-10, "atol": 1e-15},
     )
 
     integration_control = IntegrationControl(0.0, 1, 1, delta_t)
@@ -379,7 +379,7 @@ def test_heat_equation_stage_component_partials_with_one_boundary(
         boundary_condition,
         1.0,
         lambda x, y: 1,
-        {"tol": 1e-10, "atol": "legacy"},
+        {"rtol": 1e-10, "atol": 1e-15},
     )
 
     integration_control = IntegrationControl(0.0, 1, 1, delta_t)

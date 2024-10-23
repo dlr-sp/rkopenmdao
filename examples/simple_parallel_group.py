@@ -139,17 +139,16 @@ if __name__ == "__main__":
     prob.model.linear_solver = om.PETScKrylov()
     # prob.setup()
     outer_prob = om.Problem()
+    rk_indep = om.IndepVarComp()
+    rk_indep.add_output("x_initial", shape_by_conn=True, distributed=True)
+    rk_indep.add_output("y_initial", shape_by_conn=True, distributed=True)
     rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=prob,
         integration_control=integration_control,
         butcher_tableau=butcher_tableau,
-        time_integration_quantities=(
-            ["x", "y"]
-            if prob.comm.size == 1
-            else ["x"] if prob.comm.rank == 0 else ["y"]
-        ),
+        time_integration_quantities=(["x", "y"]),
     )
-
+    outer_prob.model.add_subsystem("rk_indep", rk_indep, promotes=["*"])
     outer_prob.model.add_subsystem(
         "rk_integrator",
         rk_integrator,

@@ -1,4 +1,6 @@
 # pylint: disable=missing-module-docstring
+
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Tuple, List
 from dataclasses import dataclass, field

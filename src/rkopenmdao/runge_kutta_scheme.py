@@ -1,6 +1,7 @@
 # pylint: disable=missing-module-docstring
 
-from typing import Callable, Tuple
+from __future__ import annotations
+from collections.abc import Callable
 
 import numpy as np
 
@@ -39,22 +40,24 @@ class RungeKuttaScheme:
         self,
         butcher_tableau: ButcherTableau,
         stage_computation_functor: Callable[
-            [np.ndarray, np.ndarray, float, float, float], np.ndarray
+            [np.ndarray, np.ndarray, np.ndarray, float, float, float], np.ndarray
         ],
-        # old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element
+        # old_state, accumulated_stages, parameters, stage_time, delta_t,
+        # butcher_diagonal_element
         # -> stage_state
         stage_computation_functor_jacvec: Callable[
-            [np.ndarray, np.ndarray, float, float, float], np.ndarray
+            [np.ndarray, np.ndarray, np.ndarray, float, float, float], np.ndarray
         ],
-        # old_state_perturbation, accumulated_stages_perturbation, stage_time, delta_t,
-        # butcher_diagonal_element
+        # old_state_perturbation, accumulated_stages_perturbation,
+        # parameter_perturbations, stage_time, delta_t, butcher_diagonal_element
         # -> stage_perturbation
         stage_computation_functor_transposed_jacvec: Callable[
-            [np.ndarray, float, float, float], Tuple[np.ndarray, np.ndarray]
+            [np.ndarray, float, float, float], tuple[np.ndarray, np.ndarray, np.ndarray]
         ],
         use_adaptive_time_stepping: bool = False,
         # stage_perturbation, stage_time, delta_t, butcher_diagonal_element
-        # -> old_state_perturbation, accumulated_stages_perturbation
+        # -> old_state_perturbation, accumulated_stages_perturbation,
+        #    parameter_perturbations
         error_controller: ErrorController = None
     ):
         self.butcher_tableau = butcher_tableau
@@ -76,6 +79,7 @@ class RungeKuttaScheme:
         old_time: float,
         old_state: np.ndarray,
         accumulated_stages: np.ndarray,
+        parameters: np.ndarray,
     ) -> np.ndarray:
         """Computes the new stage variable based on the current information."""
         stage_time = (
@@ -83,7 +87,12 @@ class RungeKuttaScheme:
         )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         return self.stage_computation_functor(
-            old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element
+            old_state,
+            accumulated_stages,
+            parameters,
+            stage_time,
+            delta_t,
+            butcher_diagonal_element,
         )
 
     def compute_accumulated_stages(
@@ -129,7 +138,8 @@ class RungeKuttaScheme:
         old_time: float,
         old_state_perturbation: np.ndarray,
         accumulated_stages_perturbation: np.ndarray,
-        **linearization_args
+        parameter_perturbations: np.ndarray,
+        **linearization_args,
     ) -> np.ndarray:
         """Computes the matrix-vector-product of the Jacobian of the stage wrt. to the
         old state and the accumulated stages."""
@@ -143,6 +153,7 @@ class RungeKuttaScheme:
         return self.stage_computation_functor_jacvec(
             old_state_perturbation,
             accumulated_stages_perturbation,
+            parameter_perturbations,
             stage_time,
             delta_t,
             butcher_diagonal_element,
@@ -177,9 +188,9 @@ class RungeKuttaScheme:
         delta_t: float,
         old_time: float,
         joined_perturbation: np.ndarray,
-        **linearization_args
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Computes the matrix-vector-product of the transposed of the Jacobian of the
+        **linearization_args,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Computes the matrix-vector-product of the transposed of the jacobian of the
         stage wrt. to the old state and the accumulated stages."""
         if hasattr(self.stage_computation_functor_transposed_jacvec, "linearize"):
             self.stage_computation_functor_transposed_jacvec.linearize(
