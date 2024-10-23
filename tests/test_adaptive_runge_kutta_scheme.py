@@ -26,10 +26,11 @@ root_ode_provider = RkFunctionProvider(
 simple_error_estimator = SimpleErrorEstimator(2, comm=MPI.COMM_WORLD)
 improved_error_estimator = ImprovedErrorEstimator(2, comm=MPI.COMM_WORLD)
 error_controller = PID(embedded_heun_euler.min_p_order(), error_estimator=simple_error_estimator)
-root_ode_embedded_heun = RungeKuttaScheme(embedded_heun_euler,root_ode_provider.stage_computation_functor,
+root_ode_embedded_heun = RungeKuttaScheme(embedded_heun_euler, root_ode_provider.stage_computation_functor,
                                           root_ode_provider.stage_computation_functor_jacvec,
                                           root_ode_provider.stage_computation_functor_transposed_jacvec,
-                                          error_controller)
+                                          use_adaptive_time_stepping=True,
+                                          error_controller=error_controller)
 
 @pytest.mark.rk
 @pytest.mark.rk_scheme
