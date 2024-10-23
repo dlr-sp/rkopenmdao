@@ -80,7 +80,7 @@ class ErrorController:
     @delta_time_steps.setter
     def delta_time_steps(self, delta_time_steps):
         if delta_time_steps is None:
-            self._delta_time_steps = 2 * [delta_time_steps]
+            self._delta_time_steps = 2 * [None]
         else:
             self._delta_time_steps = delta_time_steps
 
@@ -94,8 +94,10 @@ class ErrorController:
         delta_time_new *= (self.tol / current_norm) ** self.alpha
         delta_time_new *= (self.local_error_norms[0] / self.tol) ** self.beta
         delta_time_new *= (self.tol / self.local_error_norms[1]) ** self.gamma
-        delta_time_new *= (current_time / self.delta_time_steps[0]) ** self.a
-        delta_time_new *= (self.delta_time_steps[0] / self.delta_time_steps[1]) ** self.b
+        if self._delta_time_steps[0]:
+            delta_time_new *= (current_time / self.delta_time_steps[0]) ** self.a
+            if self._delta_time_steps[1]:
+                delta_time_new *= (self.delta_time_steps[0] / self.delta_time_steps[1]) ** self.b
         return delta_time_new
 
     def __call__(self,
