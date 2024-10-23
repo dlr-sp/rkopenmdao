@@ -2,12 +2,13 @@ from typing import Callable, Tuple
 
 import numpy as np
 import pytest
-
+from mpi4py import MPI
 from rkopenmdao.runge_kutta_scheme import RungeKuttaScheme
 from rkopenmdao.butcher_tableaux import (
     embedded_heun_euler,
     embedded_runge_kutta_fehlberg,
 )
+from rkopenmdao.error_estimator import *
 from rkopenmdao.error_controllers import PID
 from tests.test_runge_kutta_scheme import RkFunctionProvider, RootOdeJacvec, RootOdeJacvecTransposed
 
@@ -21,7 +22,10 @@ root_ode_provider = RkFunctionProvider(
     root_ode_jacvec,
     root_ode_jacvec_transposed,
 )
-error_controller = PID(embedded_heun_euler.min_p_order())
+
+simple_error_estimator = SimpleErrorEstimator(2, comm=MPI.COMM_WORLD)
+improved_error_estimator = ImprovedErrorEstimator(2, comm=MPI.COMM_WORLD)
+error_controller = PID(embedded_heun_euler.min_p_order(), error_estimator=simple_error_estimator)
 root_ode_embedded_heun = RungeKuttaScheme(embedded_heun_euler,root_ode_provider.stage_computation_functor,
                                           root_ode_provider.stage_computation_functor_jacvec,
                                           root_ode_provider.stage_computation_functor_transposed_jacvec,
@@ -50,5 +54,5 @@ def test_compute_step(
 ):
     """Tests the compute_step function."""
     assert rk_scheme.compute_step(delta_t, old_state, stage_field) == pytest.approx(
-        (np.array([expected_new_state]),.09028504670200695,False)
+        (np.array([expected_new_state]), .09028504670200695, False)
     )
