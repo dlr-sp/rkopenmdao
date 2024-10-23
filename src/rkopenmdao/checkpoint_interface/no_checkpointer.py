@@ -21,7 +21,7 @@ class NoCheckpointer(CheckpointInterface):
     def iterate_forward(self, initial_state):
         """Runs time integration from start to finish."""
         self._state = initial_state
-        while self.integration_control.iteration_control():
+        while self.integration_control.termination_condition_status():
             self._state = self.run_step_func(self._state.copy())[0]
             self.integration_control.increment_step()
 

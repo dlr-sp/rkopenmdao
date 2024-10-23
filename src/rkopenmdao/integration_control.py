@@ -73,7 +73,7 @@ class IntegrationControl:
         else:
             raise TypeError("Termination criteria must be end_time.")
 
-    def iteration_control(self):
+    def termination_condition_status(self):
         if self.termination_criterion.criterion == 'num_steps':
             if self.step != self.termination_criterion.value:
                 return True

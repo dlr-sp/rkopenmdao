@@ -26,7 +26,7 @@ class AllCheckpointer(CheckpointInterface):
         self._state = initial_state
         old_delta_t = None
         old_norm = None
-        while self.integration_control.iteration_control():
+        while self.integration_control.termination_condition_status():
             self._storage.append((self._state.copy(), self.integration_control.delta_t, old_delta_t, old_norm))
             self._state, old_delta_t, old_norm = self.run_step_func(self._state.copy())
             self.integration_control.increment_step()

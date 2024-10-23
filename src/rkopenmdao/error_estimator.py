@@ -8,7 +8,7 @@ class ErrorEstimator(ABC):
     Solves a norm for the difference of two vectors Delta = U - U_embedded
     """
     @abstractmethod
-    def __init__(self, ord: int, comm: MPI.COMM_WORLD, quantity_metadata: dict):
+    def __init__(self, ord: int, quantity_metadata: dict,  comm: MPI.COMM_WORLD):
         pass
 
     @abstractmethod

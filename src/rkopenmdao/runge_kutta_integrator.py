@@ -296,7 +296,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         subclass of CheckpointInterface"""
         # pylint: disable=unused-argument
         # OpenMDAO needs that specific interface, even if we don't need it fully.
-        if not isinstance(value, ErrorEstimator):
+        if not issubclass(value, ErrorEstimator):
             raise TypeError(f"{value} is not a subclass of CheckpointInterface")
 
     def setup(self):
@@ -1149,7 +1149,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 print("Finished computation of functional contribution.")
 
     def _compute_jacvec_fwd_run_steps(self):
-        while self.options["integration_control"].iteration_control():
+        while self.options["integration_control"].termination_condition_status():
             if self.comm.rank == 0:
                 print(f"\nStarting step {self.options["integration_control"].step} of fwd-mode jacvec product.\n")
             self._compute_jacvec_fwd_run_steps_preparation_phase()
