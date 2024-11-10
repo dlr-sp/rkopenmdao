@@ -23,7 +23,7 @@ class NoCheckpointer(CheckpointInterface):
         self._state = initial_state
         while self.integration_control.termination_condition_status():
             self._state = self.run_step_func(self._state.copy())[0]
-            self.integration_control.increment_step()
+            print("here")
 
     def iterate_reverse(self, final_state_perturbation):
         """Does nothing"""

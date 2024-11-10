@@ -27,16 +27,20 @@ class AllCheckpointer(CheckpointInterface):
         old_delta_t = None
         old_norm = None
         while self.integration_control.termination_condition_status():
-            self._storage.append((self._state.copy(), self.integration_control.delta_t, old_delta_t, old_norm))
-            self._state, old_delta_t, old_norm = self.run_step_func(self._state.copy())
-            self.integration_control.increment_step()
+            self._storage.append([self._state.copy(),0.0 ,0.0])
+            self._state = self.run_step_func(self._state.copy())[0]
+            self._storage[-1][1] = self.integration_control.step_time
+            self._storage[-1][2] = self.integration_control.delta_t
+            print(self._storage)
+
 
     def iterate_reverse(self, final_state_perturbation: np.ndarray):
         """Goes backwards through time using the internal storage to calculate the
         reverse derivative."""
         self._serialized_state_perturbation = final_state_perturbation
-        while self.integration_control.step != 0:
-            _state, self.integration_control.delta_t = self._storage.pop()
+        while self.integration_control.step > 0:
+            _state, self.integration_control.step_time , self.integration_control.delta_t = self._storage.pop()
+            print("Rev delta_t:",  self.integration_control.delta_t)
             self._serialized_state_perturbation = self.run_step_jacvec_rev_func(
                 _state, self._serialized_state_perturbation.copy()
             )

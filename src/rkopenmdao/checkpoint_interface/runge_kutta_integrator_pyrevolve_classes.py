@@ -142,4 +142,6 @@ class RungeKuttaReverseOperator(pr.Operator):
                 step,
                 self.serialized_old_state_symbol.data,
                 self.serialized_state_perturbations,
+                None,
+                None,
             )

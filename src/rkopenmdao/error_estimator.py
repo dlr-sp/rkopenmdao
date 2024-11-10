@@ -86,7 +86,7 @@ class ImprovedErrorEstimator(ErrorEstimator):
     __str__():
         prints the Lp/Lebesgue space and the attributes
         """
-    def __init__(self, ord=2, eta=1e-3, eps=1e-3, quantity_metadata=None, comm=MPI.COMM_WORLD):
+    def __init__(self, ord=2, eta=1e-6, eps=1e-6, quantity_metadata=None, comm=MPI.COMM_WORLD):
         """
         Parameters
         ----------

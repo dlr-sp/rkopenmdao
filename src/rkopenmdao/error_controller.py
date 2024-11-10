@@ -52,7 +52,7 @@ class ErrorController:
     gamma: float = 0
     a: float = 0
     b: float = 0
-    tol: float = 1e-3
+    tol: float = 1e-9
     safety_factor: float = 0.95
     name: str = "ErrorController"
     _local_error_norms: list = field(init=False, repr=False)
@@ -61,6 +61,9 @@ class ErrorController:
     def __post_init__(self):
         self.local_error_norms = None
         self.delta_time_steps = None
+
+    def reset(self):
+        self.__post_init__()
 
     @property
     def local_error_norms(self):
@@ -94,9 +97,10 @@ class ErrorController:
         delta_time_new *= (self.tol / current_norm) ** self.alpha
         delta_time_new *= (self.local_error_norms[0] / self.tol) ** self.beta
         delta_time_new *= (self.tol / self.local_error_norms[1]) ** self.gamma
-        if self._delta_time_steps[0]:
+        if self._delta_time_steps[0] is not None:
+            print("here")
             delta_time_new *= (current_time / self.delta_time_steps[0]) ** self.a
-            if self._delta_time_steps[1]:
+            if self._delta_time_steps[1] is not None:
                 delta_time_new *= (self.delta_time_steps[0] / self.delta_time_steps[1]) ** self.b
         return delta_time_new
 
@@ -125,7 +129,17 @@ class ErrorController:
             2. True if for current step size the norm is in tolerance, otherwise False
         """
         current_norm = self.error_estimator(solution, embedded_solution)
+        print(solution, embedded_solution)
         delta_t_new = self._estimate_next_step_function(current_norm,  delta_t)
+        print("delta t new: ", delta_t_new)
+        print("Currrent Norm: ", current_norm)
+        print("local_norm",  self.local_error_norms)
+        print("delta_time_steps", self.delta_time_steps)
+        if current_norm == 0:
+            print("current_norm = 0")
+            self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
+
+            return delta_t, True
         # possibilities:  1. create a boolean flag
         #                 2. make a copy before calling function
         #                 3. change interface s.t. pushing the queue after estimation of next step

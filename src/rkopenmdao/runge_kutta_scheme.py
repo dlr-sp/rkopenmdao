@@ -107,7 +107,7 @@ class RungeKuttaScheme:
         )
 
     def compute_step(
-        self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray, remaining_t: float = None
+        self, delta_t: float, old_state: np.ndarray, stage_field: np.ndarray,
     ) -> (np.ndarray, float, bool):
         """Computes the next state and """
         new_state = old_state.copy()
@@ -124,8 +124,6 @@ class RungeKuttaScheme:
                 ((0,), (0,)),
             )
             delta_t_new, accepted = self.error_controller(new_state, new_state_embedded, delta_t)
-            if remaining_t:
-                delta_t_new = min(delta_t_new, remaining_t)
             return new_state, delta_t_new, accepted
         elif not self.butcher_tableau.is_embedded and self.use_adaptive_time_stepping:
             raise RungeKuttaError("Impossible to run adaptive scheme on non-embedded butcher tableau.")
@@ -176,11 +174,13 @@ class RungeKuttaScheme:
     ) -> np.ndarray:
         """Joins the perturbations of the old state and of the stage variables to the
         perturbations of new state."""
-        return self.compute_step(
-            delta_t=delta_t,
-            old_state=old_state_perturbation,
-            stage_field=stage_perturbation_field,
+        new_state = old_state_perturbation.copy()
+        new_state += np.tensordot(
+            stage_perturbation_field,
+            delta_t * self.butcher_tableau.butcher_weight_vector,
+            ((0,), (0,)),
         )
+        return new_state
 
     def compute_stage_transposed_jacvec(
         self,
