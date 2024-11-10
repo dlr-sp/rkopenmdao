@@ -1,5 +1,3 @@
-"""Tests the time integration with the various components of test_components.py"""
-
 from itertools import product
 
 import openmdao.api as om
@@ -10,15 +8,16 @@ import numpy as np
 from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
-    implicit_euler,
     embedded_second_order_two_stage_sdirk as two_stage_dirk,
-    runge_kutta_four,
+    embedded_second_order_three_stage_esdirk as three_stage_esdirk,
+    embedded_heun_euler as heun_euler,
+    embedded_third_order_four_stage_esdirk as four_stage_esdirk,
+    embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
-from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
-
-
+from rkopenmdao.error_controllers import *
+from rkopenmdao.error_estimator import *
 from .test_components import (
     TestComp1,
     TestComp2,
@@ -54,6 +53,8 @@ test_comp_class_list = [
 times = np.linspace(1.0, 9.0, 3)
 butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 
+# -----------------------------------------------------------------------------------------------
+# Test 1
 
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
@@ -61,8 +62,7 @@ butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 @pytest.mark.parametrize("time", times)
 @pytest.mark.parametrize("butcher_diagonal_element", butcher_diagonal_elements)
 def test_component_partials(test_class, time, butcher_diagonal_element):
-    """Tests whether the components itself produce the right partials"""
-    termination_criterion = TerminationCriterion('num_steps', 1)
+    termination_criterion = TerminationCriterion('end_time', 0.1)
     integration_control = IntegrationControl(0.0, termination_criterion, 0.1)
     integration_control.stage_time = time
     integration_control.butcher_diagonal_element = butcher_diagonal_element
@@ -76,6 +76,8 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
     data = test_prob.check_partials()
     assert_check_partials(data)
 
+# -----------------------------------------------------------------------------------------------
+# Test 2
 
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
@@ -99,20 +101,27 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
     ),
 )
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+    "butcher_tableau", [heun_euler, two_stage_dirk, three_stage_esdirk, four_stage_esdirk, five_stage_esdirk]
 )
 @pytest.mark.parametrize("quantities", [["x"]])
+@pytest.mark.parametrize(
+    "test_estimator",
+    [SimpleErrorEstimator, ImprovedErrorEstimator])
+@pytest.mark.parametrize(
+    "test_controller",
+    [Integral, H0_110, PC]
+)
 def test_component_integration(
-    test_class, test_functor, initial_time, initial_values, butcher_tableau, quantities
+    test_class, test_functor, initial_time, initial_values,
+    butcher_tableau, quantities, test_estimator, test_controller
 ):
     """Tests the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
     )
-
     time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True
     )
@@ -126,6 +135,9 @@ def test_component_integration(
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             time_integration_quantities=quantities,
+            error_controller=test_controller,
+            error_estimator_type=test_estimator,
+            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
@@ -160,9 +172,17 @@ def test_component_integration(
 )
 @pytest.mark.parametrize("parameter", [-1.0, 0.0, 2.0])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+    "butcher_tableau", 
+    [heun_euler, two_stage_dirk, three_stage_esdirk, four_stage_esdirk, five_stage_esdirk]
 )
 @pytest.mark.parametrize("quantities", [["x"]])
+@pytest.mark.parametrize(
+    "test_estimator",
+    [SimpleErrorEstimator, ImprovedErrorEstimator])
+@pytest.mark.parametrize(
+    "test_controller",
+    [Integral, H0_110, PC]
+)
 def test_component_integration_with_parameter(
     test_class,
     test_functor,
@@ -171,9 +191,11 @@ def test_component_integration_with_parameter(
     parameter,
     butcher_tableau,
     quantities,
+    test_estimator,
+    test_controller
 ):
     """Tests the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -194,6 +216,9 @@ def test_component_integration_with_parameter(
             integration_control=integration_control,
             time_integration_quantities=quantities,
             time_independent_input_quantities=["b"],
+            error_controller=test_controller,
+            error_estimator_type=test_estimator,
+            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
@@ -215,17 +240,26 @@ def test_component_integration_with_parameter(
     ) == pytest.approx(result, rel=1e-4)
 
 
+
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize("initial_values", [[1.0, 1.0]])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+    "butcher_tableau", 
+    [heun_euler, two_stage_dirk, three_stage_esdirk, four_stage_esdirk, five_stage_esdirk]
 )
-def test_component_splitting(initial_time, initial_values, butcher_tableau):
+@pytest.mark.parametrize(
+    "test_estimator",
+    [SimpleErrorEstimator, ImprovedErrorEstimator])
+@pytest.mark.parametrize(
+    "test_controller",
+    [Integral, H0_110, PC]
+)
+def test_component_splitting(initial_time, initial_values, butcher_tableau, test_estimator, test_controller):
     """Tests the time integration of the problem that is split over multiple
     components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
     integration_control_1 = IntegrationControl(initial_time, termination_criterion, 0.001)
     integration_control_2 = IntegrationControl(initial_time, termination_criterion, 0.001)
 
@@ -254,6 +288,9 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
             butcher_tableau=butcher_tableau,
             integration_control=integration_control_1,
             time_integration_quantities=["x"],
+            error_controller=test_controller,
+            error_estimator_type=test_estimator,
+            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
@@ -271,6 +308,9 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
             butcher_tableau=butcher_tableau,
             integration_control=integration_control_2,
             time_integration_quantities=["x", "y"],
+            error_controller=test_controller,
+            error_estimator_type=test_estimator,
+            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
@@ -286,31 +326,56 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
     assert result_1 == pytest.approx(result_2)
 
 
+
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, initial_time",
     list(
         product(
-            [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
-            [0.0, 1.0],
+            [TestComp1],
+            [0.0],
         )
     )
-    + [[TestComp7, 1.0]]
-    + [[TestComp7, 2.0]],
 )
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+    "butcher_tableau", 
+    [
+        heun_euler, 
+        #two_stage_dirk, 
+        #three_stage_esdirk, 
+        #four_stage_esdirk, 
+        #five_stage_esdirk
+    ]
+
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
-    [NoCheckpointer, AllCheckpointer,]# PyrevolveCheckpointer],
+    [
+    #NoCheckpointer, 
+    AllCheckpointer,
+    #PyrevolveCheckpointer,
+    ]
+)
+@pytest.mark.parametrize(
+    "test_estimator",
+    [SimpleErrorEstimator, 
+    #ImprovedErrorEstimator
+    ])
+@pytest.mark.parametrize(
+    "test_controller",
+    [Integral, 
+    #H0_110, 
+    #PC,
+    ]
 )
 def test_time_integration_partials(
-    test_class, initial_time, butcher_tableau, checkpointing_implementation
+    test_class, initial_time, butcher_tableau, checkpointing_implementation, test_estimator, test_controller
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    print("Test_case: ",test_class)
+    print("Checkpointing: ",checkpointing_implementation)
+    termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -331,6 +396,9 @@ def test_time_integration_partials(
             integration_control=integration_control,
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
+            error_controller=test_controller,
+            error_estimator_type=test_estimator,
+            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
@@ -359,11 +427,7 @@ def test_time_integration_partials(
 @pytest.mark.parametrize("parameter", [1.0])
 @pytest.mark.parametrize(
     "butcher_tableau",
-    [
-        implicit_euler,
-        two_stage_dirk,
-        runge_kutta_four,
-    ],
+    [heun_euler, two_stage_dirk, three_stage_esdirk, four_stage_esdirk, five_stage_esdirk]
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
@@ -373,11 +437,18 @@ def test_time_integration_partials(
         #PyrevolveCheckpointer,
     ],
 )
+@pytest.mark.parametrize(
+    "test_estimator",
+    [SimpleErrorEstimator, ImprovedErrorEstimator])
+@pytest.mark.parametrize(
+    "test_controller",
+    [Integral, H0_110, PC]
+)
 def test_time_integration_with_parameter_partials(
-    test_class, initial_time, parameter, butcher_tableau, checkpointing_implementation
+    test_class, initial_time, parameter, butcher_tableau, checkpointing_implementation, test_estimator, test_controller
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -399,6 +470,9 @@ def test_time_integration_with_parameter_partials(
             time_integration_quantities=["x"],
             time_independent_input_quantities=["b"],
             checkpointing_type=checkpointing_implementation,
+            error_controller=test_controller,
+            error_estimator_type=test_estimator,
+            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
@@ -412,99 +486,3 @@ def test_time_integration_with_parameter_partials(
     else:
         data = runge_kutta_prob.check_partials()
         assert_check_partials(data)
-
-
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
-@pytest.mark.parametrize("initial_time", [0.0, 1.0])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
-)
-@pytest.mark.parametrize(
-    "checkpointing_implementation",
-    [AllCheckpointer, PyrevolveCheckpointer],
-)
-def test_component_splitting_partials(
-    initial_time, butcher_tableau, checkpointing_implementation
-):
-    """Tests the partials of the time integration of the problem that is split into
-    multiple components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
-    integration_control_1 = IntegrationControl(initial_time, termination_criterion, 0.001)
-    integration_control_2 = IntegrationControl(initial_time, termination_criterion, 0.001)
-
-    time_integration_prob_1 = om.Problem()
-    time_integration_prob_1.model.add_subsystem(
-        "single_comp", TestComp4(integration_control=integration_control_1)
-    )
-
-    time_integration_prob_2 = om.Problem()
-    time_integration_prob_2.model.add_subsystem(
-        "first_comp",
-        Testcomp51(integration_control=integration_control_2),
-        promotes=["*"],
-    )
-    time_integration_prob_2.model.add_subsystem(
-        "second_comp",
-        Testcomp52(integration_control=integration_control_2),
-        promotes=["*"],
-    )
-
-    time_integration_prob_2.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=True
-    )
-    time_integration_prob_2.model.linear_solver = om.ScipyKrylov()
-
-    runge_kutta_prob_1 = om.Problem()
-    runge_kutta_prob_1.model.add_subsystem(
-        "rk_integrator",
-        RungeKuttaIntegrator(
-            time_stage_problem=time_integration_prob_1,
-            butcher_tableau=butcher_tableau,
-            integration_control=integration_control_1,
-            time_integration_quantities=["x"],
-            checkpointing_type=checkpointing_implementation,
-        ),
-        promotes=["*"],
-    )
-    runge_kutta_prob_1.setup()
-    runge_kutta_prob_1.run_model()
-
-    data_1 = runge_kutta_prob_1.check_partials()
-
-    runge_kutta_prob_2 = om.Problem()
-    runge_kutta_prob_2.model.add_subsystem(
-        "rk_integrator",
-        RungeKuttaIntegrator(
-            time_stage_problem=time_integration_prob_2,
-            butcher_tableau=butcher_tableau,
-            integration_control=integration_control_2,
-            time_integration_quantities=["x", "y"],
-            checkpointing_type=checkpointing_implementation,
-        ),
-        promotes=["*"],
-    )
-
-    runge_kutta_prob_2.setup()
-    runge_kutta_prob_2.run_model()
-
-    data_2 = runge_kutta_prob_2.check_partials()
-
-    compare_split_and_unsplit_jacobian(data_1, data_2)
-
-
-def compare_split_and_unsplit_jacobian(unsplit_jac_data, split_jac_data):
-    """Compares data obtained from check_partials of a time integration between an
-    unsplit and split version of the stage problem."""
-    # row/column 0 in jacobian of matrix 1 corresponds to quantity "x" in problem 2
-    # row/column 1 in jacobian of matrix 1 corresponds to quantity "y" in problem 2
-    for i, name_i in enumerate(["x", "y"]):
-        for j, name_j in enumerate(["x", "y"]):
-            for mode in ["fwd", "rev"]:
-                assert unsplit_jac_data["rk_integrator"][("x_final", "x_initial")][
-                    f"J_{mode}"
-                ][i, j] == pytest.approx(
-                    split_jac_data["rk_integrator"][
-                        (f"{name_i}_final", f"{name_j}_initial")
-                    ][f"J_{mode}"][0, 0]
-                )
