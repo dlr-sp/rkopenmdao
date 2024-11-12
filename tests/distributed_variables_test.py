@@ -8,7 +8,7 @@ import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import IntegrationControl
-from rkopenmdao.butcher_tableaux import implicit_euler, second_order_two_stage_sdirk
+from rkopenmdao.butcher_tableaux import implicit_euler, embedded_second_order_two_stage_sdirk
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
@@ -407,7 +407,7 @@ def setup_parallel_single_distributed_problem_and_integration_control(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("initial_values", [{"x": [1, 1]}, {"x": [0, 0]}])
 def test_parallel_single_distributed_time_integration(
@@ -440,7 +440,7 @@ def test_parallel_single_distributed_time_integration(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
@@ -531,7 +531,7 @@ def setup_parallel_two_distributed_problem_and_integration_control(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize(
     "initial_values", [{"x12": [1, 1], "x43": [1, 1]}, {"x12": [0, 0], "x43": [0, 0]}]
@@ -577,7 +577,7 @@ def test_parallel_two_distributed_time_integration(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize(
     "initial_values", [{"x12": [1, 1], "x43": [1, 1]}, {"x12": [0, 0], "x43": [0, 0]}]
@@ -625,7 +625,7 @@ def test_parallel_two_distributed_time_integration_with_postprocessing(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
@@ -692,7 +692,7 @@ def test_parallel_two_distributed_totals(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_two_stage_sdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(

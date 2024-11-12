@@ -10,7 +10,7 @@ from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
-    second_order_two_stage_sdirk as two_stage_dirk,
+    embedded_second_order_two_stage_sdirk as two_stage_dirk,
 )
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer

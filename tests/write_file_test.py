@@ -7,7 +7,7 @@ import numpy as np
 
 from rkopenmdao.integration_control import IntegrationControl
 from rkopenmdao.butcher_tableaux import (
-    third_order_four_stage_esdirk,
+    embedded_third_order_four_stage_esdirk,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from .test_components import TestComp1, Testcomp51, Testcomp52
@@ -22,7 +22,7 @@ def test_monodisciplinary(write_out_distance, write_file):
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp", TestComp1(integration_control=integration_control)
@@ -62,7 +62,7 @@ def test_time_attribute(write_out_distance, write_file):
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp", TestComp1(integration_control=integration_control)
@@ -98,7 +98,7 @@ def test_multidisciplinary(write_out_distance, write_file):
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp_1",
@@ -150,7 +150,7 @@ def test_postprocessing(write_out_distance, write_file):
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp", TestComp1(integration_control=integration_control)
@@ -206,7 +206,7 @@ def test_n_d_array(write_out_distance):
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     time_int_indep = om.IndepVarComp()
     time_int_indep.add_output(
@@ -254,7 +254,7 @@ def test_parallel_write_out(write_out_distance, shape):
     test_prob = om.Problem()
     integration_control = IntegrationControl(1.0, 100, 0.01)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     time_int_indep = om.IndepVarComp()
     time_int_indep.add_output(
