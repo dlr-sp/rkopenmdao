@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 import numpy as np
 from mpi4py import MPI
-
+from .metadata_extractor import TimeIntegrationMetadata
 
 class ErrorEstimator(ABC):
     """
     Solves a norm for the difference of two vectors Delta = U - U_embedded
     """
     @abstractmethod
-    def __init__(self, ord: int, quantity_metadata: dict,  comm: MPI.COMM_WORLD):
+    def __init__(self, ord: int, quantity_metadata: TimeIntegrationMetadata,  comm: MPI.COMM_WORLD):
         pass
 
     @abstractmethod
@@ -33,7 +33,7 @@ class SimpleErrorEstimator(ErrorEstimator):
     __str__()
         prints the Lp/Lebesgue space.
     """
-    def __init__(self, ord=2, quantity_metadata=None, comm=MPI.COMM_WORLD):
+    def __init__(self, ord=2, quantity_metadata=None: TimeIntegrationMetadata, comm=MPI.COMM_WORLD):
         """
         Parameters
         ----------
@@ -88,7 +88,7 @@ class ImprovedErrorEstimator(ErrorEstimator):
     __str__():
         prints the Lp/Lebesgue space and the attributes
         """
-    def __init__(self, ord=2, quantity_metadata=None, comm=MPI.COMM_WORLD, eta=1e-6, eps=1e-6):
+    def __init__(self, ord=2, quantity_metadata=None: TimeIntegrationMetadata, comm=MPI.COMM_WORLD, eta=1e-6, eps=1e-6):
         """
         Parameters
         ----------
