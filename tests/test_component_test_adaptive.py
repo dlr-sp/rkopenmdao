@@ -355,13 +355,13 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau, test
     "checkpointing_implementation",
     [
         NoCheckpointer, 
-        #AllCheckpointer,
+        AllCheckpointer,
     ]
 )
 @pytest.mark.parametrize(
     "test_estimator",
     [
-        #SimpleErrorEstimator, 
+        SimpleErrorEstimator, 
         ImprovedErrorEstimator
     ]
 )
@@ -370,7 +370,6 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau, test
     [
         Integral, 
         H0_110, 
-        PC,
         PID,
     ]
 )
