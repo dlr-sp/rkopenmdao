@@ -67,11 +67,9 @@ class IntegrationControl:
         self._delta_t = delta_t
         if self.smallest_delta_t > delta_t and delta_t > 0 :
             self.smallest_delta_t = delta_t
-            print("Smallest_delta_t: ", delta_t)
 
     def remaining_time(self):
         if self.termination_criterion.criterion == 'end_time':
-            print("remaining_time:", self.termination_criterion.value - self.step_time)
             return self.termination_criterion.value - self.step_time
         else:
             raise TypeError("Termination criteria must be end_time.")
@@ -85,16 +83,13 @@ class IntegrationControl:
             if (np.abs(self.remaining_time())
                     > min(1e-13, self.smallest_delta_t) and self.remaining_time() > 0.):
                 self.increment_step()
-                print("Not_Finished:", (self.step, self.step_time ,self.delta_t))
                 return True
-        print("Finish")
         return False
 
     def reset(self):
         """
         Returns the instance to its initial state.
         """
-        print("Resetting Integration Control")
         self.__post_init__()
 
     def increment_step(self):

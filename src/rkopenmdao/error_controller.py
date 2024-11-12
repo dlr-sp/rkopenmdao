@@ -98,7 +98,6 @@ class ErrorController:
         delta_time_new *= (self.local_error_norms[0] / self.tol) ** self.beta
         delta_time_new *= (self.tol / self.local_error_norms[1]) ** self.gamma
         if self._delta_time_steps[0] is not None:
-            print("here")
             delta_time_new *= (current_time / self.delta_time_steps[0]) ** self.a
             if self._delta_time_steps[1] is not None:
                 delta_time_new *= (self.delta_time_steps[0] / self.delta_time_steps[1]) ** self.b
@@ -129,25 +128,15 @@ class ErrorController:
             2. True if for current step size the norm is in tolerance, otherwise False
         """
         current_norm = self.error_estimator(solution, embedded_solution)
-        print(solution, embedded_solution)
         delta_t_new = self._estimate_next_step_function(current_norm,  delta_t)
-        print("delta t new: ", delta_t_new)
-        print("Currrent Norm: ", current_norm)
-        print("local_norm",  self.local_error_norms)
-        print("delta_time_steps", self.delta_time_steps)
         if current_norm == 0:
-            print("current_norm = 0")
             self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
-
             return delta_t, True
-        # possibilities:  1. create a boolean flag
-        #                 2. make a copy before calling function
-        #                 3. change interface s.t. pushing the queue after estimation of next step
         if current_norm <= self.tol:
             self.local_error_norms = [current_norm, self._local_error_norms[0]]
             self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
-            return delta_t_new, True  # Step accepted
-        return delta_t_new, False  # Step rejected
+            return delta_t_new, True
+        return delta_t_new, False
 
     def __str__(self):
         """

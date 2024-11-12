@@ -39,6 +39,8 @@ class SimpleErrorEstimator(ErrorEstimator):
         ----------
         ord: {non-zero int, inf, -inf}, optional
             Order of the norm. inf means numpy's inf object. The default is 2.
+        comm: MPI.COMM_WORLD, optional
+            MPI communicator "MPI_COMM_WORLD"
         """
         self.ord = ord
         self.comm = comm
@@ -86,12 +88,14 @@ class ImprovedErrorEstimator(ErrorEstimator):
     __str__():
         prints the Lp/Lebesgue space and the attributes
         """
-    def __init__(self, ord=2, eta=1e-6, eps=1e-6, quantity_metadata=None, comm=MPI.COMM_WORLD):
+    def __init__(self, ord=2, quantity_metadata=None, comm=MPI.COMM_WORLD, eta=1e-6, eps=1e-6):
         """
         Parameters
         ----------
         ord: {non-zero int, inf, -inf}, optional
             Order of the norm. inf means numpy's inf object. The default is 2.
+        comm: MPI.COMM_WORLD, optional
+            MPI communicator "MPI_COMM_WORLD"
         eta: float, optional
             A small positive absolute tolerance which added to avoid division by zero.
         eps: float, optional
@@ -128,6 +132,7 @@ class ImprovedErrorEstimator(ErrorEstimator):
 
 
 def _mpi_norm(val: np.ndarray, ord, comm: MPI.Comm) -> float:
+    """Norm calculator using MPI interface."""
     if ord == np.inf:
         local_norm = np.abs(val).max()
         norm = comm.reduce(local_norm, op=MPI.MAX, root=0)

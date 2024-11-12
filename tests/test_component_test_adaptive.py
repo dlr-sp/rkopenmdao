@@ -333,48 +333,51 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau, test
     "test_class, initial_time",
     list(
         product(
-            [TestComp1],
-            [0.0],
+            [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
+            [0.0, 1.0],
         )
     )
+    + [[TestComp7, 1.0]]
+    + [[TestComp7, 2.0]],
 )
 @pytest.mark.parametrize(
     "butcher_tableau", 
     [
         heun_euler, 
-        #two_stage_dirk, 
-        #three_stage_esdirk, 
-        #four_stage_esdirk, 
-        #five_stage_esdirk
+        two_stage_dirk, 
+        three_stage_esdirk, 
+        four_stage_esdirk, 
+        five_stage_esdirk
     ]
 
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
     [
-    #NoCheckpointer, 
-    AllCheckpointer,
-    #PyrevolveCheckpointer,
+        NoCheckpointer, 
+        #AllCheckpointer,
     ]
 )
 @pytest.mark.parametrize(
     "test_estimator",
-    [SimpleErrorEstimator, 
-    #ImprovedErrorEstimator
-    ])
+    [
+        #SimpleErrorEstimator, 
+        ImprovedErrorEstimator
+    ]
+)
 @pytest.mark.parametrize(
     "test_controller",
-    [Integral, 
-    #H0_110, 
-    #PC,
+    [
+        Integral, 
+        H0_110, 
+        PC,
+        PID,
     ]
 )
 def test_time_integration_partials(
     test_class, initial_time, butcher_tableau, checkpointing_implementation, test_estimator, test_controller
 ):
     """Tests the partials of the time integration of the different components."""
-    print("Test_case: ",test_class)
-    print("Checkpointing: ",checkpointing_implementation)
     termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
@@ -397,6 +400,7 @@ def test_time_integration_partials(
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
             error_controller=test_controller,
+            error_controller_options={"tol": 1e-6},
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,
         ),
@@ -434,7 +438,6 @@ def test_time_integration_partials(
     [
         NoCheckpointer,
         AllCheckpointer,
-        #PyrevolveCheckpointer,
     ],
 )
 @pytest.mark.parametrize(
@@ -448,7 +451,7 @@ def test_time_integration_with_parameter_partials(
     test_class, initial_time, parameter, butcher_tableau, checkpointing_implementation, test_estimator, test_controller
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
+    termination_criterion = TerminationCriterion('num_steps', 10)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(

@@ -15,7 +15,7 @@ class AllCheckpointer(CheckpointInterface):
         """Reserves memory for time integration state and perturbation."""
         self._state = np.zeros(self.array_size)
         self._serialized_state_perturbation = np.zeros(self.array_size)
-        self._storage = deque()  # queue of (state_i, delta_t_i, old_delta_ts, old_norms) where _i is the step number
+        self._storage = deque()  # queue of (state_i, step_time_i ,delta_t_i) where _i is the step number
 
     def create_checkpointer(self):
         """Resets internal storage such that checkpointing can begin anew."""
@@ -24,15 +24,10 @@ class AllCheckpointer(CheckpointInterface):
     def iterate_forward(self, initial_state: np.ndarray):
         """Runs time integration from start to finish."""
         self._state = initial_state
-        old_delta_t = None
-        old_norm = None
         while self.integration_control.termination_condition_status():
-            self._storage.append([self._state.copy(),0.0 ,0.0])
+            self._storage.append([self._state.copy(), self.integration_control.step_time, 0.0])  # Storage first saves the current state values
             self._state = self.run_step_func(self._state.copy())[0]
-            self._storage[-1][1] = self.integration_control.step_time
-            self._storage[-1][2] = self.integration_control.delta_t
-            print(self._storage)
-
+            self._storage[-1][2] = self.integration_control.delta_t  # Storage delta_t values are set after calculation. 
 
     def iterate_reverse(self, final_state_perturbation: np.ndarray):
         """Goes backwards through time using the internal storage to calculate the
@@ -40,7 +35,6 @@ class AllCheckpointer(CheckpointInterface):
         self._serialized_state_perturbation = final_state_perturbation
         while self.integration_control.step > 0:
             _state, self.integration_control.step_time , self.integration_control.delta_t = self._storage.pop()
-            print("Rev delta_t:",  self.integration_control.delta_t)
             self._serialized_state_perturbation = self.run_step_jacvec_rev_func(
                 _state, self._serialized_state_perturbation.copy()
             )
