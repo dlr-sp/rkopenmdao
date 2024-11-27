@@ -5,7 +5,7 @@ import h5py
 import pytest
 import numpy as np
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
 from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk,
 )
@@ -20,7 +20,8 @@ from .test_postprocessing_problems import SquaringComponent
 def test_monodisciplinary(write_out_distance, write_file):
     """Tests write-out for monodisciplinary problems."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    termination_criterion = TerminationCriterion('num_steps', 100)
+    integration_control = IntegrationControl(1.0, termination_criterion, 0.01)
 
     butcher_tableau = embedded_third_order_four_stage_esdirk
 
@@ -60,7 +61,8 @@ def test_monodisciplinary(write_out_distance, write_file):
 def test_time_attribute(write_out_distance, write_file):
     """Checks that the time attribute in the written out file is correct."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    termination_criterion = TerminationCriterion('num_steps', 100)
+    integration_control = IntegrationControl(1.0, termination_criterion, 0.01)
 
     butcher_tableau = embedded_third_order_four_stage_esdirk
 
@@ -96,7 +98,8 @@ def test_time_attribute(write_out_distance, write_file):
 def test_multidisciplinary(write_out_distance, write_file):
     """Tests write-out for multidisciplinary problems."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    termination_criterion = TerminationCriterion('num_steps', 100)
+    integration_control = IntegrationControl(1.0, termination_criterion, 0.01)
 
     butcher_tableau = embedded_third_order_four_stage_esdirk
 
@@ -148,7 +151,8 @@ def test_multidisciplinary(write_out_distance, write_file):
 def test_postprocessing(write_out_distance, write_file):
     """Tests write out when postprocessing is involved."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    termination_criterion = TerminationCriterion('num_steps', 100)
+    integration_control = IntegrationControl(1.0, termination_criterion, 0.01)
 
     butcher_tableau = embedded_third_order_four_stage_esdirk
 
@@ -204,7 +208,8 @@ def test_postprocessing(write_out_distance, write_file):
 def test_n_d_array(write_out_distance):
     """Tests write-out when shape isn't just 1D."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    termination_criterion = TerminationCriterion('num_steps', 100)
+    integration_control = IntegrationControl(1.0, termination_criterion, 0.01)
 
     butcher_tableau = embedded_third_order_four_stage_esdirk
 
@@ -252,7 +257,8 @@ def test_n_d_array(write_out_distance):
 def test_parallel_write_out(write_out_distance, shape):
     """Tests write-out with parallel execution. (Needs h5py that has MPI support.)"""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    termination_criterion = TerminationCriterion('num_steps', 100)
+    integration_control = IntegrationControl(1.0, termination_criterion, 0.01)
 
     butcher_tableau = embedded_third_order_four_stage_esdirk
 

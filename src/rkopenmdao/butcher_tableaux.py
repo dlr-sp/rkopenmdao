@@ -44,8 +44,8 @@ __all__ = [
     "embedded_third_order_five_stage_esdirk",
     "embedded_fourth_order_five_stage_esdirk",
     "embedded_runge_kutta_fehlberg",
-
 ]
+
 # one stage methods
 explicit_euler = ButcherTableau(np.array([[0.0]]), np.array([1.0]), np.array([0.0]), p=1, name="Explicit Euler")
 

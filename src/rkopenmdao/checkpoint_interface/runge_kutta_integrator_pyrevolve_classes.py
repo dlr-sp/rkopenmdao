@@ -104,9 +104,8 @@ class RungeKuttaForwardOperator(pr.Operator):
                 self.serialized_new_state_symbol.data
             )
             self.serialized_new_state_symbol.data = self.fwd_operation(
-                step,
                 self.serialized_old_state_symbol.data,
-            )
+            )[0]
 
 
 class RungeKuttaReverseOperator(pr.Operator):
@@ -139,9 +138,6 @@ class RungeKuttaReverseOperator(pr.Operator):
         t_end = kwargs["t_end"]
         for step in reversed(range(t_start + 1, t_end + 1)):
             self.serialized_state_perturbations = self.rev_operation(
-                step,
                 self.serialized_old_state_symbol.data,
                 self.serialized_state_perturbations,
-                None,
-                None,
             )

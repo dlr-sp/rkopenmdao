@@ -122,9 +122,9 @@ class ImprovedErrorEstimator(ErrorEstimator):
             Norm of Delta
         """
 
-        u_norm = _mpi_norm(u, self.ord, self.comm)
-        delta = (u - embedded_u) / (u_norm + self.eta / self.eps)
-        return _mpi_norm(delta, self.ord, self.comm)
+        u_norm = _mpi_norm(u.copy(), self.ord, self.comm)
+        delta = (u - embedded_u) 
+        return _mpi_norm(delta, self.ord, self.comm) / (u_norm + self.eta / self.eps)
 
     def __str__(self):
         """prints the Lp/Lebesgue space and the attributes"""
@@ -135,22 +135,22 @@ def _mpi_norm(val: np.ndarray, ord, comm: MPI.Comm) -> float:
     """Norm calculator using MPI interface."""
     if ord == np.inf:
         local_norm = np.abs(val).max()
-        norm = comm.reduce(local_norm, op=MPI.MAX, root=0)
+        norm = comm.allreduce(local_norm, op=MPI.MAX)
     elif ord == -np.inf:
         local_norm = np.abs(val).min()
-        norm = comm.reduce(local_norm, op=MPI.MIN, root=0)
+        norm = comm.allreduce(local_norm, op=MPI.MIN)
     elif ord == 0:
         local_sum_order = (val != 0).astype(val.real.dtype).sum()
-        norm = comm.reduce(local_sum_order, op=MPI.SUM, root=0)
+        norm = comm.allreduce(local_sum_order, op=MPI.SUM)
     elif ord == 1:
         # Special case for speedup
         local_sum_order = np.sum(np.abs(val))
-        norm = comm.reduce(local_sum_order, op=MPI.SUM, root=0)
+        norm = comm.allreduce(local_sum_order, op=MPI.SUM)
     elif ord == 2:
         # Special case for speedup (complex numbers)
         local_sum_order = np.sum((val.conj() * val).real)
-        norm = comm.reduce(local_sum_order, op=MPI.SUM, root=0) ** .5
+        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** .5
     else:
         local_sum_order = np.sum(np.abs(val) ** ord)
-        norm = comm.reduce(local_sum_order, op=MPI.SUM, root=0) ** (1 / ord)
+        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** (1 / ord)
     return norm

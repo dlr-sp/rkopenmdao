@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
 from rkopenmdao.butcher_tableaux import implicit_euler, embedded_second_order_three_stage_esdirk
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
@@ -461,7 +461,8 @@ class PostprocSumComp(om.ExplicitComponent):
 def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tableau):
     """Setup for the stage problem in the following test cases."""
     prob = om.Problem()
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    termination_criterion = TerminationCriterion('num_steps', num_steps)
+    integration_control = IntegrationControl(0.0, termination_criterion, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
     ]

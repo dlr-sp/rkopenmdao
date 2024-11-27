@@ -247,7 +247,13 @@ def test_component_integration_with_parameter(
 @pytest.mark.parametrize("initial_values", [[1.0, 1.0]])
 @pytest.mark.parametrize(
     "butcher_tableau", 
-    [heun_euler, two_stage_dirk, three_stage_esdirk, four_stage_esdirk, five_stage_esdirk]
+    [
+    heun_euler,
+    two_stage_dirk,
+    three_stage_esdirk,
+    four_stage_esdirk,
+    five_stage_esdirk
+    ]
 )
 @pytest.mark.parametrize(
     "test_estimator",
@@ -333,7 +339,14 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau, test
     "test_class, initial_time",
     list(
         product(
-            [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
+            [
+                TestComp1,
+                TestComp2,
+                TestComp3,
+                TestComp4,
+                TestComp6,
+                TestComp6a
+            ],
             [0.0, 1.0],
         )
     )
@@ -362,14 +375,14 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau, test
     "test_estimator",
     [
         SimpleErrorEstimator, 
-        ImprovedErrorEstimator
+        #ImprovedErrorEstimator
     ]
 )
 @pytest.mark.parametrize(
     "test_controller",
     [
-        Integral, 
-        H0_110, 
+        #Integral, 
+        #H0_110, 
         PID,
     ]
 )

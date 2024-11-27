@@ -52,7 +52,7 @@ class ErrorController:
     gamma: float = 0
     a: float = 0
     b: float = 0
-    tol: float = 1e-9
+    tol: float = 1e-6
     safety_factor: float = 0.95
     name: str = "ErrorController"
     _local_error_norms: list = field(init=False, repr=False)
@@ -132,7 +132,7 @@ class ErrorController:
         if current_norm == 0:
             self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
             return delta_t, True
-        if current_norm <= self.tol:
+        elif current_norm <= self.tol:
             self.local_error_norms = [current_norm, self._local_error_norms[0]]
             self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
             return delta_t_new, True
@@ -153,7 +153,7 @@ class ErrorController:
             | safety_factor: 0.95     |
             | error_estimator: L_None |
             ---------------------------
-    """
+        """
         _vars = vars(self)
         name = _vars.pop("name")
         _vars.pop("local_error_norms")
