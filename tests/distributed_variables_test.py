@@ -382,7 +382,9 @@ def setup_parallel_single_distributed_problem_and_integration_control(
     delta_t, num_steps, butcher_tableau, setup_mode="auto"
 ):
     """Sets up the stage problem for the single component test cases."""
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    termination_criterion = TerminationCriterion('num_steps', num_steps)
+
+    integration_control = IntegrationControl(0.0, termination_criterion, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
     ]
@@ -503,7 +505,8 @@ def setup_parallel_two_distributed_problem_and_integration_control(
     delta_t, num_steps, butcher_tableau, setup_mode="auto"
 ):
     """Sets up the stage problem for the two component test cases."""
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    termination_criterion = TerminationCriterion('num_steps', num_steps)
+    integration_control = IntegrationControl(0.0, termination_criterion, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
     ]
