@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
 from rkopenmdao.butcher_tableaux import implicit_euler, embedded_second_order_two_stage_sdirk
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
