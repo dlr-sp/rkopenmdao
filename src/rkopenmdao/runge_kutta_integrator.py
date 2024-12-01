@@ -842,10 +842,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self.options["integration_control"].delta_t = delta_t_suggestion
         elif self.options["integration_control"].termination_criterion.criterion == 'end_time':
             self.options["integration_control"].delta_t = min(delta_t_suggestion, self.options["integration_control"].remaining_time())
-            if self.options["integration_control"].remaining_time() <= delta_t_suggestion:    
+            if self.options["integration_control"].remaining_time() <= delta_t_suggestion:
                 # A flag is added in order to escape local maximum. 
                 remaining_time_used=True
-        else: 
+        else:
             raise TypeError("TerminationCriterion must be of type 'num_steps' or 'end_time'.")
         return remaining_time_used
 
@@ -856,7 +856,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         temp_serialized_state, delta_t_suggestion, accepted\
                 = self._runge_kutta_scheme.compute_step(self.options["integration_control"].delta_t , self._serialized_state, self._stage_cache)
         if not accepted:
-            print("suggestion:", delta_t_suggestion)
             if remaining_time_used==True:
                     return temp_serialized_state, delta_t_suggestion
             return self._iterate_on_step(delta_t_suggestion, stage_computation_func, remaining_time_used)
@@ -920,7 +919,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         time = self.options["integration_control"].step_time
         if not self._disable_write_out and (
             step % self.options["write_out_distance"] == 0
-            or step == self.options["integration_control"].num_steps
+            or self.options["integration_control"].is_last_time_step(self._error_controller.tol)
         ):
             self._write_out(
                 step,

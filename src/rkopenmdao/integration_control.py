@@ -68,6 +68,12 @@ class IntegrationControl:
         if self.smallest_delta_t > delta_t and delta_t > 0 :
             self.smallest_delta_t = delta_t
 
+    def is_last_time_step(self, tol=1e-6):
+        if self.termination_criterion.criterion == 'end_time':
+            return self.step_time - self.termination_criterion.value <= tol
+        else:
+            return self.step == self.termination_criterion.value
+
     def remaining_time(self):
         if self.termination_criterion.criterion == 'end_time':
             return self.termination_criterion.value - self.step_time

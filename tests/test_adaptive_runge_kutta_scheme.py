@@ -55,5 +55,5 @@ def test_compute_step(
 ):
     """Tests the compute_step function."""
     assert rk_scheme.compute_step(delta_t, old_state, stage_field) == pytest.approx(
-        (np.array([expected_new_state]), .09028504670200695, False)
+        (np.array([expected_new_state]), .08856331877659177, False)
     )

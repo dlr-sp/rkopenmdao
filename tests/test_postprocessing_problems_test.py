@@ -6,7 +6,7 @@ import numpy as np
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
