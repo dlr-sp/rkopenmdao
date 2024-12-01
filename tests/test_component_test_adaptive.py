@@ -109,7 +109,7 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
     [SimpleErrorEstimator, ImprovedErrorEstimator])
 @pytest.mark.parametrize(
     "test_controller",
-    [Integral, H0_110, PC]
+    [Integral, H0_110, PID]
 )
 def test_component_integration(
     test_class, test_functor, initial_time, initial_values,
@@ -181,7 +181,7 @@ def test_component_integration(
     [SimpleErrorEstimator, ImprovedErrorEstimator])
 @pytest.mark.parametrize(
     "test_controller",
-    [Integral, H0_110, PC]
+    [Integral, H0_110, PID]
 )
 def test_component_integration_with_parameter(
     test_class,
@@ -260,7 +260,7 @@ def test_component_integration_with_parameter(
     [SimpleErrorEstimator, ImprovedErrorEstimator])
 @pytest.mark.parametrize(
     "test_controller",
-    [Integral, H0_110, PC]
+    [Integral, H0_110, PID]
 )
 def test_component_splitting(initial_time, initial_values, butcher_tableau, test_estimator, test_controller):
     """Tests the time integration of the problem that is split over multiple
@@ -375,14 +375,14 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau, test
     "test_estimator",
     [
         SimpleErrorEstimator, 
-        #ImprovedErrorEstimator
+        ImprovedErrorEstimator
     ]
 )
 @pytest.mark.parametrize(
     "test_controller",
     [
-        #Integral, 
-        #H0_110, 
+        Integral, 
+        H0_110, 
         PID,
     ]
 )
@@ -443,7 +443,13 @@ def test_time_integration_partials(
 @pytest.mark.parametrize("parameter", [1.0])
 @pytest.mark.parametrize(
     "butcher_tableau",
-    [heun_euler, two_stage_dirk, three_stage_esdirk, four_stage_esdirk, five_stage_esdirk]
+    [
+        heun_euler, 
+        two_stage_dirk, 
+        three_stage_esdirk, 
+        four_stage_esdirk, 
+        five_stage_esdirk
+    ]
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
@@ -454,16 +460,24 @@ def test_time_integration_partials(
 )
 @pytest.mark.parametrize(
     "test_estimator",
-    [SimpleErrorEstimator, ImprovedErrorEstimator])
+    [
+        SimpleErrorEstimator, 
+        ImprovedErrorEstimator
+    ]
+)
 @pytest.mark.parametrize(
     "test_controller",
-    [Integral, H0_110, PC]
+    [
+        Integral, 
+        H0_110, 
+        PID
+    ]
 )
 def test_time_integration_with_parameter_partials(
     test_class, initial_time, parameter, butcher_tableau, checkpointing_implementation, test_estimator, test_controller
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion('end_time', initial_time + 0.01)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -497,7 +511,7 @@ def test_time_integration_with_parameter_partials(
     runge_kutta_prob.run_model()
     if checkpointing_implementation == NoCheckpointer:
         with pytest.raises(NotImplementedError):
-            runge_kutta_prob.check_partials()
+            runge_kutta_prob.check_partials(excludes=["Jfd","fd","Jfor-Jfd","Jrev-Jfd"])
     else:
         data = runge_kutta_prob.check_partials()
         assert_check_partials(data)
