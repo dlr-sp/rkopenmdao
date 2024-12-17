@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from itertools import chain
+import json
 
 import h5py
 
@@ -93,3 +94,56 @@ class Hdf5FileWriter(FileWriterInterface):
         for start_index, end_index in zip(start_tuple, end_tuple):
             access_list.append(slice(start_index, end_index + 1))
         return tuple(access_list)
+    
+class TXTFileWriter(FileWriterInterface):
+    def write_step(
+        self,
+        step: int,
+        time: float,
+        time_integration_data: np.ndarray,
+        postprocessing_data: np.ndarray,
+    ) -> None:
+
+        if step == 0:
+            open(self.file_name, 'w').close()
+        data_map = {
+            "time_integration": time_integration_data,
+            "postprocessing": postprocessing_data,
+        }
+        data_dict = {
+            'step':step,
+            'time':time
+        }
+        
+        with open(self.file_name, "a") as file_out:
+            for quantity in chain(self.time_integration_metadata.time_integration_quantity_list,
+            self.time_integration_metadata.postprocessing_quantity_list
+            ):
+                if quantity.array_metadata.local:
+                    write_indices = self.get_write_indices(quantity)
+                    start_array = quantity.array_metadata.start_index
+                    end_array = quantity.array_metadata.end_index
+                    data_dict[quantity.name] = data_map[quantity.type][start_array:end_array].reshape(quantity.array_metadata.shape).tolist()
+            file_out.write(json.dumps(data_dict) + "\n")
+                    
+        
+    @staticmethod
+    def get_write_indices(quantity: Quantity) -> tuple:
+        """Gets indices of where to write the local part of the quantity
+        into the respective dataset."""
+        start_tuple = np.unravel_index(
+            quantity.array_metadata.global_start_index,
+            quantity.array_metadata.global_shape,
+        )
+        end_tuple = np.unravel_index(
+            quantity.array_metadata.global_end_index - 1,
+            quantity.array_metadata.global_shape,
+        )
+        access_list = []
+        for start_index, end_index in zip(start_tuple, end_tuple):
+            access_list.append(slice(start_index, end_index + 1))
+        return tuple(access_list)
+
+
+
+
