@@ -30,16 +30,12 @@ class DummyComponent(om.ExplicitComponent):
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         integration_control: IntegrationControl = self.options["integration_control"]
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        assert integration_control.step_time_old == pytest.approx(
+        assert integration_control.step_time == pytest.approx(
             integration_control.delta_t * (integration_control.step - 1)
             + integration_control.initial_time
         )
-        assert integration_control.step_time_new == pytest.approx(
-            integration_control.delta_t * integration_control.step
-            + integration_control.initial_time
-        )
         assert integration_control.stage_time == pytest.approx(
-            integration_control.step_time_old
+            integration_control.step_time
             + integration_control.delta_t
             * butcher_tableau.butcher_time_stages[integration_control.stage]
         )

@@ -1127,12 +1127,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 print("Finished postprocessing.")
         if self._functional_quantities:
             if self.comm.rank == 0:
-                raise Warning("Functional Quantities doesn't work currently with adaptive schemes.")
+                if self.options["adaptive_time_stepping"] == True:
+                    raise Warning("Functional Quantities doesn't work currently with adaptive schemes.")
                 print("Finished computation of functional contribution.")
             self._get_functional_contribution_from_om_output_vec(d_outputs)
-            # TODO: CHANGE HERE .num_steps
             self._add_functional_perturbations_to_state_perturbations(
-                self.options["integration_control"].num_steps
+                self.options["integration_control"].termination_criterion.value
             )
             if self.comm.rank == 0:
                 print("Finished computation of functional contribution.")

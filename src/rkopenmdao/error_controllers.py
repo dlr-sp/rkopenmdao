@@ -27,7 +27,7 @@ def H0_211(p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, nam
                            name=name, error_estimator=error_estimator)
 
 
-def PC(p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="PC"):
+def PC(p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="PC"): #  DOES NOT FUNCTION WELL
     alpha = 2/p
     beta = 1/p
     a = 1

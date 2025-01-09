@@ -103,28 +103,28 @@ class TXTFileWriter(FileWriterInterface):
         time_integration_data: np.ndarray,
         postprocessing_data: np.ndarray,
     ) -> None:
-
-        if step == 0:
-            open(self.file_name, 'w').close()
-        data_map = {
-            "time_integration": time_integration_data,
-            "postprocessing": postprocessing_data,
-        }
-        data_dict = {
-            'step':step,
-            'time':time
-        }
-        
-        with open(self.file_name, "a") as file_out:
-            for quantity in chain(self.time_integration_metadata.time_integration_quantity_list,
-            self.time_integration_metadata.postprocessing_quantity_list
-            ):
-                if quantity.array_metadata.local:
-                    write_indices = self.get_write_indices(quantity)
-                    start_array = quantity.array_metadata.start_index
-                    end_array = quantity.array_metadata.end_index
-                    data_dict[quantity.name] = data_map[quantity.type][start_array:end_array].reshape(quantity.array_metadata.shape).tolist()
-            file_out.write(json.dumps(data_dict) + "\n")
+        if self.comm.rank==0:
+            if step == 0:
+                open(self.file_name, 'w').close()
+            data_map = {
+                "time_integration": time_integration_data,
+                "postprocessing": postprocessing_data,
+            }
+            data_dict = {
+                'step':step,
+                'time':time
+            }
+            
+            with open(self.file_name, "a") as file_out:
+                for quantity in chain(self.time_integration_metadata.time_integration_quantity_list,
+                self.time_integration_metadata.postprocessing_quantity_list
+                ):
+                    if quantity.array_metadata.local:
+                        write_indices = self.get_write_indices(quantity)
+                        start_array = quantity.array_metadata.start_index
+                        end_array = quantity.array_metadata.end_index
+                        data_dict[quantity.name] = data_map[quantity.type][start_array:end_array].reshape(quantity.array_metadata.shape).tolist()
+                file_out.write(json.dumps(data_dict) + "\n")
                     
         
     @staticmethod

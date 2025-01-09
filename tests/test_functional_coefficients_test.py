@@ -187,7 +187,8 @@ def test_composite_trapezoidal_functional_partials(
 ):
     """Tests the partials of the functional for the composite trapezoidal rule with
     various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    termination_criterion = TerminationCriterion('num_steps', 10)
+    integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
