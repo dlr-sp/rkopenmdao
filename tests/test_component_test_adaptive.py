@@ -515,4 +515,22 @@ def test_time_integration_with_parameter_partials(
             runge_kutta_prob.check_partials()
     else:
         data = runge_kutta_prob.check_partials()
-        assert_check_partials(data)
+        check_partials_wo_fd(data)
+
+
+def check_partials_wo_fd(jac_data, tol = 1e-6):
+    """
+    Since FD by the Openmdao and fwd/rev are not comparble for adaptive schemes, a function excluding fd is necassery.
+    The fd of OpenMDAO perturbs the inputs/initial values, which lead the error estimator to also be differentiated. 
+    The implementation of fwd and rev mode explicitely excludes the error estimator from the derivatives, 
+    because else that would introduce errors 
+    (see 1. https://www.sciencedirect.com/science/article/pii/S0377042709006062 and 
+    2. https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=737aaabb476673894a6c7f057946002dbaa66cc5)
+    """
+    for i in ["x_initial","b"]:
+        fwd = jac_data["rk_integrator"][("x_final", i)][f"J_fwd"][0]
+        rev = jac_data["rk_integrator"][("x_final", i)][f"J_rev"][0]
+        # Absolute : 
+        assert np.abs(fwd - rev) < tol
+        # Relative 
+        assert np.abs(fwd - rev)/ min(np.abs(fwd), np.abs(rev)) < tol
