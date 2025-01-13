@@ -80,11 +80,16 @@ class IntegrationControl:
         else:
             raise TypeError("Termination criteria must be end_time.")
 
-    def termination_condition_status(self):
+    def termination_condition_status(self, termination_step=0):
         if self.termination_criterion.criterion == 'num_steps':
-            if self.step != self.termination_criterion.value:
-                self.increment_step()
-                return True
+            if termination_step > 0:
+                if self.step != termination_step:
+                    self.increment_step()
+                    return True
+            else:
+                if self.step != self.termination_criterion.value:
+                    self.increment_step()
+                    return True
         elif self.termination_criterion.criterion == 'end_time':
             if (np.abs(self.remaining_time())
                     > min(1e-13, self.smallest_delta_t) and self.remaining_time() > 0.):

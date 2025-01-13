@@ -500,6 +500,7 @@ def test_time_integration_with_parameter_partials(
             time_independent_input_quantities=["b"],
             checkpointing_type=checkpointing_implementation,
             error_controller=test_controller,
+            error_controller_options={"tol": 1e-6},
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,
         ),
@@ -511,7 +512,7 @@ def test_time_integration_with_parameter_partials(
     runge_kutta_prob.run_model()
     if checkpointing_implementation == NoCheckpointer:
         with pytest.raises(NotImplementedError):
-            runge_kutta_prob.check_partials(excludes=["Jfd","fd","Jfor-Jfd","Jrev-Jfd"])
+            runge_kutta_prob.check_partials()
     else:
         data = runge_kutta_prob.check_partials()
         assert_check_partials(data)

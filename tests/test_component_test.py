@@ -304,7 +304,7 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
-    [NoCheckpointer, AllCheckpointer,]# PyrevolveCheckpointer],
+    [NoCheckpointer, AllCheckpointer, PyrevolveCheckpointer],
 )
 def test_time_integration_partials(
     test_class, initial_time, butcher_tableau, checkpointing_implementation
@@ -370,7 +370,7 @@ def test_time_integration_partials(
     [
         NoCheckpointer,
         AllCheckpointer,
-        #PyrevolveCheckpointer,
+        PyrevolveCheckpointer,
     ],
 )
 def test_time_integration_with_parameter_partials(

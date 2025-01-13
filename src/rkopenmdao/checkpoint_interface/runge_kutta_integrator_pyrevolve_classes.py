@@ -13,7 +13,8 @@ class RungeKuttaIntegratorSymbol:
     """One atomic part of the checkpointed data."""
 
     def __init__(self, data_dim):
-        self._storage = np.zeros(data_dim)
+        # TODO: Should be modified s.t. it includes the same information in all_checkpointer.py
+        self._storage = np.zeros(data_dim+1)
         self._data_dim = data_dim
 
     @property
@@ -22,10 +23,10 @@ class RungeKuttaIntegratorSymbol:
         return self._storage
 
     @data.setter
-    def data(self, value):
+    def data(self, data):
         """Setter for the internal storage vector."""
-        if isinstance(value, np.ndarray):
-            self._storage = value
+        if isinstance(data, np.ndarray):
+            self._storage = data
         else:
             raise TypeError("Symbol data must be a numpy array.")
 
@@ -89,24 +90,29 @@ class RungeKuttaForwardOperator(pr.Operator):
             [int, np.ndarray],
             np.ndarray,
         ],
+        integration_control
     ):
         self.serialized_old_state_symbol = serialized_old_state_symbol
         self.serialized_new_state_symbol = serialized_new_state_symbol
         self.fwd_operation = fwd_operation
+        self.integration_control = integration_control
 
     def apply(self, **kwargs):
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
         # how it is.
-        t_start = kwargs["t_start"]
+        self.integration_control.step = kwargs["t_start"]
         t_end = kwargs["t_end"]
-        for step in range(t_start + 1, t_end + 1):
-            self.serialized_old_state_symbol.data = (
-                self.serialized_new_state_symbol.data
-            )
-            self.serialized_new_state_symbol.data = self.fwd_operation(
-                self.serialized_old_state_symbol.data,
-            )[0]
 
+        self.integration_control.step_time = (self.serialized_new_state_symbol.data[-1])
+
+        while self.integration_control.termination_condition_status(t_end):
+            self.serialized_old_state_symbol.data = (
+                self.serialized_new_state_symbol.data.copy()
+            )
+            self.serialized_new_state_symbol.data[:-1] = self.fwd_operation(
+                self.serialized_old_state_symbol.data[:-1],
+            )[0]
+            self.serialized_new_state_symbol.data[-1] = (self.integration_control.step_time)
 
 class RungeKuttaReverseOperator(pr.Operator):
     """Backward operator of the Runge-Kutta-integrator (i.e. one reverse step)."""
@@ -126,18 +132,23 @@ class RungeKuttaReverseOperator(pr.Operator):
             [int, np.ndarray, np.ndarray],
             np.ndarray,
         ],
+        integration_control
     ):
         self.serialized_old_state_symbol = serialized_old_state_symbol
         self.serialized_state_perturbations = np.zeros(state_size)
         self.rev_operation = rev_operation
+        self.integration_control = integration_control
 
     def apply(self, **kwargs):
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
         # how it is.
         t_start = kwargs["t_start"]
         t_end = kwargs["t_end"]
-        for step in reversed(range(t_start + 1, t_end + 1)):
+        for step in reversed(range(t_start+1, t_end+1)):
+            self.integration_control.step = step
+            print(step, self.serialized_old_state_symbol.data, self.serialized_state_perturbations)
+            self.integration_control.step_time = self.serialized_old_state_symbol.data[-1]
             self.serialized_state_perturbations = self.rev_operation(
-                self.serialized_old_state_symbol.data,
+                self.serialized_old_state_symbol.data[:-1],
                 self.serialized_state_perturbations,
             )

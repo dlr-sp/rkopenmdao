@@ -132,7 +132,6 @@ class TestComp3(om.ExplicitComponent):
     def compute(self, inputs, outputs):
         delta_t = self.options["integration_control"].delta_t
         stage_time = self.options["integration_control"].stage_time
-        print(stage_time)
         outputs["x_stage"] = (
             stage_time
             * (inputs["x"] + delta_t * inputs["acc_stages"])

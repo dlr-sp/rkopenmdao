@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import warnings
 
 import pyrevolve as pr
+import numpy as np
 
 from .checkpoint_interface import CheckpointInterface
 from .runge_kutta_integrator_pyrevolve_classes import (
@@ -64,11 +65,13 @@ class PyrevolveCheckpointer(CheckpointInterface):
             self._serialized_old_state_symbol,
             self._serialized_new_state_symbol,
             self.run_step_func,
+            self.integration_control,
         )
         self.revolver_options["rev_operator"] = RungeKuttaReverseOperator(
             self._serialized_old_state_symbol,
             self.array_size,
             self.run_step_jacvec_rev_func,
+            self.integration_control,
         )
         self._revolver = None
 
@@ -101,7 +104,10 @@ class PyrevolveCheckpointer(CheckpointInterface):
 
     def iterate_forward(self, initial_state):
         """Runs forward iteration of internal Pyrevolve-Revolver"""
-        self._serialized_new_state_symbol.data = initial_state.copy()
+        temp_storage = np.zeros(initial_state.size+1)
+        temp_storage[:-1] = initial_state
+        temp_storage[-1] = self.integration_control.step_time
+        self._serialized_new_state_symbol.data = temp_storage
         self._revolver.apply_forward()
 
     def iterate_reverse(self, final_state_perturbation):
