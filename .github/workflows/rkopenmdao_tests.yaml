@@ -19,17 +19,17 @@ jobs:
     - name: Install OS Packages
       run: |
         sudo apt-get update
-        sudo apt-get -y install openmpi-bin libopenmpi-dev libhdf5-openmpi-dev libopenblas64-dev
-    - name: Set up Python 3.8
+        sudo apt-get -y install openmpi-bin libopenmpi-dev libhdf5-openmpi-dev
+    - name: Set up Python 3.9
       uses: actions/setup-python@v3
       with:
-        python-version: "3.8"
+        python-version: "3.9"
         cache: "pip"
         cache-dependency-path: setup.py
     - name: Install dependencies
       run: |
         pip install cython  # required to build petsc4py
-        pip install petsc
+        pip install --with-blas-lib= petsc
         pip install petsc4py
         CC="mpicc" HDF5_MPI="ON" pip install --no-binary=h5py ".[dev]"
         pip install ".[dev]"
