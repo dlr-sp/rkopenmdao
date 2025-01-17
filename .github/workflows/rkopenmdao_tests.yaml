@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -29,6 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install cython  # required to build petsc4py
+        export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
         pip install petsc
         pip install petsc4py
         CC="mpicc" HDF5_MPI="ON" pip install --no-binary=h5py ".[dev]"
