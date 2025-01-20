@@ -62,7 +62,7 @@ butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 @pytest.mark.parametrize("butcher_diagonal_element", butcher_diagonal_elements)
 def test_component_partials(test_class, time, butcher_diagonal_element):
     """Tests whether the components itself produce the right partials"""
-    termination_criterion = TerminationCriterion('num_steps', 1)
+    termination_criterion = TerminationCriterion("num_steps", 1)
     integration_control = IntegrationControl(0.0, termination_criterion, 0.1)
     integration_control.stage_time = time
     integration_control.butcher_diagonal_element = butcher_diagonal_element
@@ -106,7 +106,7 @@ def test_component_integration(
     test_class, test_functor, initial_time, initial_values, butcher_tableau, quantities
 ):
     """Tests the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -173,7 +173,7 @@ def test_component_integration_with_parameter(
     quantities,
 ):
     """Tests the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -225,9 +225,13 @@ def test_component_integration_with_parameter(
 def test_component_splitting(initial_time, initial_values, butcher_tableau):
     """Tests the time integration of the problem that is split over multiple
     components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
-    integration_control_1 = IntegrationControl(initial_time, termination_criterion, 0.001)
-    integration_control_2 = IntegrationControl(initial_time, termination_criterion, 0.001)
+    termination_criterion = TerminationCriterion("num_steps", 10)
+    integration_control_1 = IntegrationControl(
+        initial_time, termination_criterion, 0.001
+    )
+    integration_control_2 = IntegrationControl(
+        initial_time, termination_criterion, 0.001
+    )
 
     time_integration_prob_1 = om.Problem()
     time_integration_prob_1.model.add_subsystem(
@@ -310,7 +314,7 @@ def test_time_integration_partials(
     test_class, initial_time, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -377,7 +381,7 @@ def test_time_integration_with_parameter_partials(
     test_class, initial_time, parameter, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -429,9 +433,13 @@ def test_component_splitting_partials(
 ):
     """Tests the partials of the time integration of the problem that is split into
     multiple components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
-    integration_control_1 = IntegrationControl(initial_time, termination_criterion, 0.001)
-    integration_control_2 = IntegrationControl(initial_time, termination_criterion, 0.001)
+    termination_criterion = TerminationCriterion("num_steps", 10)
+    integration_control_1 = IntegrationControl(
+        initial_time, termination_criterion, 0.001
+    )
+    integration_control_2 = IntegrationControl(
+        initial_time, termination_criterion, 0.001
+    )
 
     time_integration_prob_1 = om.Problem()
     time_integration_prob_1.model.add_subsystem(

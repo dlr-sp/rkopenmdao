@@ -1,14 +1,18 @@
-from typing import Tuple
+"""Contains the class for the error controller of the adaptive Runge-Kutta schemes """
+
 from dataclasses import dataclass, field
-from rkopenmdao.error_estimator import *
+from typing import Tuple
+
 import numpy as np
+
+from rkopenmdao.error_estimator import ErrorEstimator
 
 
 @dataclass
 class ErrorController:
     r"""
-    Error controller that estimates the next time-difference jumps of a Runge-Kutta scheme in accordance to a specified
-    tolerance and uses the following equation:
+    Error controller that estimates the next time-difference jumps of a Runge-Kutta
+    scheme in accordance to a specified tolerance and uses the following equation:
 
     (\Delta t)^{[n+1]} = \kappa (\Delta t)^{[n]}
     \left \{\frac{\varepsilon}{\left\Vert \delta^{[n+1]} \right\Vert} \right\}^\alpha
@@ -26,7 +30,8 @@ class ErrorController:
     gamma : float, optional
         The exponent constant to the last norm by the prior norm
     a : float, optional
-        The exponent constant to the current time-difference by the last time-difference
+        The exponent constant to the current time-difference by the last
+        time-difference
     b : float, optional
         The exponent constant to the last time-difference by the prior one
     tol : float, optional
@@ -36,7 +41,11 @@ class ErrorController:
     name: str, optional
         Name of the error controller
     error_estimator: ErrorEstimator object, optional
-        The error estimator
+        The error estimator class
+    _local_error_norms: List[float]
+        List of the error norms of the 2 last time steps
+    _delta_time_steps: List[float]
+        List of the time difference between the 2 last time steps
 
     Methods
     -------
@@ -46,6 +55,7 @@ class ErrorController:
     __str__()
         Prints the class data
     """
+
     alpha: float
     error_estimator: ErrorEstimator = None
     beta: float = 0
@@ -63,21 +73,32 @@ class ErrorController:
         self.delta_time_steps = None
 
     def reset(self):
+        """Resets the error controller to the initial state"""
         self.__post_init__()
 
     @property
     def local_error_norms(self):
+        """
+        Returns
+        ------
+            List of the error norms of the 2 last time steps
+        """
         return self._local_error_norms
 
     @local_error_norms.setter
     def local_error_norms(self, local_error_norms):
         if local_error_norms is None:
-            self._local_error_norms = 2*[self.tol]
+            self._local_error_norms = 2 * [self.tol]
         else:
             self._local_error_norms = local_error_norms
 
     @property
     def delta_time_steps(self):
+        """
+        Returns
+        ------
+            List of the time difference between the 2 last time steps
+        """
         return self._delta_time_steps
 
     @delta_time_steps.setter
@@ -87,27 +108,30 @@ class ErrorController:
         else:
             self._delta_time_steps = delta_time_steps
 
-    def _estimate_next_step_function(self, current_norm, current_time):
+    def _estimate_next_step_function(self, current_norm, current_dtime):
         """
         Solves the equation
         """
         if 0 in self.local_error_norms:
-            return current_time
-        delta_time_new = self.safety_factor * current_time
+            return current_dtime
+        delta_time_new = self.safety_factor * current_dtime
         delta_time_new *= (self.tol / current_norm) ** self.alpha
         delta_time_new *= (self.local_error_norms[0] / self.tol) ** self.beta
         delta_time_new *= (self.tol / self.local_error_norms[1]) ** self.gamma
         if self._delta_time_steps[0] is not None:
-            delta_time_new *= (current_time / self.delta_time_steps[0]) ** self.a
+            delta_time_new *= (current_dtime / self.delta_time_steps[0]) ** self.a
             if self._delta_time_steps[1] is not None:
-                delta_time_new *= (self.delta_time_steps[0] / self.delta_time_steps[1]) ** self.b
+                delta_time_new *= (
+                    self.delta_time_steps[0] / self.delta_time_steps[1]
+                ) ** self.b
         return delta_time_new
 
-    def __call__(self,
-                 solution: np.ndarray,
-                 embedded_solution: np.ndarray,
-                 delta_t: float,
-                 ) -> Tuple[float, bool]:
+    def __call__(
+        self,
+        solution: np.ndarray,
+        embedded_solution: np.ndarray,
+        delta_t: float,
+    ) -> Tuple[float, bool]:
         """
         Estimates next possible step size for a given state and embedded solution
         and returns whether the next step size meets the tolerance.
@@ -120,7 +144,7 @@ class ErrorController:
             The embedded solution of the current time step.
         delta_t:
             current time step size.
-        
+
         Returns
         -------
         Tuple(float,bool)
@@ -128,10 +152,7 @@ class ErrorController:
             2. True if for current step size the norm is in tolerance, otherwise False
         """
         current_norm = self.error_estimator(solution, embedded_solution)
-        print(current_norm)
-        delta_t_new = self._estimate_next_step_function(current_norm,  delta_t)
-        print(delta_t_new)
-        print(self.delta_time_steps)
+        delta_t_new = self._estimate_next_step_function(current_norm, delta_t)
         if current_norm == 0:
             self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
             return delta_t, True
@@ -167,8 +188,7 @@ class ErrorController:
                 _str_list.append(f"{var}: {_vars[var]}")
         width = len(max(_str_list, key=len)) + 4
         title = name.center(width - 2)
-        _str = ("-" * width + "\n" +
-                f"|{title}" + "|\n" + "-" * width + "\n")
+        _str = "-" * width + "\n" + f"|{title}" + "|\n" + "-" * width + "\n"
         for i in _str_list:
             _str += "| " + i + " " * (width - 3 - len(i)) + "|\n"
         _str += "-" * width

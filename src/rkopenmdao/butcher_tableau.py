@@ -1,4 +1,5 @@
 """Contains classes for the representation of Butcher tableaux."""
+
 from __future__ import annotations
 import warnings
 
@@ -9,9 +10,9 @@ def _get_column_widths(co_arrays):
     len_max = []
     col_max = None
     for co_array in co_arrays:
-        len_max.append(max([len(ai) for ai in co_array.reshape(-1)]))
+        len_max.append(max(len(ai) for ai in co_array.reshape(-1)))
         col_max = max(len_max)
-    return len_max, col_max
+    return col_max
 
 
 class ButcherTableau:
@@ -54,9 +55,9 @@ class ButcherTableau:
         butcher_weight_vector: np.ndarray,
         butcher_time_stages: np.ndarray | None = None,
         p=None,
-        name='Runge-Kutta method',
+        name="Runge-Kutta method",
     ):
-        
+
         if len(np.shape(butcher_matrix)) == 2:
             self.butcher_matrix = butcher_matrix
         else:
@@ -69,8 +70,10 @@ class ButcherTableau:
         else:
             self.butcher_time_stages = butcher_time_stages
             if not np.all(np.sum(self.butcher_matrix, 1) - butcher_time_stages) < 1e-5:
-                warnings.warn("Spatial shift matrix (A) rows do not "
-                              "sum up to the temporal shift vector (c) indices value")
+                warnings.warn(
+                    "Spatial shift matrix (A) rows do not "
+                    "sum up to the temporal shift vector (c) indices value"
+                )
         self.stages = butcher_weight_vector.size
         self.name = name
         self._p = p
@@ -79,9 +82,16 @@ class ButcherTableau:
             or self.butcher_weight_vector.shape != self.butcher_time_stages.shape
         ):
             raise AssertionError("Sizes of matrix and vectors doesn't match")
-        
+
     @property
     def p(self):
+        """
+        The order (p) of the Butcher table
+        Returns
+        ------
+        int
+            The order (p) of the Butcher table
+        """
         if self._p is None:
             raise ValueError("Order is unknown, please specify the order")
         return self._p
@@ -91,17 +101,31 @@ class ButcherTableau:
         self._p = p
 
     def min_p_order(self):
+        """
+        The minimum order (p) of the Butcher table
+        Returns
+        ------
+        int
+            The minimum order (p) of the Butcher table
+        """
         return self._p
 
     @property
     def is_embedded(self):
-        """returns whether the class has also embedded weights to the Runge-Kutta scheme"""
+        """
+        Whether the class has also embedded weights to the Runge-Kutta scheme
+
+        Returns
+        ------
+        bool
+            True if the class has also embedded weights to the Runge-Kutta scheme.
+        """
         return False
 
     def number_of_stages(self):
         """
         Returns the number of stages of the tableau
-        Return
+        Returns
         ------
         int
             The number of stages of the butcher tableau.
@@ -111,7 +135,7 @@ class ButcherTableau:
     def is_explicit(self) -> bool:
         """
         Returns whether this tableau is explicit.
-        Return
+        Returns
         ------
         bool
             True if the Butcher tableau is explicit.
@@ -127,7 +151,7 @@ class ButcherTableau:
         Returns whether this tableau is diagonally implicit.
         This requires at least one non-zero diagonal element in the Butcher matrix,
         i.e. we don't count explicit schemes as diagonally implicit.
-        Return
+        Returns
         ------
         bool
             True if the Butcher tableau is diagonally implicit.
@@ -144,7 +168,7 @@ class ButcherTableau:
         """
         Returns whether this tableau is implicit.
 
-        Return
+        Returns
         ------
         bool
             True if implicit
@@ -171,19 +195,27 @@ class ButcherTableau:
         Returns:
             Butcher table as a string.
         """
-        butcher_time_stages = np.array([str(element) for element in self.butcher_time_stages])
-        butcher_matrix = np.array([[str(element) for element in lst] for lst in self.butcher_matrix])
-        butcher_weight_vector = np.array([str(element) for element in self.butcher_weight_vector])
-        len_max, col_max = _get_column_widths([butcher_matrix, butcher_weight_vector, butcher_time_stages])
+        butcher_time_stages = np.array(
+            [str(element) for element in self.butcher_time_stages]
+        )
+        butcher_matrix = np.array(
+            [[str(element) for element in lst] for lst in self.butcher_matrix]
+        )
+        butcher_weight_vector = np.array(
+            [str(element) for element in self.butcher_weight_vector]
+        )
+        col_max = _get_column_widths(
+            [butcher_matrix, butcher_weight_vector, butcher_time_stages]
+        )
 
-        s = self.name + '\n'
+        s = self.name + "\n"
         for i in range(len(self)):
-            s += butcher_time_stages[i].ljust(col_max + 1) + '|'
+            s += butcher_time_stages[i].ljust(col_max + 1) + "|"
             for j in range(len(self)):
                 s += butcher_matrix[i, j].ljust(col_max + 1)
-            s = s.rstrip() + '\n'
-        s += '_' * (col_max + 1) + '|' + ('_' * (col_max + 1) * len(self)) + '\n'
-        s += ' ' * (col_max + 1) + '|'
+            s = s.rstrip() + "\n"
+        s += "_" * (col_max + 1) + "|" + ("_" * (col_max + 1) * len(self)) + "\n"
+        s += " " * (col_max + 1) + "|"
         for j in range(len(self)):
             s += butcher_weight_vector[j].ljust(col_max + 1)
         return s.rstrip()
@@ -192,7 +224,8 @@ class ButcherTableau:
 class EmbeddedButcherTableau(ButcherTableau):
     """
     Representation of a Butcher tableau with internal error control
-    (i.e. has a second weight vector for representing a second scheme with lower order).
+    (i.e. has a second weight vector for representing a second scheme with lower
+    order).
 
     Attributes
     ----------
@@ -221,24 +254,28 @@ class EmbeddedButcherTableau(ButcherTableau):
         butcher_time_stages: np.ndarray | None = None,
         p: int = None,
         phat: int = None,
-        name: str = 'Adaptive Runge-Kutta method'
+        name: str = "Adaptive Runge-Kutta method",
     ):
-        super().__init__(butcher_matrix, butcher_weight_vector, butcher_time_stages, p, name)
+        super().__init__(
+            butcher_matrix, butcher_weight_vector, butcher_time_stages, p, name
+        )
         self._phat = phat
         self.butcher_adaptive_weights = butcher_adaptive_weights
         if self.butcher_adaptive_weights.shape != self.butcher_weight_vector.shape:
             raise AssertionError("Size of adaptive stage doesn't match.")
 
     @classmethod
-    def from_butchertableau(cls,
-                            butcher_tableau: ButcherTableau,
-                            butcher_adaptive_weights: np.ndarray,
-                            phat: int = None,
-                            name: str = None
-                            ):
+    def from_butchertableau(
+        cls,
+        butcher_tableau: ButcherTableau,
+        butcher_adaptive_weights: np.ndarray,
+        phat: int = None,
+        name: str = None,
+    ):
         """
 
-        Constructs an EmbeddedButcherTableau with an existing ButcherTableau and adaptive weights.
+        Constructs an EmbeddedButcherTableau with an existing ButcherTableau and
+        adaptive weights.
         Parameters
         ----------
         butcher_tableau: ButcherTableau
@@ -253,13 +290,24 @@ class EmbeddedButcherTableau(ButcherTableau):
         if name is None:
             name = "Adaptive " + butcher_tableau.name
 
-        return cls(butcher_tableau.butcher_matrix,
-                   butcher_tableau.butcher_weight_vector,
-                   butcher_adaptive_weights,
-                   butcher_tableau.butcher_time_stages, butcher_tableau.p, phat, name)
+        return cls(
+            butcher_tableau.butcher_matrix,
+            butcher_tableau.butcher_weight_vector,
+            butcher_adaptive_weights,
+            butcher_tableau.butcher_time_stages,
+            butcher_tableau.p,
+            phat,
+            name,
+        )
 
     @property
     def phat(self):
+        """
+        Returns
+        -------
+        int
+            The order (p_hat) of the embedded section of the Butcher tablue
+        """
         if self._phat is None:
             raise ValueError("Order is unknown, please specify the order")
         return self._phat
@@ -277,47 +325,76 @@ class EmbeddedButcherTableau(ButcherTableau):
         Returns
         -------
         int
-            minimum order of the between the main and second Butcher tableau.
+            Minimum order (p, phat) of the between the main and embedded segments of
+            the Butcher tableau.
         """
         return min(self._p, self._phat)
 
     @property
     def main_method(self):
-        return ButcherTableau(self.butcher_matrix,
-                              self.butcher_weight_vector,
-                              self.butcher_time_stages,
-                              p=self._p,
-                              name="Main: " + self.name
-                              )
+        """
+        Returns
+        -------
+        ButcherTableau
+            The main segment of the Butcher table as independent Butcher table
+        """
+        return ButcherTableau(
+            self.butcher_matrix,
+            self.butcher_weight_vector,
+            self.butcher_time_stages,
+            p=self._p,
+            name="Main: " + self.name,
+        )
 
     @property
     def embedded_method(self):
-        return ButcherTableau(self.butcher_matrix,
-                              self.butcher_adaptive_weights,
-                              self.butcher_time_stages,
-                              p=self._phat,
-                              name="Embedded: " + self.name
-                              )
+        """
+        Returns
+        -------
+        ButcherTableau
+              The embedded segment of the Butcher table as independent table
+        """
+        return ButcherTableau(
+            self.butcher_matrix,
+            self.butcher_adaptive_weights,
+            self.butcher_time_stages,
+            p=self._phat,
+            name="Embedded: " + self.name,
+        )
 
     def __str__(self):
-        butcher_time_stages = np.array([repr(element) for element in self.butcher_time_stages])
-        butcher_matrix = np.array([[repr(element) for element in lst] for lst in self.butcher_matrix])
-        butcher_weight_vector = np.array([repr(element) for element in self.butcher_weight_vector])
-        butcher_adaptive_weights_vector = np.array([repr(element) for element in self.butcher_adaptive_weights])
-        len_max, col_max = _get_column_widths([butcher_matrix, butcher_weight_vector,
-                                               butcher_time_stages, butcher_adaptive_weights_vector])
+        butcher_time_stages = np.array(
+            [repr(element) for element in self.butcher_time_stages]
+        )
+        butcher_matrix = np.array(
+            [[repr(element) for element in lst] for lst in self.butcher_matrix]
+        )
+        butcher_weight_vector = np.array(
+            [repr(element) for element in self.butcher_weight_vector]
+        )
+        butcher_adaptive_weights_vector = np.array(
+            [repr(element) for element in self.butcher_adaptive_weights]
+        )
+        col_max = _get_column_widths(
+            [
+                butcher_matrix,
+                butcher_weight_vector,
+                butcher_time_stages,
+                butcher_adaptive_weights_vector,
+            ]
+        )
         s = self.name + " (Embedded)\n"
         for i in range(len(self)):
-            s += butcher_time_stages[i].ljust(col_max + 1) + '|'
+            s += butcher_time_stages[i].ljust(col_max + 1) + "|"
             for j in range(len(self)):
                 s += butcher_matrix[i, j].ljust(col_max + 1)
-            s = s.rstrip() + '\n'
-        s += '_' * (col_max + 1) + '|' + ('_' * (col_max + 1) * len(self)) + '\n'
-        s += ' ' * (col_max + 1) + '|'
+            s = s.rstrip() + "\n"
+        s += "_" * (col_max + 1) + "|" + ("_" * (col_max + 1) * len(self)) + "\n"
+        s += " " * (col_max + 1) + "|"
         for j in range(len(self)):
             s += butcher_weight_vector[j].ljust(col_max + 1)
-        s += '\n' + '-' * (col_max + 1) + '|' + ('-' * (col_max + 1) * len(self)) + '\n'
-        s += ' ' * (col_max + 1) + '|'
+        s += "\n" + "-" * (col_max + 1) + "|" + ("-" * (col_max + 1) * len(self)) + "\n"
+        s += " " * (col_max + 1) + "|"
         for j in range(len(self)):
-            s += butcher_adaptive_weights_vector[j].ljust(col_max+1)
+            s += butcher_adaptive_weights_vector[j].ljust(col_max + 1)
         return s.rstrip()

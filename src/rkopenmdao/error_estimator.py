@@ -1,14 +1,25 @@
+"""Contains the classes for the error Estimator of the error controller."""
+
+# pylint: disable = c-extension-no-member
+
 from abc import ABC, abstractmethod
 import numpy as np
 from mpi4py import MPI
 from .metadata_extractor import TimeIntegrationMetadata
 
+
 class ErrorEstimator(ABC):
     """
     Solves a norm for the difference of two vectors Delta = U - U_embedded
     """
+
     @abstractmethod
-    def __init__(self, ord: int, quantity_metadata: TimeIntegrationMetadata,  comm: MPI.COMM_WORLD):
+    def __init__(
+        self,
+        order: int,
+        quantity_metadata: TimeIntegrationMetadata,
+        comm: MPI.COMM_WORLD,
+    ):
         pass
 
     @abstractmethod
@@ -18,12 +29,13 @@ class ErrorEstimator(ABC):
 
 class SimpleErrorEstimator(ErrorEstimator):
     """
-    A simple norm solver, in which a numpy.linalg is utilized to calculate the norm difference of two vectors:
+    A simple norm solver, in which a numpy.linalg is utilized to calculate the norm
+    difference of two vectors:
     Delta = U - U_embedded
 
     Attributes
     ----------
-    ord : {non-zero int, inf, -inf}, optional
+    order : {non-zero int, inf, -inf}, optional
         Order of the norm. inf means numpy's inf object. The default is 2.
 
     Methods
@@ -33,16 +45,22 @@ class SimpleErrorEstimator(ErrorEstimator):
     __str__()
         prints the Lp/Lebesgue space.
     """
-    def __init__(self, ord=2, quantity_metadata: TimeIntegrationMetadata=None, comm=MPI.COMM_WORLD):
+
+    def __init__(
+        self,
+        order=2,
+        quantity_metadata: TimeIntegrationMetadata = None,
+        comm=MPI.COMM_WORLD,
+    ):
         """
         Parameters
         ----------
-        ord: {non-zero int, inf, -inf}, optional
+        order: {non-zero int, inf, -inf}, optional
             Order of the norm. inf means numpy's inf object. The default is 2.
         comm: MPI.COMM_WORLD, optional
             MPI communicator "MPI_COMM_WORLD"
         """
-        self.ord = ord
+        self.order = order
         self.comm = comm
 
     def __call__(self, u: np.ndarray, embedded_u: np.ndarray) -> float:
@@ -60,21 +78,22 @@ class SimpleErrorEstimator(ErrorEstimator):
             Norm of the difference of two vectors
         """
         delta = u - embedded_u
-        return _mpi_norm(delta, self.ord, self.comm)
+        return _mpi_norm(delta, self.order, self.comm)
 
     def __str__(self):
         """Prints the Lp/Lebesgue space"""
-        return f"L_{self.ord}"
+        return f"L_{self.order}"
 
 
 class ImprovedErrorEstimator(ErrorEstimator):
     """
-    An improved norm solver, in which a numpy.linalg is utilized to calculate the norm difference of two vectors:
+    An improved norm solver, in which a numpy.linalg is utilized to calculate the norm
+    difference of two vectors:
     Delta = (U - U_embedded)/(u + eta/eps)
 
     Attributes
     ----------
-    ord : {non-zero int, inf, -inf}, optional
+    order : {non-zero int, inf, -inf}, optional
         Order of the norm. inf means numpy's inf object. The default is 2.
     eta : float, optional
         A small positive absolute tolerance which added to avoid division by zero.
@@ -84,15 +103,24 @@ class ImprovedErrorEstimator(ErrorEstimator):
     Methods
     -------
     __call__(u, embedded_u):
-        Solves a norm for the difference of two vectors Delta = (U - U_embedded)/(|U| + eta/eps)
+        Solves a norm for the difference of two vectors
+        Delta = (U - U_embedded)/(|U| + eta/eps)
     __str__():
         prints the Lp/Lebesgue space and the attributes
-        """
-    def __init__(self, ord=2, quantity_metadata: TimeIntegrationMetadata=None, comm=MPI.COMM_WORLD, eta=1e-6, eps=1e-6):
+    """
+
+    def __init__(
+        self,
+        order=2,
+        quantity_metadata: TimeIntegrationMetadata = None,
+        comm=MPI.COMM_WORLD,
+        eta=1e-6,
+        eps=1e-6,
+    ):
         """
         Parameters
         ----------
-        ord: {non-zero int, inf, -inf}, optional
+        order: {non-zero int, inf, -inf}, optional
             Order of the norm. inf means numpy's inf object. The default is 2.
         comm: MPI.COMM_WORLD, optional
             MPI communicator "MPI_COMM_WORLD"
@@ -101,14 +129,15 @@ class ImprovedErrorEstimator(ErrorEstimator):
         eps: float, optional
             relative error tolerance
         """
-        self.ord = ord
+        self.order = order
         self.eta = eta
         self.eps = eps
         self.comm = comm
 
     def __call__(self, u: np.ndarray, embedded_u: np.ndarray) -> float:
         """
-        Solves a norm for the difference of two vectors Delta = (U - U_embedded)/(|U| + eta/eps)
+        Solves a norm for the difference of two vectors
+        Delta = (U - U_embedded)/(|U| + eta/eps)
         Parameters
         ----------
         u : np.ndarray
@@ -122,35 +151,35 @@ class ImprovedErrorEstimator(ErrorEstimator):
             Norm of Delta
         """
 
-        u_norm = _mpi_norm(u.copy(), self.ord, self.comm)
-        delta = (u - embedded_u) 
-        return _mpi_norm(delta, self.ord, self.comm) / (u_norm + self.eta / self.eps)
+        u_norm = _mpi_norm(u.copy(), self.order, self.comm)
+        delta = u - embedded_u
+        return _mpi_norm(delta, self.order, self.comm) / (u_norm + self.eta / self.eps)
 
     def __str__(self):
         """prints the Lp/Lebesgue space and the attributes"""
-        return f"L_{self.ord} norm:  eta = {self.eta}, eps = {self.eps}."
+        return f"L_{self.order} norm:  eta = {self.eta}, eps = {self.eps}."
 
 
-def _mpi_norm(val: np.ndarray, ord, comm: MPI.Comm) -> float:
+def _mpi_norm(val: np.ndarray, order, comm: MPI.Comm) -> float:
     """Norm calculator using MPI interface."""
-    if ord == np.inf:
+    if order == np.inf:
         local_norm = np.abs(val).max()
         norm = comm.allreduce(local_norm, op=MPI.MAX)
-    elif ord == -np.inf:
+    elif order == -np.inf:
         local_norm = np.abs(val).min()
         norm = comm.allreduce(local_norm, op=MPI.MIN)
-    elif ord == 0:
+    elif order == 0:
         local_sum_order = (val != 0).astype(val.real.dtype).sum()
         norm = comm.allreduce(local_sum_order, op=MPI.SUM)
-    elif ord == 1:
+    elif order == 1:
         # Special case for speedup
         local_sum_order = np.sum(np.abs(val))
         norm = comm.allreduce(local_sum_order, op=MPI.SUM)
-    elif ord == 2:
+    elif order == 2:
         # Special case for speedup (complex numbers)
         local_sum_order = np.sum((val.conj() * val).real)
-        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** .5
+        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** 0.5
     else:
-        local_sum_order = np.sum(np.abs(val) ** ord)
-        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** (1 / ord)
+        local_sum_order = np.sum(np.abs(val) ** order)
+        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** (1 / order)
     return norm

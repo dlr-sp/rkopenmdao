@@ -57,7 +57,7 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
 def test_rk_integrator_revolver_options(revolver_type, revolver_options):
     """Tests that the options given to the RungeKuttaIntegrator are passed through to
     the Revolver."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control = IntegrationControl(0.0, termination_criterion, 0.01)
 
     inner_prob = om.Problem()

@@ -36,7 +36,7 @@ class PyrevolveCheckpointer(CheckpointInterface):
         )
 
         self.revolver_class_type = self._setup_revolver_class_type(self.revolver_type)
-
+        criterion_value = self.integration_control.termination_criterion.value
         for key, value in self.revolver_options.items():
             if self.revolver_type == "MultiLevel" and key == "storage_list":
                 storage_list = []
@@ -51,14 +51,14 @@ class PyrevolveCheckpointer(CheckpointInterface):
             else:
                 self.revolver_options[key] = value
         self.revolver_options["checkpoint"] = checkpoint
-        if self.integration_control.termination_criterion.criterion == 'num_steps':
-            self.revolver_options["n_timesteps"] = self.integration_control.termination_criterion.value
+        if self.integration_control.termination_criterion.criterion == "num_steps":
+            self.revolver_options["n_timesteps"] = criterion_value
         else:
             raise TypeError("Does not support online checkpointing")
         if "n_checkpoints" not in self.revolver_options:
             if self.revolver_type not in ["MultiLevel", "Base"]:
                 self.revolver_options["n_checkpoints"] = (
-                    1 if self.integration_control.termination_criterion.value == 1 else None
+                    1 if criterion_value == 1 else None
                 )
 
         self.revolver_options["fwd_operator"] = RungeKuttaForwardOperator(
@@ -104,7 +104,7 @@ class PyrevolveCheckpointer(CheckpointInterface):
 
     def iterate_forward(self, initial_state):
         """Runs forward iteration of internal Pyrevolve-Revolver"""
-        temp_storage = np.zeros(initial_state.size+1)
+        temp_storage = np.zeros(initial_state.size + 1)
         temp_storage[:-1] = initial_state
         temp_storage[-1] = self.integration_control.step_time
         self._serialized_new_state_symbol.data = temp_storage

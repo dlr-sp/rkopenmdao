@@ -7,15 +7,19 @@ import numpy as np
 @dataclass
 class TerminationCriterion:
     """
-    Termination Criterion for Runge-Kutta integrator. Can either be by number of time steps or by end time.
+    Termination Criterion for Runge-Kutta integrator. Can either be by number of time
+    steps or by end time.
     Parameters
     ---------
     criterion: str
-        Stopping criterion to use in Runge-Kutta integrator. Can either be 'num_steps', to set a number of fixed steps,
-        or 'end_time', to set the end time of the Runge-Kutta integrator.
+        Stopping criterion to use in Runge-Kutta integrator. Can either be 'num_steps',
+        to set a number of fixed steps, or 'end_time', to set the end time of the
+        Runge-Kutta integrator.
     value: [int, float]
-        Value of criterion to use in Runge-Kutta integrator; either number of time steps or end time.
+        Value of criterion to use in Runge-Kutta integrator; either number of time
+        steps or end time.
     """
+
     criterion: str  # ['num_steps', 'end_time']
     value: [int, float]
 
@@ -60,41 +64,66 @@ class IntegrationControl:
 
     @property
     def delta_t(self):
+        """
+        Returns
+        ------
+        float
+            Time difference of the current time step.
+        """
         return self._delta_t
 
     @delta_t.setter
     def delta_t(self, delta_t):
         self._delta_t = delta_t
-        if self.smallest_delta_t > delta_t and delta_t > 0 :
+        if self.smallest_delta_t > delta_t and delta_t > 0:
             self.smallest_delta_t = delta_t
 
-    def is_last_time_step(self, tol=1e-6):
-        if self.termination_criterion.criterion == 'end_time':
-            return self.step_time - self.termination_criterion.value <= tol
+    def is_last_time_step(self, tol=1e-13):
+        """
+        Parameters
+        ------
+        tol: float, optional
+            Tolerance parameter in the case that the termination criterion is of
+            end_time; to find when the time of the step has reached the target time
+            within within that tolerance.
+        Returns
+        ------
+        bool
+            True if last step.
+        """
+        if self.termination_criterion.criterion == "end_time":
+            return np.abs(self.remaining_time()) <= min(tol, self.smallest_delta_t)
         else:
             return self.step == self.termination_criterion.value
 
     def remaining_time(self):
-        if self.termination_criterion.criterion == 'end_time':
+        """
+        Returns
+        ------
+        float
+            Remaining time.
+        """
+        if self.termination_criterion.criterion == "end_time":
             return self.termination_criterion.value - self.step_time
         else:
             raise TypeError("Termination criteria must be end_time.")
 
     def termination_condition_status(self, termination_step=0):
-        if self.termination_criterion.criterion == 'num_steps':
-            if termination_step > 0:
-                if self.step != termination_step:
-                    self.increment_step()
-                    return True
-            else:
-                if self.step != self.termination_criterion.value:
-                    self.increment_step()
-                    return True
-        elif self.termination_criterion.criterion == 'end_time':
-            if (np.abs(self.remaining_time())
-                    > min(1e-13, self.smallest_delta_t) and self.remaining_time() > 0.):
+        """
+        A termination condition parameter for a while loop, that terminates when
+        last time step is reached.
+        Returns
+        ------
+        bool
+            False if reached
+        """
+        if termination_step > 0:
+            if self.step != termination_step:
                 self.increment_step()
                 return True
+        elif not self.is_last_time_step():
+            self.increment_step()
+            return True
         return False
 
     def reset(self):
@@ -104,7 +133,9 @@ class IntegrationControl:
         self.__post_init__()
 
     def increment_step(self):
+        """Increments step"""
         self.step += 1
 
     def decrement_step(self):
+        """Decrements step"""
         self.step -= 1

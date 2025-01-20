@@ -105,7 +105,7 @@ def test_postprocessing_after_time_integration(
     butcher_tableau,
 ):
     """Tests the postprocessing after time integration."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control = IntegrationControl(0.0, termination_criterion, 0.001)
     postproc_problem = postprocessing_problem_creator([("x", quantity_size)])
 
@@ -165,7 +165,7 @@ def test_postprocessing_after_time_integration_split(
 ):
     """Tests whether postprocessing works the same when split over multiple
     components."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control_1 = IntegrationControl(0.0, termination_criterion, 0.001)
     integration_control_2 = IntegrationControl(0.0, termination_criterion, 0.001)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])
@@ -271,7 +271,7 @@ def test_postprocessing_after_time_integration_partials(
     checkpointing_implementation,
 ):
     """Tests partials of the postprocessing after time integration."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control = IntegrationControl(0.0, termination_criterion, 0.001)
     postproc_problem = postprocessing_problem_creator(quantity_list)
     quantities = [quantity_tuple[0] for quantity_tuple in quantity_list]
@@ -332,7 +332,7 @@ def test_postprocessing_after_time_integration_split_partials(
 ):
     """Tests whether the partials of the postprocessing are the same for a split and
     unsplit problem."""
-    termination_criterion = TerminationCriterion('num_steps', 10)
+    termination_criterion = TerminationCriterion("num_steps", 10)
     integration_control_1 = IntegrationControl(0.0, termination_criterion, 0.01)
     integration_control_2 = IntegrationControl(0.0, termination_criterion, 0.01)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])

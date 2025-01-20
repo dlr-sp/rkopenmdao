@@ -31,7 +31,7 @@ class TestComp1(om.ExplicitComponent):
         self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
         self.add_input("b", val=1, shape=1, tags=["time_independent_input_var", "b"])
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
-  
+
     def compute(self, inputs, outputs):
         delta_t = self.options["integration_control"].delta_t
         outputs["x_stage"] = (
