@@ -1,0 +1,48 @@
+name: rkopenmdao matrix tests
+
+on:
+  schedule:
+    - cron: 30 0 * * 1 # Monday 0:30
+  push:
+    branches:
+      - "maintenance/matrix_tests_CI"
+
+permissions:
+  contents: read
+
+jobs:
+  matrix_build:
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-latest]
+        python_version: ["3.8", "3.9", "3.10", "3.11", "3.12"]
+
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install OS Packages
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install openmpi-bin libopenmpi-dev libhdf5-openmpi-dev
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python_version }}
+    - name: Install dependencies
+      run: |
+        pip install cython  # required to build petsc4py
+        export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
+        pip install petsc
+        pip install petsc4py
+        CC="mpicc" HDF5_MPI="ON" pip install --no-binary=h5py ".[dev]"
+        pip install ".[dev]"
+    - name: Lint with pylint
+      continue-on-error: true
+      run: |
+        pylint src tests setup.py
+        
+    - name: Run tests
+      run: |
+        mpirun -n 2 pytest --with-mpi tests
