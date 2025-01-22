@@ -92,7 +92,7 @@ class IntegrationControl:
             True if last step.
         """
         if self.termination_criterion.criterion == "end_time":
-            return self.remaining_time() <= min(tol, self.smallest_delta_t)
+            return self.remaining_time() <= min(tol)
         else:
             return self.step == self.termination_criterion.value
 
