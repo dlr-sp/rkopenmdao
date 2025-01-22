@@ -152,11 +152,15 @@ class ErrorController:
             2. True if for current step size the norm is in tolerance, otherwise False
         """
         current_norm = self.error_estimator(solution, embedded_solution)
-        delta_t_new = self._estimate_next_step_function(current_norm, delta_t)
         if current_norm == 0:
             self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
+            self.local_error_norms = [
+                self._local_error_norms[0],
+                self._local_error_norms[0],
+            ]
             return delta_t, True
-        elif current_norm <= self.tol:
+        delta_t_new = self._estimate_next_step_function(current_norm, delta_t)
+        if current_norm <= self.tol:
             self.local_error_norms = [current_norm, self._local_error_norms[0]]
             self.delta_time_steps = [delta_t, self._delta_time_steps[0]]
             return delta_t_new, True

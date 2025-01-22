@@ -300,6 +300,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare(
             "error_controller",
             default=integral,
+            check_valid=self.check_error_controller,
             desc="""Error controller for adaptive time stepping of
             the Runge-Kutta Scheme.""",
         )
@@ -345,6 +346,24 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         # OpenMDAO needs that specific interface, even if we don't need it fully.
         if not issubclass(value, ErrorEstimator):
             raise TypeError(f"{value} is not a subclass of CheckpointInterface")
+
+    @staticmethod
+    def check_error_controller(self, value):
+        """Checks whether the passed error_controller type for the options is an actual
+        a callable and has the right parameters"""
+        if not callable(value):
+            raise TypeError(f"{value} is not a callable, must be a function")
+        try:
+            temp = value(p=1, error_estimator=integral)
+            if not isinstance(temp, ErrorController):
+                raise TypeError(
+                    f"{value} does not instantiate an instance of ErrorController"
+                )
+        except:
+            raise TypeError(
+                "Cannot generate an ErrorController with p and error_estimator alone. "
+                "Please make sure all other arguments are optional."
+            )
 
     def setup(self):
         self._setup_inner_problems()
