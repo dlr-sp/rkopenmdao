@@ -69,7 +69,7 @@ class ButcherTableau:
             self.butcher_time_stages = np.sum(self.butcher_matrix, 1)
         else:
             self.butcher_time_stages = butcher_time_stages
-            if not np.all(np.sum(self.butcher_matrix, 1) - butcher_time_stages) < 1e-5:
+            if np.all(np.sum(self.butcher_matrix, 1) - butcher_time_stages) >= 1e-5:
                 warnings.warn(
                     "Spatial shift matrix (A) rows do not "
                     "sum up to the temporal shift vector (c) indices value"
