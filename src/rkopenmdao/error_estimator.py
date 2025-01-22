@@ -3,30 +3,34 @@
 # pylint: disable = c-extension-no-member
 
 from abc import ABC, abstractmethod
-import numpy as np
+from dataclasses import dataclass
+
 from mpi4py import MPI
+import numpy as np
+
 from .metadata_extractor import TimeIntegrationMetadata
 
 
+@dataclass
 class ErrorEstimator(ABC):
     """
     Solves a norm for the difference of two vectors Delta = U - U_embedded
     """
 
+    order: int = 2
+    quantity_metadata: TimeIntegrationMetadata = None
+    comm: MPI.COMM_WORLD = MPI.COMM_WORLD
+
     @abstractmethod
-    def __init__(
-        self,
-        order: int,
-        quantity_metadata: TimeIntegrationMetadata,
-        comm: MPI.COMM_WORLD,
-    ):
+    def __call__(self, u, embedded_u) -> float:
         pass
 
     @abstractmethod
-    def __call__(self, u, embedded_u):
+    def __str__(self):
         pass
 
 
+@dataclass
 class SimpleErrorEstimator(ErrorEstimator):
     """
     A simple norm solver, in which a numpy.linalg is utilized to calculate the norm
@@ -37,7 +41,10 @@ class SimpleErrorEstimator(ErrorEstimator):
     ----------
     order : {non-zero int, inf, -inf}, optional
         Order of the norm. inf means numpy's inf object. The default is 2.
-
+    quantity_metadata : TimeIntegrationMetadata, optional
+        Time integrated quantities
+    comm: MPI.COMM_WORLD, optional
+        MPI communication
     Methods
     -------
     __call__(u, embedded_u)
@@ -45,23 +52,6 @@ class SimpleErrorEstimator(ErrorEstimator):
     __str__()
         prints the Lp/Lebesgue space.
     """
-
-    def __init__(
-        self,
-        order=2,
-        quantity_metadata: TimeIntegrationMetadata = None,
-        comm=MPI.COMM_WORLD,
-    ):
-        """
-        Parameters
-        ----------
-        order: {non-zero int, inf, -inf}, optional
-            Order of the norm. inf means numpy's inf object. The default is 2.
-        comm: MPI.COMM_WORLD, optional
-            MPI communicator "MPI_COMM_WORLD"
-        """
-        self.order = order
-        self.comm = comm
 
     def __call__(self, u: np.ndarray, embedded_u: np.ndarray) -> float:
         """
@@ -109,30 +99,8 @@ class ImprovedErrorEstimator(ErrorEstimator):
         prints the Lp/Lebesgue space and the attributes
     """
 
-    def __init__(
-        self,
-        order=2,
-        quantity_metadata: TimeIntegrationMetadata = None,
-        comm=MPI.COMM_WORLD,
-        eta=1e-6,
-        eps=1e-6,
-    ):
-        """
-        Parameters
-        ----------
-        order: {non-zero int, inf, -inf}, optional
-            Order of the norm. inf means numpy's inf object. The default is 2.
-        comm: MPI.COMM_WORLD, optional
-            MPI communicator "MPI_COMM_WORLD"
-        eta: float, optional
-            A small positive absolute tolerance which added to avoid division by zero.
-        eps: float, optional
-            relative error tolerance
-        """
-        self.order = order
-        self.eta = eta
-        self.eps = eps
-        self.comm = comm
+    eta = 1e-6
+    eps = 1e-6
 
     def __call__(self, u: np.ndarray, embedded_u: np.ndarray) -> float:
         """
