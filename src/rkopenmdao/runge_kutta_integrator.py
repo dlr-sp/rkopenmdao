@@ -348,7 +348,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             raise TypeError(f"{value} is not a subclass of CheckpointInterface")
 
     @staticmethod
-    def check_error_controller(self, value):
+    def check_error_controller(name, value):
         """Checks whether the passed error_controller type for the options is an actual
         a callable and has the right parameters"""
         if not callable(value):
@@ -359,11 +359,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 raise TypeError(
                     f"{value} does not instantiate an instance of ErrorController"
                 )
-        except:
+        except Exception as exc:
             raise TypeError(
-                "Cannot generate an ErrorController with p and error_estimator alone. "
-                "Please make sure all other arguments are optional."
-            )
+                """Cannot generate an ErrorController with p and error_estimator alone. 
+                Please make sure all other arguments are optional."""
+            ) from exc
 
     def setup(self):
         self._setup_inner_problems()
