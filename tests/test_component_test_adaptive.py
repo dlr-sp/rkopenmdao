@@ -534,8 +534,8 @@ def check_partials_wo_fd(jac_data, tol=1e-6):
     values, which lead the error estimator to also be differentiated.
     The implementation of fwd and rev mode explicitely excludes the error estimator
     from the derivatives, because else that would introduce errors
-    (see 1. https://www.sciencedirect.com/science/article/pii/S0377042709006062 and
-    2. https://citeseerx.ist.psu.edu/document?repid=rep1&type=pdf&doi=737aaabb476673894a6c7f057946002dbaa66cc5)
+    (see 1. https://doi.org/10.1016/j.cam.2009.08.109 and
+    2. http://dx.doi.org/10.1090/S0025-5718-99-01027-3
     """
     for i in ["x_initial", "b"]:
         fwd = jac_data["rk_integrator"][("x_final", i)]["J_fwd"][0]
