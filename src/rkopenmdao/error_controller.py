@@ -184,8 +184,8 @@ class ErrorController:
         """
         _vars = vars(self)
         name = _vars.pop("name")
-        _vars.pop("local_error_norms")
-        _vars.pop("delta_time_steps")
+        _vars.pop("_local_error_norms")
+        _vars.pop("_delta_time_steps")
         _str_list = []
         for var in _vars:
             if _vars[var] is not None and _vars[var] != 0:

@@ -29,6 +29,23 @@ class ErrorEstimator(ABC):
     def __str__(self):
         pass
 
+    def _process_quantity(self, quantity, vector):
+        if quantity.array_metadata.distributed:
+            return _mpi_partial_norm(vector, self.order, self.comm)
+        else:
+            return _non_mpi_partial_norm(vector, self.order)
+
+    def _global_value_estimator(self, global_value, additional_value):
+        if self.order == np.inf:
+            return max(global_value, additional_value)
+        if self.order == -np.inf:
+            return min(global_value, additional_value)
+        return global_value + additional_value
+
+    def _normalize(self, global_value):
+        if self.order >= 2:
+            return global_value ** (1 / self.order)
+
 
 @dataclass
 class SimpleErrorEstimator(ErrorEstimator):
@@ -67,8 +84,16 @@ class SimpleErrorEstimator(ErrorEstimator):
         float
             Norm of the difference of two vectors
         """
+        global_value = 0
         delta = u - embedded_u
-        return _mpi_norm(delta, self.order, self.comm)
+        for quantity in self.quantity_metadata.time_integration_quantity_list:
+            start = quantity.array_metadata.start_index
+            end = quantity.array_metadata.end_index
+            global_value = self._global_value_estimator(
+                global_value, self._process_quantity(quantity, delta.copy()[start:end])
+            )
+        global_value = self._normalize(global_value)
+        return global_value
 
     def __str__(self):
         """Prints the Lp/Lebesgue space"""
@@ -118,36 +143,69 @@ class ImprovedErrorEstimator(ErrorEstimator):
         float
             Norm of Delta
         """
+        global_temp_value = 0
+        global_value = 0
 
-        u_norm = _mpi_norm(u.copy(), self.order, self.comm)
+        for quantity in self.quantity_metadata.time_integration_quantity_list:
+            start = quantity.array_metadata.start_index
+            end = quantity.array_metadata.end_index
+            global_temp_value = self._global_value_estimator(
+                global_temp_value, self._process_quantity(quantity, u.copy()[start:end])
+            )
+        global_temp_value = self._normalize(global_temp_value)
+
         delta = u - embedded_u
-        return _mpi_norm(delta, self.order, self.comm) / (u_norm + self.eta / self.eps)
+        for quantity in self.quantity_metadata.time_integration_quantity_list:
+            start = quantity.array_metadata.start_index
+            end = quantity.array_metadata.end_index
+            global_value = self._global_value_estimator(
+                global_value, self._process_quantity(quantity, delta.copy()[start:end])
+            )
+        global_value /= global_temp_value + self.eta / self.eps
+        return global_value
 
     def __str__(self):
         """prints the Lp/Lebesgue space and the attributes"""
         return f"L_{self.order} norm:  eta = {self.eta}, eps = {self.eps}."
 
 
-def _mpi_norm(val: np.ndarray, order, comm: MPI.Comm) -> float:
+def _mpi_partial_norm(val: np.ndarray, order, comm: MPI.Comm) -> float:
     """Norm calculator using MPI interface."""
     if order == np.inf:
         local_norm = np.abs(val).max()
-        norm = comm.allreduce(local_norm, op=MPI.MAX)
+        partial_norm = comm.allreduce(local_norm, op=MPI.MAX)
     elif order == -np.inf:
         local_norm = np.abs(val).min()
-        norm = comm.allreduce(local_norm, op=MPI.MIN)
+        partial_norm = comm.allreduce(local_norm, op=MPI.MIN)
     elif order == 0:
         local_sum_order = (val != 0).astype(val.real.dtype).sum()
-        norm = comm.allreduce(local_sum_order, op=MPI.SUM)
+        partial_norm = comm.allreduce(local_sum_order, op=MPI.SUM)
     elif order == 1:
         # Special case for speedup
         local_sum_order = np.sum(np.abs(val))
-        norm = comm.allreduce(local_sum_order, op=MPI.SUM)
+        partial_norm = comm.allreduce(local_sum_order, op=MPI.SUM)
     elif order == 2:
         # Special case for speedup (complex numbers)
         local_sum_order = np.sum((val.conj() * val).real)
-        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** 0.5
+        partial_norm = comm.allreduce(local_sum_order, op=MPI.SUM)
     else:
         local_sum_order = np.sum(np.abs(val) ** order)
-        norm = comm.allreduce(local_sum_order, op=MPI.SUM) ** (1 / order)
-    return norm
+        partial_norm = comm.allreduce(local_sum_order, op=MPI.SUM)
+    return partial_norm
+
+
+def _non_mpi_partial_norm(val: np.ndarray, order) -> float:
+    if order == np.inf:
+        partial_norm = np.abs(val).max()
+    elif order == -np.inf:
+        partial_norm = np.abs(val).min()
+    elif order == 0:
+        partial_norm = (val != 0).astype(val.real.dtype).sum()
+    elif order == 1:
+        # Special case for speedup
+        partial_norm = np.sum(np.abs(val))
+    elif order == 2:
+        partial_norm = np.sum((val.conj() * val).real)
+    else:
+        partial_norm = np.sum(np.abs(val) ** order)
+    return partial_norm

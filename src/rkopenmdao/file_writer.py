@@ -107,15 +107,16 @@ class TXTFileWriter(FileWriterInterface):
         postprocessing_data: np.ndarray,
     ) -> None:
         if self.comm.rank == 0:
+            mode = "a"
             if step == 0:
-                open(self.file_name, "w", encoding="utf-8").close()
+                mode = "w"
             data_map = {
                 "time_integration": time_integration_data,
                 "postprocessing": postprocessing_data,
             }
             data_dict = {"step": step, "time": time}
 
-            with open(self.file_name, "a", encoding="utf-8") as file_out:
+            with open(self.file_name, mode, encoding="utf-8") as file_out:
                 for quantity in chain(
                     self.time_integration_metadata.time_integration_quantity_list,
                     self.time_integration_metadata.postprocessing_quantity_list,

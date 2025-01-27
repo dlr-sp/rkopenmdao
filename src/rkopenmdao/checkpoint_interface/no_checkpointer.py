@@ -27,6 +27,8 @@ class NoCheckpointer(CheckpointInterface):
                 self.integration_control.delta_t
                 / self.integration_control.delta_t_suggestion
                 < 1e-10
+                and self.integration_control.step > 1
+                and not self.integration_control.is_last_time_step
             ):
                 raise ValueError(
                     "Oscilliations Error: Oscilliation on forward iteration "

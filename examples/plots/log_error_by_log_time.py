@@ -74,7 +74,7 @@ def component_integration(
     integration_control = IntegrationControl(0, termination_criterion, delta_t)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
-        "test_comp", _class(integration_control=integration_control)
+        "test_comp", component_class(integration_control=integration_control)
     )
     runge_kutta_prob = om.Problem()
     runge_kutta_prob.model.add_subsystem(
@@ -103,44 +103,47 @@ def component_integration(
     return np.abs([solution(10.0, -1e2)] - result)
 
 
-delta_t = [1e-4, 0.5e-3, 1e-3, 0.5e-2, 1e-2, 0.5e-1, 1e-1]
-delta_t = np.array(delta_t)
-error_data = {}
-butcher_tableaux = [
-    implicit_euler,
-    two_stage_dirk,
-    four_stage_dirk,
-    five_stage_esdirk,
-    six_stage_esdirk,
-]
-for scheme in butcher_tableaux:
-    error_data[f"{scheme.name}"] = []
-    for step_size in delta_t:
-        error_data[f"{scheme.name}"].append(
-            component_integration(ODE, solution, step_size, scheme, ["u"])
-        )
-
-if rank == 0:
-
-    fig = plt.figure()
-    # x axis
-    plt.xlabel("Step size t [s] (log scale)")
-    plt.xscale("log")
-    # y axis
-    plt.ylabel("Global Error E [-] (log scale)")
-    plt.yscale("log")
-    plt.grid(True)
+if __name__ == "__main__":
+    delta_t = [1e-4, 0.5e-3, 1e-3, 0.5e-2, 1e-2, 0.5e-1, 1e-1]
+    delta_t = np.array(delta_t)
+    error_data = {}
+    butcher_tableaux = [
+        implicit_euler,
+        two_stage_dirk,
+        four_stage_dirk,
+        five_stage_esdirk,
+        six_stage_esdirk,
+    ]
     for scheme in butcher_tableaux:
-        p = scheme.p
-        plt.plot(delta_t, error_data[f"{scheme.name}"], lw=2, label=f"{scheme.name}")
-        plt.plot(
-            delta_t,
-            (error_data[f"{scheme.name}"][-1] / delta_t[-1] ** p) * (delta_t) ** p,
-            "k--",
-            lw=1,
-        )
+        error_data[f"{scheme.name}"] = []
+        for step_size in delta_t:
+            error_data[f"{scheme.name}"].append(
+                component_integration(ODE, solution, step_size, scheme, ["u"])
+            )
 
-    plt.xlim(delta_t[0], delta_t[-1])
-    plt.legend()
-    plt.show()
-    fig.savefig("error_time_plot.pdf")
+    if rank == 0:
+
+        fig = plt.figure()
+        # x axis
+        plt.xlabel("Step size t [s] (log scale)")
+        plt.xscale("log")
+        # y axis
+        plt.ylabel("Global Error E [-] (log scale)")
+        plt.yscale("log")
+        plt.grid(True)
+        for scheme in butcher_tableaux:
+            p = scheme.p
+            plt.plot(
+                delta_t, error_data[f"{scheme.name}"], lw=2, label=f"{scheme.name}"
+            )
+            plt.plot(
+                delta_t,
+                (error_data[f"{scheme.name}"][-1] / delta_t[-1] ** p) * (delta_t) ** p,
+                "k--",
+                lw=1,
+            )
+
+        plt.xlim(delta_t[0], delta_t[-1])
+        plt.legend()
+        plt.show()
+        fig.savefig("error_time_plot.pdf")
