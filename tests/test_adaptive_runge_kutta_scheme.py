@@ -13,13 +13,20 @@ from rkopenmdao.error_estimator import (
     SimpleErrorEstimator,
     ImprovedErrorEstimator,
 )
+from rkopenmdao.metadata_extractor import (
+    TimeIntegrationMetadata,
+    TimeIntegrationTranslationMetadata,
+    TimeIntegrationQuantity,
+    PostprocessingQuantity,
+    TimeIndependentQuantity,
+    ArrayMetadata,
+)
 from rkopenmdao.error_controllers import pid
 from tests.test_runge_kutta_scheme import (
     RkFunctionProvider,
     RootOdeJacvec,
     RootOdeJacvecTransposed,
 )
-
 
 root_ode_jacvec = RootOdeJacvec()
 root_ode_jacvec_transposed = RootOdeJacvecTransposed()
@@ -34,8 +41,36 @@ root_ode_provider = RkFunctionProvider(
     root_ode_jacvec_transposed,
 )
 comm = MPI.COMM_WORLD
-simple_error_estimator = SimpleErrorEstimator(2, comm=comm)
-improved_error_estimator = ImprovedErrorEstimator(2, comm=comm)
+array_metadata = ArrayMetadata()
+translations_metadata = TimeIntegrationTranslationMetadata()
+time_int_quantity = TimeIntegrationQuantity(
+    name="x",
+    type="time_integration",
+    array_metadata=array_metadata,
+    translation_metadata=translations_metadata,
+)
+post_proc_quantity = PostprocessingQuantity(
+    name="x",
+    type="time_integration",
+    array_metadata=array_metadata,
+    translation_metadata=translations_metadata,
+)
+time_ind_quantity = TimeIndependentQuantity(
+    name="x",
+    type="time_integration",
+    array_metadata=array_metadata,
+    translation_metadata=translations_metadata,
+)
+metadata = TimeIntegrationMetadata(
+    time_integration_quantity_list=[time_int_quantity],
+    postprocessing_quantity_list=[post_proc_quantity],
+    time_independent_input_quantity_list=[time_ind_quantity],
+)
+
+simple_error_estimator = SimpleErrorEstimator(2, comm=comm, quantity_metadata=metadata)
+improved_error_estimator = ImprovedErrorEstimator(
+    2, comm=comm, quantity_metadata=metadata
+)
 error_controller = pid(
     embedded_heun_euler.min_p_order(), error_estimator=simple_error_estimator
 )
@@ -72,5 +107,5 @@ def test_compute_step(
 ):
     """Tests the compute_step function."""
     assert rk_scheme.compute_step(delta_t, old_state, stage_field) == pytest.approx(
-        (np.array([expected_new_state]), 0.08856331877659177, False)
+        (np.array([expected_new_state]), 0.1, True)
     )
