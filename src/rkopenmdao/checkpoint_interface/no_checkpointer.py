@@ -19,10 +19,23 @@ class NoCheckpointer(CheckpointInterface):
         """Doesn't checkpoint, so does nothing"""
 
     def iterate_forward(self, initial_state):
-        """Runs time intgration from start to finish."""
+        """Runs time integration from start to finish."""
         self._state = initial_state
-        for i in range(self.num_steps):
-            self._state = self.run_step_func(i + 1, self._state.copy())
+        while self.integration_control.termination_condition_status():
+            self._state = self.run_step_func(self._state.copy())[0]
+            if (
+                self.integration_control.delta_t
+                / self.integration_control.delta_t_suggestion
+                < 1e-10
+                and self.integration_control.step > 1
+                and not self.integration_control.is_last_time_step
+            ):
+                raise ValueError(
+                    "Oscilliations Error: Oscilliation on forward iteration "
+                    f"at step <{self.integration_control.step}>: "
+                    f"dt = {self.integration_control.delta_t} and "
+                    f"dt_suggestion = {self.integration_control.delta_t_suggestion}"
+                )
 
     def iterate_reverse(self, final_state_perturbation):
         """Does nothing"""

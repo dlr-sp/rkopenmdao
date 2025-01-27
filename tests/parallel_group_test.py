@@ -6,8 +6,11 @@ import pytest
 import numpy as np
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import IntegrationControl
-from rkopenmdao.butcher_tableaux import implicit_euler, second_order_three_stage_esdirk
+from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
+from rkopenmdao.butcher_tableaux import (
+    implicit_euler,
+    embedded_second_order_three_stage_esdirk,
+)
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
@@ -385,8 +388,10 @@ class ThirdComponent(om.ExplicitComponent):
 
 
 def ode_system_solution(time: float, initial_values: np.ndarray):
-    """Analytical solution to the above ODE system. Expects in order d to a, and returns
-    in the same order"""
+    """
+    Analytical solution to the above ODE system. Expects in order d to a,
+    and returns in the same order
+    """
     return np.array(
         [
             initial_values[0] * np.exp(time),
@@ -461,7 +466,8 @@ class PostprocSumComp(om.ExplicitComponent):
 def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tableau):
     """Setup for the stage problem in the following test cases."""
     prob = om.Problem()
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    termination_criterion = TerminationCriterion("num_steps", num_steps)
+    integration_control = IntegrationControl(0.0, termination_criterion, delta_t)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
     ]
@@ -589,7 +595,7 @@ def set_time_integration_initial_values(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_three_stage_esdirk]
 )
 @pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
 def test_parallel_group_time_integration(
@@ -629,7 +635,7 @@ def test_parallel_group_time_integration(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_three_stage_esdirk]
 )
 @pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
 def test_parallel_group_time_integration_with_postprocessing(
@@ -669,7 +675,7 @@ def test_parallel_group_time_integration_with_postprocessing(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_three_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
@@ -725,7 +731,7 @@ def test_parallel_group_time_integration_totals(
 @pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, second_order_three_stage_esdirk]
+    "butcher_tableau", [implicit_euler, embedded_second_order_three_stage_esdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
