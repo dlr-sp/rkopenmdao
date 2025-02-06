@@ -2,7 +2,7 @@ name: rkopenmdao matrix tests
 
 on:
   schedule:
-    - cron: 30 0 * * 1 # Monday 0:30
+    - cron: "30 0 * * 1" # Monday 0:30
   push:
     branches:
       - "maintenance/matrix_tests_CI"
