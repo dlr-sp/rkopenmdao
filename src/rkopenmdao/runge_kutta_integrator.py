@@ -40,7 +40,7 @@ from .file_writer import FileWriterInterface, Hdf5FileWriter
 class RungeKuttaIntegrator(om.ExplicitComponent):
     """Outer component for solving time-dependent problems with explicit or diagonally
     implicit Runge-Kutta schemes. One stage of the scheme is modelled by an inner
-    OpenMDAO-problem. Optionally, time-step postprocessing and calculationof linear
+    OpenMDAO-problem. Optionally, time-step postprocessing and calculation of linear
     combinations of quantities can be done.
     OpenMDAO inputs: - initial values of the quantities for the time integration
     OpenMDAO output: - final values of the quantities for the time integration
