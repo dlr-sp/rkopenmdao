@@ -22,3 +22,4 @@ convergence_test/**
 **/tests/dat_**
 **.dat
 .coverage
+file_0
