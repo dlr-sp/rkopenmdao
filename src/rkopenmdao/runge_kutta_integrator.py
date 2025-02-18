@@ -79,6 +79,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     _disable_write_out: bool
     _file_writer: FileWriterInterface | None
+    _time_integration_number: int
 
     _checkpointer: CheckpointInterface | None
 
@@ -115,6 +116,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._disable_write_out = False
         self._file_writer = None
+        self._time_integration_number = 0
 
         self._checkpointer = None
 
@@ -298,7 +300,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_arrays()
         self._setup_runge_kutta_scheme()
         self._setup_postprocessor()
-        self._configure_write_out()
         self._setup_checkpointing()
 
     def _setup_inner_problems(self):
@@ -538,8 +539,22 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _configure_write_out(self):
         self._disable_write_out = self.options["write_out_distance"] == 0
         if not self._disable_write_out:
+            delimiter = self.options["write_file"].rfind(".")
+            if delimiter != -1:
+                file_name = (
+                    self.options["write_file"][:delimiter]
+                    + "_"
+                    + str(self._time_integration_number)
+                    + self.options["write_file"][delimiter:]
+                )
+            else:
+                file_name = (
+                    self.options["write_file"]
+                    + "_"
+                    + str(self._time_integration_number)
+                )
             self._file_writer = self.options["file_writing_implementation"](
-                self.options["write_file"], self._time_integration_metadata, self.comm
+                file_name, self._time_integration_metadata, self.comm
             )
 
     def _setup_checkpointing(self):
@@ -554,6 +569,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         if self.comm.rank == 0:
             print("\n\nStarting compute\n\n")
+        self._configure_write_out()
         self._compute_preparation_phase(inputs)
         self._compute_postprocessing_phase()
         self._compute_initial_write_out_phase()
@@ -561,6 +577,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._compute_checkpointing_setup_phase()
         self._checkpointer.iterate_forward(self._serialized_state)
         self._compute_translate_to_om_vector_phase(outputs)
+        self._time_integration_number += 1
         if self.comm.rank == 0:
             print("\n\nFinishing compute\n\n")
 
@@ -1061,7 +1078,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._from_numpy_array_independent_input(
             self._independent_input_perturbations, d_inputs
         )
-        self._configure_write_out()
 
         # using the checkpoints invalidates the checkpointer in general
         self._cached_input = (np.full(0, np.nan), np.full(0, np.nan))
