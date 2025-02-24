@@ -33,6 +33,9 @@ from .metadata_extractor import (
     Quantity,
     TimeIntegrationMetadata,
 )
+from .time_discretization.diagonally_implicit_runge_kutta_discretization import (
+    DiagonallyImplicitRungeKuttaDiscretization,
+)
 
 from .file_writer import FileWriterInterface, Hdf5FileWriter
 
@@ -82,6 +85,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     _checkpointer: CheckpointInterface | None
 
+    _time_discretization: DiagonallyImplicitRungeKuttaDiscretization | None
+
+    _step_input_state: np.ndarray | None
+    _step_output_state: np.ndarray | None
+    _step_input_perturbation: np.ndarray | None
+    _step_output_perturbation: np.ndarray | None
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._functional_quantities = []
@@ -117,6 +127,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._file_writer = None
 
         self._checkpointer = None
+
+        self._time_discretization = None
+        self._step_input_state = None
+        self._step_output_state = None
+        self._step_input_perturbation = None
+        self._step_output_perturbation = None
 
     def initialize(self):
         self.options.declare(
@@ -295,9 +311,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def setup(self):
         self._setup_inner_problems()
         self._setup_variables()
-        self._setup_arrays()
         self._setup_runge_kutta_scheme()
         self._setup_postprocessor()
+        self._setup_arrays()
         self._configure_write_out()
         self._setup_checkpointing()
 
@@ -441,40 +457,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
 
     def _setup_arrays(self):
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        self._serialized_state = np.zeros(
-            self._time_integration_metadata.time_integration_array_size
-        )
-        self._accumulated_stages = np.zeros(
-            self._time_integration_metadata.time_integration_array_size
-        )
-        self._stage_cache = np.zeros(
-            (
-                butcher_tableau.number_of_stages(),
-                self._time_integration_metadata.time_integration_array_size,
-            )
-        )
-        self._serialized_state_perturbations = np.zeros(
-            self._time_integration_metadata.time_integration_array_size
-        )
-        self._serialized_state_perturbations_from_functional = np.zeros(
-            self._time_integration_metadata.time_integration_array_size
-        )
-        self._accumulated_stage_perturbations = np.zeros(
-            self._time_integration_metadata.time_integration_array_size
-        )
-        self._stage_perturbations_cache = np.zeros(
-            (
-                butcher_tableau.number_of_stages(),
-                self._time_integration_metadata.time_integration_array_size,
-            )
-        )
-        self._independent_input_array = np.zeros(
-            self._time_integration_metadata.time_independent_input_size
-        )
-        self._independent_input_perturbations = np.zeros(
-            self._time_integration_metadata.time_independent_input_size
-        )
+        self._step_input_state = self._time_discretization.create_zero_state()
+        self._step_output_state = self._time_discretization.create_zero_state()
+        self._step_input_perturbation = self._time_discretization.create_zero_state()
+        self._step_output_perturbation = self._time_discretization.create_zero_state()
+
         self._postprocessing_state = np.zeros(
             self._time_integration_metadata.postprocessing_array_size
         )
@@ -489,9 +476,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
     def _setup_runge_kutta_scheme(self):
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        self._runge_kutta_scheme = RungeKuttaScheme(
-            butcher_tableau,
+        self._time_discretization = DiagonallyImplicitRungeKuttaDiscretization(
+            self._time_integration_metadata.time_integration_array_size,
+            self._time_integration_metadata.time_independent_input_size,
+            0,
+            self.options["butcher_tableau"],
             TimeStageProblemComputeFunctor(
                 self.options["time_stage_problem"],
                 self.options["integration_control"],
@@ -559,19 +548,49 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._compute_initial_write_out_phase()
         self._compute_functional_phase()
         self._compute_checkpointing_setup_phase()
-        self._checkpointer.iterate_forward(self._serialized_state)
+        self._checkpointer.iterate_forward(self._step_input_state)
         self._compute_translate_to_om_vector_phase(outputs)
         if self.comm.rank == 0:
             print("\n\nFinishing compute\n\n")
 
     def _compute_preparation_phase(self, inputs: OMVector):
-        self._to_numpy_array_time_integration(inputs, self._serialized_state)
-        self._to_numpy_array_independent_inputs(inputs, self._independent_input_array)
-        self._cached_input = (
-            self._serialized_state.copy(),
-            self._independent_input_array.copy(),
-        )
+        self._step_input_state = self._om_vector_to_initial_state(inputs)
+        self._cached_input = self._step_input_state.copy()
         self.options["integration_control"].reset()
+
+    def _om_vector_to_initial_state(self, om_vector: OMVector) -> np.ndarray:
+        if om_vector._kind != "input":
+            raise TypeError("Can't extract initial state data from an output vector")
+        else:
+            integration_control: IntegrationControl = self.options[
+                "integration_control"
+            ]
+            initial_state = np.zeros(
+                self._time_integration_metadata.time_integration_array_size
+            )
+            independent_inputs = np.zeros(
+                self._time_integration_metadata.time_independent_input_size
+            )
+            for (
+                quantity
+            ) in self._time_integration_metadata.time_integration_quantity_list:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                initial_state[start:end] = om_vector[
+                    quantity.name + "_initial"
+                ].flatten()
+            for (
+                quantity
+            ) in self._time_integration_metadata.time_independent_input_quantity_list:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                independent_inputs[start:end] = om_vector[quantity.name].flatten()
+            return self._time_discretization.create_initial_state(
+                integration_control.initial_time,
+                integration_control.delta_t,
+                initial_state,
+                independent_inputs,
+            )
 
     def _to_numpy_array_time_integration(
         self, om_vector: OMVector, np_array: np.ndarray
@@ -687,11 +706,29 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._checkpointer.create_checkpointer()
 
     def _compute_translate_to_om_vector_phase(self, outputs: OMVector):
-        self._from_numpy_array_time_integration(self._serialized_state, outputs)
+        self._step_state_to_output_vector(outputs)
         if self.options["postprocessing_problem"] is not None:
             self._from_numpy_array_postprocessing(self._postprocessing_state, outputs)
         if self._functional_quantities:
             self._add_functional_part_to_om_vec(self._functional_part, outputs)
+
+    def _step_state_to_output_vector(self, outputs: OMVector):
+        if outputs._kind != "output":
+            raise TypeError("Can't export final state data to an input vector")
+        else:
+            final_time, final_delta_t, final_state = (
+                self._time_discretization.export_final_state_state(
+                    self._step_output_state
+                )
+            )
+            for (
+                quantity
+            ) in self._time_integration_metadata.time_integration_quantity_list:
+                start = quantity.array_metadata.start_index
+                end = quantity.array_metadata.end_index
+                outputs[quantity.name + "_final"] = final_state[start:end].reshape(
+                    quantity.array_metadata.shape
+                )
 
     def _from_numpy_array_time_integration(
         self, np_array: np.ndarray, om_vector: OMVector
@@ -747,64 +784,18 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     start:end
                 ].reshape(quantity.array_metadata.shape)
 
-    def _run_step(self, step, serialized_state):
+    def _run_step(self, step, step_input_state):
         if self.comm.rank == 0:
             print(f"\nStarting step {step} of compute.\n")
-        self._run_step_preparation_phase(step, serialized_state)
-        self._run_step_time_integration_phase()
-        self._run_step_postprocessing_phase()
-        self._run_step_functional_phase()
-        self._run_step_write_out_phase()
+            self._time_discretization.compute_step(
+                step_input_state, self._step_output_state
+            )
+            self._run_step_postprocessing_phase()
+            self._run_step_functional_phase()
+            self._run_step_write_out_phase()
         if self.comm.rank == 0:
             print(f"\nFinishing step {step} of compute.\n")
-        return self._serialized_state
-
-    def _run_step_preparation_phase(self, step, serialized_state):
-        self._update_integration_control_step(step)
-        self._serialized_state = serialized_state
-
-    def _update_integration_control_step(self, step):
-        initial_time = self.options["integration_control"].initial_time
-        delta_t = self.options["integration_control"].delta_t
-        self.options["integration_control"].step = step
-        time = initial_time + (step - 1) * delta_t
-        self.options["integration_control"].step_time_old = time
-        self.options["integration_control"].step_time_new = time + delta_t
-
-    def _run_step_time_integration_phase(self):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        for stage in range(butcher_tableau.number_of_stages()):
-            self._stage_computation(stage)
-        self._serialized_state = self._runge_kutta_scheme.compute_step(
-            delta_t, self._serialized_state, self._stage_cache
-        )
-
-    def _stage_computation(self, stage):
-        delta_t = self.options["integration_control"].delta_t
-        time = self.options["integration_control"].step_time_old
-        step = self.options["integration_control"].step
-        if self.comm.rank == 0:
-            print(f"Starting stage {stage} of compute in step {step}.")
-        self.options["integration_control"].stage = stage
-        if stage != 0:
-            self._accumulated_stages = (
-                self._runge_kutta_scheme.compute_accumulated_stages(
-                    stage, self._stage_cache
-                )
-            )
-        else:
-            self._accumulated_stages.fill(0.0)
-        self._stage_cache[stage, :] = self._runge_kutta_scheme.compute_stage(
-            stage,
-            delta_t,
-            time,
-            self._serialized_state,
-            self._accumulated_stages,
-            self._independent_input_array,
-        )
-        if self.comm.rank == 0:
-            print(f"Finished stage {stage} of compute in step {step}.")
+        return self._step_output_state
 
     def _run_step_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
@@ -901,73 +892,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for step in range(1, num_steps + 1):
             if self.comm.rank == 0:
                 print(f"\nStarting step {step} of fwd-mode jacvec product.\n")
-            self._compute_jacvec_fwd_run_steps_preparation_phase(step)
-            self._compute_jacvec_fwd_run_steps_time_integration_phase()
+            self._time_discretization.compute_step_forward_derivative(
+                self._step_input_state,
+                self._step_output_state,
+                self._step_input_perturbation,
+                self._step_output_perturbation,
+            )
             self._compute_jacvec_fwd_run_steps_postprocessing_phase()
             self._compute_jacvec_fwd_run_steps_functional_phase()
             if self.comm.rank == 0:
                 print(f"\nFinished step {step} of fwd-mode jacvec product.\n")
-
-    def _compute_jacvec_fwd_run_steps_preparation_phase(self, step):
-        self._update_integration_control_step(step)
-
-    def _compute_jacvec_fwd_run_steps_time_integration_phase(self):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        time = self.options["integration_control"].step_time_old
-        step = self.options["integration_control"].step
-        for stage in range(butcher_tableau.number_of_stages()):
-            if self.comm.rank == 0:
-                print(
-                    f"Starting stage {stage} of fwd-mode jacvec productin step {step}."
-                )
-            if stage != 0:
-                self._accumulated_stages = (
-                    self._runge_kutta_scheme.compute_accumulated_stages(
-                        stage, self._stage_cache
-                    )
-                )
-                self._accumulated_stage_perturbations = (
-                    self._runge_kutta_scheme.compute_accumulated_stage_perturbations(
-                        stage, self._stage_perturbations_cache
-                    )
-                )
-            else:
-                self._accumulated_stages.fill(0.0)
-                self._accumulated_stage_perturbations.fill(0.0)
-            self._stage_cache[stage, :] = self._runge_kutta_scheme.compute_stage(
-                stage,
-                delta_t,
-                time,
-                self._serialized_state,
-                self._accumulated_stages,
-                self._independent_input_array,
-            )
-            self._stage_perturbations_cache[stage, :] = (
-                self._runge_kutta_scheme.compute_stage_jacvec(
-                    stage,
-                    delta_t,
-                    time,
-                    self._serialized_state_perturbations,
-                    self._accumulated_stage_perturbations,
-                    self._independent_input_perturbations,
-                )
-            )
-            if self.comm.rank == 0:
-                print(
-                    f"Finished stage {stage} of fwd-mode jacvec product in step {step}."
-                )
-        self._serialized_state = self._runge_kutta_scheme.compute_step(
-            delta_t, self._serialized_state, self._stage_cache
-        )
-
-        self._serialized_state_perturbations = (
-            self._runge_kutta_scheme.compute_step_jacvec(
-                delta_t,
-                self._serialized_state_perturbations,
-                self._stage_perturbations_cache,
-            )
-        )
 
     def _compute_jacvec_fwd_run_steps_postprocessing_phase(self):
         if self.options["postprocessing_problem"] is not None:
