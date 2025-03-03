@@ -22,8 +22,8 @@ This script offers three arguments:
     values varied to achieve the optimum of J.
 --epsilon_parameters: The number of different epsilons used in the time integrations for
     the optimization. The simulation time will be split into as many equally sized
-    intervals, such that there is an interval for each epsilon.
---delta_t: The step size to be used for the time integrations.
+    intervals, such that there is an interval for each epsilon. Default is 1.
+--delta_t: The step size to be used for the time integrations. Default is 0.1,
 --epsilon_input_file: Optional file for the initial values of epsilon at the start of
     the optimization. Must be formatted such that it can be read via np.loadtxt into an
     array of size --num_parameters. If not provided, an array filled with 0.3 will be
@@ -428,8 +428,6 @@ if __name__ == "__main__":
         rk_prob["epsilon"] = np.loadtxt(epsilon_input_file)
     else:
         rk_prob["epsilon"].fill(0.3)
-        # optimization usually goes wrong for initial eps >= 0.4,
-        # and works for eps <= 0.39
 
     rk_prob.run_driver()
 
