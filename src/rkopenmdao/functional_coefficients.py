@@ -52,7 +52,7 @@ class AverageCoefficients(FunctionalCoefficients):
         return self._quantity_list
 
     def get_coefficient(self, time_step: int, quantity: str) -> float | np.ndarray:
-        return (self._integration_control.termination_criterion.value + 1) ** -1
+        return (self._integration_control.num_steps + 1) ** -1
 
 
 class CompositeTrapezoidalCoefficients(FunctionalCoefficients):
@@ -71,7 +71,7 @@ class CompositeTrapezoidalCoefficients(FunctionalCoefficients):
         return self._quantity_list
 
     def get_coefficient(self, time_step: int, quantity: str) -> float | np.ndarray:
-        if time_step in (0, self._integration_control.termination_criterion.value):
+        if time_step in (0, self._integration_control.num_steps):
             return 0.5 * self._integration_control.delta_t
         else:
             return self._integration_control.delta_t

@@ -4,7 +4,10 @@ stages/steps."""
 import pytest
 import openmdao.api as om
 
-from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.butcher_tableaux import (
@@ -48,8 +51,7 @@ class DummyComponent(om.ExplicitComponent):
 @pytest.mark.parametrize("delta_t", [0.1, 0.01])
 def test_integration_control_updating(butcher_tableau, initial_time, delta_t):
     """Tests integration control for step/stage-times."""
-    tc = TerminationCriterion("num_steps", 10)
-    integration_control = IntegrationControl(initial_time, tc, delta_t)
+    integration_control = StepTerminationIntegrationControl(delta_t, 10, initial_time)
     prob = om.Problem()
     prob.model.add_subsystem(
         "dummy",

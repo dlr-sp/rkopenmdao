@@ -1,63 +1,29 @@
 # pylint: disable=missing-module-docstring
 
-from dataclasses import dataclass, field
 import numpy as np
 
 
-@dataclass
-class TerminationCriterion:
-    """
-    Termination Criterion for Runge-Kutta integrator. Can either be by number of time
-    steps or by end time.
-    Parameters
-    ---------
-    criterion: str
-        Stopping criterion to use in Runge-Kutta integrator. Can either be 'num_steps',
-        to set a number of fixed steps, or 'end_time', to set the end time of the
-        Runge-Kutta integrator.
-    value: [int, float]
-        Value of criterion to use in Runge-Kutta integrator; either number of time
-        steps or end time.
-    """
-
-    criterion: str  # ['num_steps', 'end_time']
-    value: [int, float]
-
-
-@dataclass
 class IntegrationControl:
     """
-    Object for exchanging data between the Runge-Kutta integrator and the inner
+    Interface for exchanging data between the Runge-Kutta integrator and the inner
     problems.
     """
 
     # Could solve this by putting things into subclasses, but I don't see the
     # benefit here.
     # pylint: disable=too-many-instance-attributes
-
-    # General information
-    initial_time: float
-    termination_criterion: TerminationCriterion
-    # We later probably want step size control, so then it would be step data
-    initial_delta_t: float
-    # Step data
-    initial_step: int = 0
-    _delta_t: float = field(init=False)
-    smallest_delta_t: float = field(init=False)
-    step: int = field(init=False)
-    step_time: float = field(init=False)
-    # Stage data
-    stage: int = field(init=False)
-    stage_time: float = field(init=False)
-    butcher_diagonal_element: float = field(init=False)
-
-    def __post_init__(self):
+    def __init__(self, initial_delta_t: float, initial_time: float = 0.0):
+        # Time Data
+        self.initial_time = initial_time
+        self.initial_delta_t = initial_delta_t
+        self.smallest_delta_t = self.initial_delta_t
+        self._delta_t = self.initial_delta_t
+        self.delta_t_suggestion = self.initial_delta_t
+        # Step data
+        self.initial_step = 0
         self.step = self.initial_step
         self.step_time = self.initial_time
-        self.smallest_delta_t = self.initial_delta_t
-        self.delta_t = self.initial_delta_t
-        self.delta_t_suggestion = self.initial_delta_t
-
+        # Stage data
         self.stage = 0
         self.stage_time = self.initial_time
         self.butcher_diagonal_element = 0.0
@@ -75,40 +41,30 @@ class IntegrationControl:
     @delta_t.setter
     def delta_t(self, delta_t):
         self._delta_t = delta_t
-        if self.smallest_delta_t > delta_t and delta_t > 0:
-            self.smallest_delta_t = delta_t
+        self.update_smallest_delta_t()
 
-    def is_last_time_step(self, tol=1e-13):
+    def increment_step(self):
+        """Increments step"""
+        self.step += 1
+
+    def decrement_step(self):
+        """Decrements step"""
+        self.step -= 1
+
+    def update_smallest_delta_t(self):
+        """Update the smallest delta_t in the run"""
+        if self.smallest_delta_t > self.delta_t:
+            self.smallest_delta_t = self.delta_t
+
+    def is_last_time_step(self):
         """
-        Parameters
-        ------
-        tol: float, optional
-            Tolerance parameter in the case that the termination criterion is of
-            end_time; to find when the time of the step has reached the target time
-            within within that tolerance.
         Returns
         ------
         bool
             True if last step.
         """
-        if self.termination_criterion.criterion == "end_time":
-            return self.remaining_time() <= tol
-        else:
-            return self.step == self.termination_criterion.value
 
-    def remaining_time(self):
-        """
-        Returns
-        ------
-        float
-            Remaining time.
-        """
-        if self.termination_criterion.criterion == "end_time":
-            return self.termination_criterion.value - self.step_time
-        else:
-            raise TypeError("Termination criteria must be end_time.")
-
-    def termination_condition_status(self, termination_step=0):
+    def termination_condition_status(self, termination_step=0) -> bool:
         """
         A termination condition parameter for a while loop, that terminates when
         last time step is reached.
@@ -130,12 +86,96 @@ class IntegrationControl:
         """
         Returns the instance to its initial state.
         """
-        self.__post_init__()
+        self.step = self.initial_step
+        self.step_time = self.initial_time
+        self.smallest_delta_t = self.initial_delta_t
+        self.delta_t = self.initial_delta_t
+        self.delta_t_suggestion = self.initial_delta_t
 
-    def increment_step(self):
-        """Increments step"""
-        self.step += 1
+        self.stage = 0
+        self.stage_time = self.initial_time
+        self.butcher_diagonal_element = 0.0
 
-    def decrement_step(self):
-        """Decrements step"""
-        self.step -= 1
+
+class TimeTerminationIntegrationControl(IntegrationControl):
+    """
+    Object for exchanging data between the Runge-Kutta integrator
+    and the inner problems and sets a time objective as a criterion
+    for the termination.
+    """
+
+    def __init__(
+        self,
+        initial_delta_t: float,
+        end_time: float,
+        initial_time: float = 0.0,
+        tol: float = 1e-7,
+    ):
+        self.end_time = end_time
+        self.tol = tol
+        super().__init__(initial_delta_t, initial_time)
+
+    @property
+    def delta_t(self):
+        """
+        Returns
+        ------
+        float
+            Time difference of the current time step.
+        """
+        return self._delta_t
+
+    @delta_t.setter
+    def delta_t(self, delta_t):
+        self._delta_t = min(delta_t, self.remaining_time())
+        self.update_smallest_delta_t()
+
+    def is_last_time_step(self) -> bool:
+        """
+        Returns
+        ------
+        bool
+            True if last step.
+        """
+        return self.remaining_time() <= self.tol
+
+    def remaining_time(self) -> float:
+        """
+        Returns
+        ------
+        float
+            Remaining time.
+        """
+        return self.end_time - self.step_time
+
+
+class StepTerminationIntegrationControl(IntegrationControl):
+    """
+    Object for exchanging data between the Runge-Kutta integrator
+    and the inner problems and sets a step objective as a criterion
+    for the termination.
+    """
+
+    def __init__(
+        self, initial_delta_t: float, num_steps: int, initial_time: float = 0.0
+    ):
+        super().__init__(initial_delta_t, initial_time)
+        self.num_steps = num_steps
+
+    def is_last_time_step(self) -> bool:
+        """
+        Returns
+        ------
+        bool
+            True if last step.
+        """
+        return self.step == self.num_steps
+
+    def remaining_time(self) -> float:
+        """
+        Returns
+        ------
+        float
+            Remaining time.
+        """
+        return self.num_steps * self.delta_t - self.step_time

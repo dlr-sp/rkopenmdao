@@ -148,11 +148,6 @@ class RungeKuttaReverseOperator(pr.Operator):
         t_end = kwargs["t_end"]
         for step in reversed(range(t_start + 1, t_end + 1)):
             self.integration_control.step = step
-            print(
-                step,
-                self.serialized_old_state_symbol.data,
-                self.serialized_state_perturbations,
-            )
             self.integration_control.step_time = self.serialized_old_state_symbol.data[
                 -1
             ]

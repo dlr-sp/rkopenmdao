@@ -35,19 +35,6 @@ class AllCheckpointer(CheckpointInterface):
             ] = (
                 self.integration_control.delta_t
             )  # Storage delta_t values are set after calculation.
-            if (
-                self.integration_control.delta_t
-                / self.integration_control.delta_t_suggestion
-                < 1e-10
-                and self.integration_control.step > 1
-                and not self.integration_control.is_last_time_step
-            ):
-                raise ValueError(
-                    "Oscilliations Error: Oscilliation on forward iteration "
-                    f"at step <{self.integration_control.step}>: "
-                    f"dt = {self.integration_control.delta_t} and "
-                    f"dt_suggestion = {self.integration_control.delta_t_suggestion}"
-                )
 
     def iterate_reverse(self, final_state_perturbation: np.ndarray):
         """Goes backwards through time using the internal storage to calculate the

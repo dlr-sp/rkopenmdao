@@ -4,7 +4,10 @@ from mpi4py import MPI
 import numpy as np
 import openmdao.api as om
 
-from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    TimeTerminationIntegrationControl,
+)
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
@@ -40,38 +43,49 @@ class ODE(om.ExplicitComponent):
         )
         self.add_output("u_stage", shape=1, tags=["stage_output_var", "u"])
 
-    def phi(self, time):
+    @staticmethod
+    def phi(time):
+        """
+        Calculates Phi(t) = sin(t + pi/4)
+        """
         return np.sin(np.pi / 4 + time)
 
-    def dphi(self, time):
+    @staticmethod
+    def dphi(time):
+        """
+        Calculates derivative of Phi'(t)= cos(t+pi/4)
+        """
         return np.cos(np.pi / 4 + time)
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
+        _delta_t = self.options["integration_control"].delta_t
         stage_time = self.options["integration_control"].stage_time
 
         outputs["u_stage"] = (
             inputs["lambda"]
-            * (inputs["u"] + delta_t * inputs["acc_stages"] - self.phi(stage_time))
+            * (inputs["u"] + _delta_t * inputs["acc_stages"] - self.phi(stage_time))
             + self.dphi(stage_time)
         ) / (
             1
             - inputs["lambda"]
-            * delta_t
+            * _delta_t
             * self.options["integration_control"].butcher_diagonal_element
         )
 
-
-def solution(time, coefficient):
-    return np.sin(time + np.pi / 4) + np.exp(coefficient * time)
+    @staticmethod
+    def solution(time, coefficient):
+        """Analytical solution of the ODE"""
+        return np.sin(time + np.pi / 4) + np.exp(coefficient * time)
 
 
 def component_integration(
     component_class, solution, delta_t, butcher_tableau, quantities
 ):
+    """
+    Integrates the component with the Runge-kutta Integrator for a given step size
+    """
     initial_values = np.array([np.sin(np.pi / 4)])
-    termination_criterion = TerminationCriterion("end_time", 10.0)
-    integration_control = IntegrationControl(0, termination_criterion, delta_t)
+    integration_control = TimeTerminationIntegrationControl(delta_t, 10.0, 0.0)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp", component_class(integration_control=integration_control)
@@ -118,7 +132,7 @@ if __name__ == "__main__":
         error_data[f"{scheme.name}"] = []
         for step_size in delta_t:
             error_data[f"{scheme.name}"].append(
-                component_integration(ODE, solution, step_size, scheme, ["u"])
+                component_integration(ODE, ODE.solution, step_size, scheme, ["u"])
             )
 
     if rank == 0:

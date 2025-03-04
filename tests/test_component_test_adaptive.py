@@ -8,7 +8,7 @@ from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 import numpy as np
 
-from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
+from rkopenmdao.integration_control import TimeTerminationIntegrationControl
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk as two_stage_dirk,
@@ -67,8 +67,7 @@ butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 @pytest.mark.parametrize("butcher_diagonal_element", butcher_diagonal_elements)
 def test_component_partials(test_class, time, butcher_diagonal_element):
     """Tests whether the components itself produce the right partials"""
-    termination_criterion = TerminationCriterion("end_time", 0.1)
-    integration_control = IntegrationControl(0.0, termination_criterion, 0.1)
+    integration_control = TimeTerminationIntegrationControl(0.1, 0.1, 0.0)
     integration_control.stage_time = time
     integration_control.butcher_diagonal_element = butcher_diagonal_element
     test_prob = om.Problem()
@@ -133,8 +132,9 @@ def test_component_integration(
     test_controller,
 ):
     """Tests the time integration of the different components."""
-    termination_criterion = TerminationCriterion("end_time", initial_time + 0.01)
-    integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
+    integration_control = TimeTerminationIntegrationControl(
+        0.001, initial_time + 0.01, initial_time
+    )
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
@@ -152,7 +152,7 @@ def test_component_integration(
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             time_integration_quantities=quantities,
-            error_controller=test_controller,
+            error_controller=[test_controller, h0_110, integral],
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,
         ),
@@ -215,8 +215,9 @@ def test_component_integration_with_parameter(
     test_controller,
 ):
     """Tests the time integration of the different components."""
-    termination_criterion = TerminationCriterion("end_time", initial_time + 0.01)
-    integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
+    integration_control = TimeTerminationIntegrationControl(
+        0.001, initial_time + 0.01, initial_time
+    )
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
@@ -236,7 +237,7 @@ def test_component_integration_with_parameter(
             integration_control=integration_control,
             time_integration_quantities=quantities,
             time_independent_input_quantities=["b"],
-            error_controller=test_controller,
+            error_controller=[test_controller, integral],
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,
         ),
@@ -283,12 +284,11 @@ def test_component_splitting(
 ):
     """Tests the time integration of the problem that is split over multiple
     components."""
-    termination_criterion = TerminationCriterion("end_time", initial_time + 0.01)
-    integration_control_1 = IntegrationControl(
-        initial_time, termination_criterion, 0.001
+    integration_control_1 = TimeTerminationIntegrationControl(
+        0.001, initial_time + 0.01, initial_time
     )
-    integration_control_2 = IntegrationControl(
-        initial_time, termination_criterion, 0.001
+    integration_control_2 = TimeTerminationIntegrationControl(
+        0.001, initial_time + 0.01, initial_time
     )
 
     time_integration_prob_1 = om.Problem()
@@ -316,7 +316,7 @@ def test_component_splitting(
             butcher_tableau=butcher_tableau,
             integration_control=integration_control_1,
             time_integration_quantities=["x"],
-            error_controller=test_controller,
+            error_controller=[test_controller, integral],
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,
         ),
@@ -336,7 +336,7 @@ def test_component_splitting(
             butcher_tableau=butcher_tableau,
             integration_control=integration_control_2,
             time_integration_quantities=["x", "y"],
-            error_controller=test_controller,
+            error_controller=[test_controller, integral],
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,
         ),
@@ -404,8 +404,9 @@ def test_time_integration_partials(
     test_controller,
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion("end_time", initial_time + 0.01)
-    integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
+    integration_control = TimeTerminationIntegrationControl(
+        0.001, initial_time + 0.01, initial_time
+    )
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
@@ -425,7 +426,7 @@ def test_time_integration_partials(
             integration_control=integration_control,
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
-            error_controller=test_controller,
+            error_controller=[test_controller, integral],
             error_controller_options={"tol": 1e-6},
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,
@@ -486,8 +487,9 @@ def test_time_integration_with_parameter_partials(
     test_controller,
 ):
     """Tests the partials of the time integration of the different components."""
-    termination_criterion = TerminationCriterion("end_time", initial_time + 0.01)
-    integration_control = IntegrationControl(initial_time, termination_criterion, 0.001)
+    integration_control = TimeTerminationIntegrationControl(
+        0.001, initial_time + 0.01, initial_time
+    )
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp", test_class(integration_control=integration_control)
@@ -508,7 +510,7 @@ def test_time_integration_with_parameter_partials(
             time_integration_quantities=["x"],
             time_independent_input_quantities=["b"],
             checkpointing_type=checkpointing_implementation,
-            error_controller=test_controller,
+            error_controller=[test_controller, integral],
             error_controller_options={"tol": 1e-6},
             error_estimator_type=test_estimator,
             adaptive_time_stepping=True,

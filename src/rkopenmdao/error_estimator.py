@@ -30,12 +30,15 @@ class ErrorEstimator(ABC):
         pass
 
     def _process_quantity(self, quantity, vector):
+        """Solves the Norm with MPI if the quantity is distributed,
+        else Sequential solver is used."""
         if quantity.array_metadata.distributed:
             return _mpi_partial_norm(vector, self.order, self.comm)
         else:
             return _non_mpi_partial_norm(vector, self.order)
 
     def _global_value_estimator(self, global_value, additional_value):
+        """Returns the max/min or sums of values, depending on the order."""
         if self.order == np.inf:
             return max(global_value, additional_value)
         if self.order == -np.inf:
@@ -43,15 +46,15 @@ class ErrorEstimator(ABC):
         return global_value + additional_value
 
     def _normalize(self, global_value):
-        if self.order >= 2:
+        """Normalization calculator"""
+        if self.order >= 2 and self.order != np.inf:
             return global_value ** (1 / self.order)
 
 
 @dataclass
 class SimpleErrorEstimator(ErrorEstimator):
     """
-    A simple norm solver, in which a numpy.linalg is utilized to calculate the norm
-    difference of two vectors:
+    A simple norm solver, that calculates the difference of two vectors:
     Delta = U - U_embedded
 
     Attributes
@@ -79,7 +82,7 @@ class SimpleErrorEstimator(ErrorEstimator):
         embedded_u : np.ndarray
             Solution vector of the embedded problem
 
-        Return
+        Returns
         -------
         float
             Norm of the difference of two vectors
@@ -100,10 +103,10 @@ class SimpleErrorEstimator(ErrorEstimator):
         return f"L_{self.order}"
 
 
+@dataclass
 class ImprovedErrorEstimator(ErrorEstimator):
     """
-    An improved norm solver, in which a numpy.linalg is utilized to calculate the norm
-    difference of two vectors:
+    An improved norm solver that calculates difference of two vectors:
     Delta = (U - U_embedded)/(u + eta/eps)
 
     Attributes
@@ -124,13 +127,13 @@ class ImprovedErrorEstimator(ErrorEstimator):
         prints the Lp/Lebesgue space and the attributes
     """
 
-    eta = 1e-6
-    eps = 1e-6
+    eta: float = 1e-6
+    eps: float = 1e-6
 
     def __call__(self, u: np.ndarray, embedded_u: np.ndarray) -> float:
         """
-        Solves a norm for the difference of two vectors
-        Delta = (U - U_embedded)/(|U| + eta/eps)
+        Solves a norm for the difference of two vectors:
+        delta = (U - U_embedded)/(|U| + eta/eps)
         Parameters
         ----------
         u : np.ndarray
@@ -138,10 +141,10 @@ class ImprovedErrorEstimator(ErrorEstimator):
         embedded_u : np.ndarray
             Solution vector of the embedded problem
 
-        Return
+        Returns
         -------
         float
-            Norm of Delta
+            Norm of delta.
         """
         global_temp_value = 0
         global_value = 0
@@ -195,6 +198,7 @@ def _mpi_partial_norm(val: np.ndarray, order, comm: MPI.Comm) -> float:
 
 
 def _non_mpi_partial_norm(val: np.ndarray, order) -> float:
+    """Norm Calculator without MPI Interface"""
     if order == np.inf:
         partial_norm = np.abs(val).max()
     elif order == -np.inf:

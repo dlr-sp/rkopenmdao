@@ -7,7 +7,10 @@ import numpy as np
 import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     embedded_second_order_two_stage_sdirk,
@@ -385,9 +388,7 @@ def setup_parallel_single_distributed_problem_and_integration_control(
     delta_t, num_steps, butcher_tableau, setup_mode="auto"
 ):
     """Sets up the stage problem for the single component test cases."""
-    termination_criterion = TerminationCriterion("num_steps", num_steps)
-
-    integration_control = IntegrationControl(0.0, termination_criterion, delta_t)
+    integration_control = StepTerminationIntegrationControl(delta_t, num_steps, 0.0)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
     ]
@@ -508,8 +509,7 @@ def setup_parallel_two_distributed_problem_and_integration_control(
     delta_t, num_steps, butcher_tableau, setup_mode="auto"
 ):
     """Sets up the stage problem for the two component test cases."""
-    termination_criterion = TerminationCriterion("num_steps", num_steps)
-    integration_control = IntegrationControl(0.0, termination_criterion, delta_t)
+    integration_control = StepTerminationIntegrationControl(delta_t, num_steps, 0.0)
     integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
         -1, -1
     ]

@@ -23,19 +23,6 @@ class NoCheckpointer(CheckpointInterface):
         self._state = initial_state
         while self.integration_control.termination_condition_status():
             self._state = self.run_step_func(self._state.copy())[0]
-            if (
-                self.integration_control.delta_t
-                / self.integration_control.delta_t_suggestion
-                < 1e-10
-                and self.integration_control.step > 1
-                and not self.integration_control.is_last_time_step
-            ):
-                raise ValueError(
-                    "Oscilliations Error: Oscilliation on forward iteration "
-                    f"at step <{self.integration_control.step}>: "
-                    f"dt = {self.integration_control.delta_t} and "
-                    f"dt_suggestion = {self.integration_control.delta_t_suggestion}"
-                )
 
     def iterate_reverse(self, final_state_perturbation):
         """Does nothing"""

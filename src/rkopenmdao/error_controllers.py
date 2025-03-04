@@ -6,18 +6,28 @@ Mark H. Carpenter.
 # No need to write this into doc again.
 # pylint: disable=missing-function-docstring
 
-from rkopenmdao.error_controller import ErrorController
+from rkopenmdao.error_controller import ErrorController, ErrorControllerDecorator
 from rkopenmdao.error_estimator import ErrorEstimator
 
 
 def integral(
     p,
     error_estimator: ErrorEstimator,
-    tol=1e-3,
+    tol=1e-6,
     safety_factor=0.95,
     name="I-Controller",
+    base: ErrorController = None,
 ):
     alpha = 1 / (1 + p)
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            base,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+        )
     return ErrorController(
         alpha,
         tol=tol,
@@ -28,23 +38,46 @@ def integral(
 
 
 def h0_110(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H0_110"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H0_110",
+    base: ErrorController = None,
 ):
+
     return integral(
         p,
         tol=tol,
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        base=base,
     )
 
 
 def h_211(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H_211"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H_211",
+    base: ErrorController = None,
 ):
     alpha = 1 / (4 * p)
     beta = -1 / (4 * p)
     a = -1 / 4
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            a=a,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -57,11 +90,27 @@ def h_211(
 
 
 def h0_211(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H0_211"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H0_211",
+    base: ErrorController = None,
 ):
     alpha = 1 / (2 * p)
     beta = -1 / (2 * p)
     a = -1 / 2
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            a=a,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -74,11 +123,27 @@ def h0_211(
 
 
 def pc(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="PC"
-):  #  DOES NOT FUNCTION WELL
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="PC",
+    base: ErrorController = None,
+):
     alpha = 2 / p
     beta = 1 / p
     a = 1
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            a=a,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -91,7 +156,12 @@ def pc(
 
 
 def h0_220(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H0_220"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H0_220",
+    base: ErrorController = None,
 ):
     return pc(
         p,
@@ -99,13 +169,32 @@ def h0_220(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        base=base,
     )
 
 
-def pid(p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="PID"):
+def pid(
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="PID",
+    base: ErrorController = None,
+):
     alpha = 1 / (18 * p)
     beta = -1 / (9 * p)
     gamma = alpha
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -118,13 +207,31 @@ def pid(p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="
 
 
 def h_312(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H_312"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H_312",
+    base: ErrorController = None,
 ):
     alpha = 1 / (8 * p)
     beta = -1 / (4 * p)
     gamma = alpha
     a = -3 / 8
     b = -1 / 8
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -139,13 +246,31 @@ def h_312(
 
 
 def h0_312(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H0_312"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H0_312",
+    base: ErrorController = None,
 ):
     alpha = 1 / (4 * p)
     beta = -1 / (2 * p)
     gamma = alpha
     a = -3 / 4
     b = -1 / 4
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -165,13 +290,27 @@ def h_312_general(
     a,
     b,
     error_estimator: ErrorEstimator,
-    tol=1e-3,
+    tol=1e-6,
     safety_factor=0.95,
     name="H_312_general",
+    base: ErrorController = None,
 ):
     alpha = var_alpha / p
     beta = -2 * var_alpha / p
     gamma = alpha
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -185,11 +324,30 @@ def h_312_general(
     )
 
 
-def ppid(p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="PPID"):
+def ppid(
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="PPID",
+    base: ErrorController = None,
+):
     alpha = 6 / (20 * p)
     beta = -1 / (20 * p)
     gamma = -5 / (20 * p)
     a = 1
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -203,13 +361,31 @@ def ppid(p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name=
 
 
 def h_321(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H_321"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H_321",
+    base: ErrorController = None,
 ):
     alpha = 1 / (3 * p)
     beta = -1 / (18 * p)
     gamma = -5 / (18 * p)
     a = 5 / 6
     b = 1 / 6
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -224,13 +400,31 @@ def h_321(
 
 
 def h0_321(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H0_321"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H0_321",
+    base: ErrorController = None,
 ):
     alpha = 1 / (3 * p)
     beta = -1 / (2 * p)
     gamma = -3 / (4 * p)
     a = 1 / 4
     b = 3 / 4
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -250,14 +444,28 @@ def h_321_general(
     var_beta,
     a,
     error_estimator: ErrorEstimator,
-    tol=1e-3,
+    tol=1e-6,
     safety_factor=0.95,
     name="H_321_general",
+    base: ErrorController = None,
 ):
     alpha = var_alpha / p
     beta = var_beta / p
     gamma = -(var_alpha + var_beta) / p
     b = 1 - a
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -272,13 +480,31 @@ def h_321_general(
 
 
 def h0_330(
-    p, error_estimator: ErrorEstimator, tol=1e-3, safety_factor=0.95, name="H0_330"
+    p,
+    error_estimator: ErrorEstimator,
+    tol=1e-6,
+    safety_factor=0.95,
+    name="H0_330",
+    base: ErrorController = None,
 ):
     alpha = 3 / p
     beta = 3 / p
     gamma = 1 / p
     a = 2
     b = -1
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,
@@ -298,15 +524,29 @@ def h_330_general(
     var_beta,
     var_gamma,
     error_estimator: ErrorEstimator,
-    tol=1e-3,
+    tol=1e-6,
     safety_factor=0.95,
     name="H_330_general",
+    base: ErrorController = None,
 ):
     alpha = var_alpha / p
     beta = var_beta / p
     gamma = var_gamma / p
     a = 2
     b = -1
+    if base:
+        return ErrorControllerDecorator(
+            alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+            error_controller=base,
+        )
     return ErrorController(
         alpha,
         beta=beta,

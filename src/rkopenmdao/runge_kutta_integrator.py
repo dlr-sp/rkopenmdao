@@ -299,10 +299,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.options.declare(
             "error_controller",
-            default=integral,
+            default=[integral],
             check_valid=self.check_error_controller,
-            desc="""Error controller for adaptive time stepping of
-            the Runge-Kutta Scheme.""",
+            desc="""List of Error controllers for adaptive time stepping of
+            the Runge-Kutta Scheme, where the first is the outer most controller
+            and the other decorate on it.""",
         )
 
         self.options.declare(
@@ -353,19 +354,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         a callable and has the right parameters"""
         # pylint: disable=unused-argument
         # OpenMDAO needs that specific interface, even if we don't need it fully.
-        if not callable(value):
-            raise TypeError(f"{value} is not a callable, must be a function")
-        try:
-            temp = value(p=1, error_estimator=integral)
+        for method in value:
+            if not callable(method):
+                raise TypeError(f"{method} is not a callable.")
+            temp = method(p=1, error_estimator=SimpleErrorEstimator)
             if not isinstance(temp, ErrorController):
                 raise TypeError(
-                    f"{value} does not instantiate an instance of ErrorController"
+                    f"{method} does not instantiate an instance of ErrorController"
                 )
-        except Exception as exc:
-            raise TypeError(
-                """Cannot generate an ErrorController with p and error_estimator alone. 
-                Please make sure all other arguments are optional."""
-            ) from exc
 
     def setup(self):
         if self.comm.rank == 0:
@@ -384,11 +380,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _setup_error_controller(self):
         p = self.options["butcher_tableau"].min_p_order()
-        self._error_controller = self.options["error_controller"](
-            p=p,
-            **self.options["error_controller_options"],
-            error_estimator=self._error_estimator,
-        )
+        self._error_controller = None
+        for controller in self.options["error_controller"]:
+            self._error_controller = controller(
+                p=p,
+                **self.options["error_controller_options"],
+                error_estimator=self._error_estimator,
+                base=self._error_controller,
+            )
         if self.comm.rank == 0:
             print(f"\n{self._error_controller}")
 
@@ -864,8 +863,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print(f"\nFinishing step <{step}> of compute.\n")
         return (
             self._serialized_state,
-            self._error_controller.delta_time_steps,
-            self._error_controller.local_error_norms,
+            self._error_controller.local_data.delta_time_steps,
+            self._error_controller.local_data.local_error_norms,
         )
 
     def _update_integration_control_step(self):
@@ -882,37 +881,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.comm.rank == 0:
             print("" * 29 + "\n| Resetting error estimator |\n" + "-" * 29 + "\n")
 
-    def _update_current_delta_t(self, delta_t_suggestion, remaining_time_used):
-        if (
-            self.options["integration_control"].termination_criterion.criterion
-            == "num_steps"
-        ):
-            self.options["integration_control"].delta_t = delta_t_suggestion
-        elif (
-            self.options["integration_control"].termination_criterion.criterion
-            == "end_time"
-        ):
-            self.options["integration_control"].delta_t = min(
-                delta_t_suggestion, self.options["integration_control"].remaining_time()
-            )
-            if (
-                self.options["integration_control"].remaining_time()
-                <= delta_t_suggestion
-            ):
-                # A flag is added in order to escape local maximum.
-                remaining_time_used = True
-        else:
-            raise TypeError(
-                "TerminationCriterion must be of type 'num_steps' or 'end_time'."
-            )
-        return remaining_time_used
-
-    def _iterate_on_step(
-        self, delta_t_suggestion, stage_computation_func, remaining_time_used=False
-    ):
-        remaining_time_used = self._update_current_delta_t(
-            delta_t_suggestion, remaining_time_used
-        )
+    def _iterate_on_step(self, delta_t_suggestion, stage_computation_func):
+        """Iterates on the a step until a time step that
+        complies with the norm's tolerance"""
+        self.options["integration_control"].delta_t = delta_t_suggestion
         for stage in range(self.options["butcher_tableau"].number_of_stages()):
             stage_computation_func(stage)
         temp_serialized_state, delta_t_suggestion, accepted = (
@@ -923,11 +895,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
         )
         if not accepted:
-            if remaining_time_used:
-                return temp_serialized_state, delta_t_suggestion
-            return self._iterate_on_step(
-                delta_t_suggestion, stage_computation_func, remaining_time_used
-            )
+            return self._iterate_on_step(delta_t_suggestion, stage_computation_func)
         return temp_serialized_state, delta_t_suggestion
 
     def _run_step_time_integration_phase(self):
@@ -1224,7 +1192,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 print("Finished computation of functional contribution.")
             self._get_functional_contribution_from_om_output_vec(d_outputs)
             self._add_functional_perturbations_to_state_perturbations(
-                self.options["integration_control"].termination_criterion.value
+                self.options["integration_control"].num_steps
             )
             if self.comm.rank == 0:
                 print("Finished computation of functional contribution.")

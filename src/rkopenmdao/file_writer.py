@@ -97,7 +97,10 @@ class Hdf5FileWriter(FileWriterInterface):
 
 
 class TXTFileWriter(FileWriterInterface):
-    """File writer to .txt"""
+    """
+    File writer to write out to txt-files:
+    Does not support MPI Parallel.
+    """
 
     def write_step(
         self,
@@ -122,7 +125,6 @@ class TXTFileWriter(FileWriterInterface):
                     self.time_integration_metadata.postprocessing_quantity_list,
                 ):
                     if quantity.array_metadata.local:
-                        # write_indices = self.get_write_indices(quantity)
                         start_array = quantity.array_metadata.start_index
                         end_array = quantity.array_metadata.end_index
                         data_dict[quantity.name] = (

@@ -6,12 +6,15 @@ import warnings
 import numpy as np
 
 
-def _get_column_widths(co_arrays):
+def _get_column_widths(col_arrays):
+    """
+    Gives the maximal colomn string length of the butcher tableau.
+    """
     len_max = []
     col_max = None
-    for co_array in co_arrays:
-        len_max.append(max(len(ai) for ai in co_array.reshape(-1)))
-        col_max = max(len_max)
+    for col_array in col_arrays:
+        len_max.append(max(len(ai) for ai in col_array.reshape(-1)))
+    col_max = max(len_max)
     return col_max
 
 
@@ -57,8 +60,8 @@ class ButcherTableau:
         p=None,
         name="Runge-Kutta method",
     ):
-
-        if len(np.shape(butcher_matrix)) == 2:
+        # If square matrix
+        if butcher_matrix.shape[0] == butcher_matrix.shape[1]:
             self.butcher_matrix = butcher_matrix
         else:
             self.butcher_matrix = np.array([butcher_matrix])

@@ -4,6 +4,7 @@ import warnings
 
 import pyrevolve as pr
 import numpy as np
+from rkopenmdao.integration_control import StepTerminationIntegrationControl
 
 from .checkpoint_interface import CheckpointInterface
 from .runge_kutta_integrator_pyrevolve_classes import (
@@ -36,7 +37,15 @@ class PyrevolveCheckpointer(CheckpointInterface):
         )
 
         self.revolver_class_type = self._setup_revolver_class_type(self.revolver_type)
-        criterion_value = self.integration_control.termination_criterion.value
+        if isinstance(self.integration_control, StepTerminationIntegrationControl):
+            num_steps = self.integration_control.num_steps
+        else:
+            raise TypeError(
+                """
+            Does not support online checkpointing yet:
+            IntegrationControl must be of type StepTerminationIntegrationControl
+            """
+            )
         for key, value in self.revolver_options.items():
             if self.revolver_type == "MultiLevel" and key == "storage_list":
                 storage_list = []
@@ -51,15 +60,11 @@ class PyrevolveCheckpointer(CheckpointInterface):
             else:
                 self.revolver_options[key] = value
         self.revolver_options["checkpoint"] = checkpoint
-        if self.integration_control.termination_criterion.criterion == "num_steps":
-            self.revolver_options["n_timesteps"] = criterion_value
-        else:
-            raise TypeError("Does not support online checkpointing")
+        self.revolver_options["n_timesteps"] = num_steps
+
         if "n_checkpoints" not in self.revolver_options:
             if self.revolver_type not in ["MultiLevel", "Base"]:
-                self.revolver_options["n_checkpoints"] = (
-                    1 if criterion_value == 1 else None
-                )
+                self.revolver_options["n_checkpoints"] = 1 if num_steps == 1 else None
 
         self.revolver_options["fwd_operator"] = RungeKuttaForwardOperator(
             self._serialized_old_state_symbol,

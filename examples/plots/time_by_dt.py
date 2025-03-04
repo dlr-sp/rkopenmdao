@@ -7,11 +7,17 @@ import openmdao.api as om
 
 from rkopenmdao.butcher_tableaux import (
     embedded_heun_euler,
+    embedded_second_order_three_stage_esdirk,
+    embedded_third_order_four_stage_esdirk,
+    embedded_third_order_five_stage_esdirk,
 )
 from rkopenmdao.error_controllers import *
 from rkopenmdao.error_estimator import *
 from rkopenmdao.file_writer import TXTFileWriter
-from rkopenmdao.integration_control import IntegrationControl, TerminationCriterion
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    TimeTerminationIntegrationControl,
+)
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
 
@@ -47,6 +53,14 @@ class ODE(om.ExplicitComponent):
             "integration_control"
         ].butcher_diagonal_element
         stage_time = self.options["integration_control"].stage_time
+        print(
+            delta_t,
+            butcher_diagonal_element,
+            stage_time,
+            stage_time,
+            inputs["acc_stages"],
+            inputs["x"],
+        )
         outputs["x_stage"] = (
             0.5 * delta_t * butcher_diagonal_element * stage_time
             + np.sqrt(
@@ -82,16 +96,15 @@ comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 
 write_out_distance = 1
-write_file = "write_main.txt"
+write_file = "write_main2.txt"
 other_file = "write_sub.txt"
 test_prob = om.Problem()
-termination_criterion = TerminationCriterion("end_time", 2.0)
-integration_control = IntegrationControl(1.0, termination_criterion, 0.01)
+integration_control = TimeTerminationIntegrationControl(0.2, 10.0, 1.0)
 
-butcher_tableau = embedded_heun_euler
+butcher_tableau = embedded_third_order_four_stage_esdirk
 
 test_prob.model.add_subsystem("test_comp", ODE(integration_control=integration_control))
-test_controller = integral
+test_controller = ppid
 test_estimator = ImprovedErrorEstimator
 time_int_prob = om.Problem()
 time_int_prob.model.add_subsystem(
@@ -103,7 +116,7 @@ time_int_prob.model.add_subsystem(
         write_out_distance=write_out_distance,
         write_file=write_file,
         error_controller=test_controller,
-        error_controller_options={"tol": 1e-3},
+        error_controller_options={"tol": 1e-6},
         error_estimator_type=test_estimator,
         file_writing_implementation=TXTFileWriter,
         time_integration_quantities=["x"],
@@ -134,6 +147,11 @@ if rank == 0:
     plt.xlabel("Time t [s]")  # time axis (x axis)
     plt.ylabel("dTime t [s]")  # delta time axis (y axis)
     plt.grid(True)
+    plt.title(butcher_tableau.name)
     plt.plot(time, delta_t, "--o")
     plt.show()
-    fig.savefig("time_by_dt.pdf")
+    printname = butcher_tableau.name
+    printname = printname.replace(" ", "_")
+    printname = printname.replace(",", "")
+    printname = printname.lower()
+    fig.savefig(f"time_by_dt_{printname}.pdf")
