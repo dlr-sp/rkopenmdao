@@ -960,9 +960,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         time = self.options["integration_control"].step_time
         if not self._disable_write_out and (
             step % self.options["write_out_distance"] == 0
-            or self.options["integration_control"].is_last_time_step(
-                self._error_controller.tol
-            )
+            or self.options["integration_control"].is_last_time_step()
         ):
             self._write_out(
                 step,
