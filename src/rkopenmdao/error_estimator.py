@@ -49,6 +49,7 @@ class ErrorEstimator(ABC):
         """Normalization calculator"""
         if self.order >= 2 and self.order != np.inf:
             return global_value ** (1 / self.order)
+        return global_value
 
 
 @dataclass

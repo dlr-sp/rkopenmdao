@@ -7,7 +7,6 @@ import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
 from rkopenmdao.integration_control import (
-    IntegrationControl,
     StepTerminationIntegrationControl,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator

@@ -1,6 +1,8 @@
 """Tests the adaptive time integration with the various components of
 test_components.py"""
 
+# pylint: disable=duplicate-code
+
 from itertools import product
 
 import openmdao.api as om
@@ -56,9 +58,6 @@ test_comp_class_list = [
 times = np.linspace(1.0, 9.0, 3)
 butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 
-# -------------------------------------------------------------------------------------
-# Test 1
-
 
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
@@ -79,10 +78,6 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
     test_prob.run_model()
     data = test_prob.check_partials()
     assert_check_partials(data)
-
-
-# -------------------------------------------------------------------------------------
-# Test 2
 
 
 @pytest.mark.rk

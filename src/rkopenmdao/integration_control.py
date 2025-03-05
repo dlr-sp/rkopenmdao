@@ -1,7 +1,5 @@
 # pylint: disable=missing-module-docstring
 
-import numpy as np
-
 
 class IntegrationControl:
     """
@@ -53,8 +51,7 @@ class IntegrationControl:
 
     def update_smallest_delta_t(self):
         """Update the smallest delta_t in the run"""
-        if self.smallest_delta_t > self.delta_t:
-            self.smallest_delta_t = self.delta_t
+        self.smallest_delta_t = min(self.smallest_delta_t, self.delta_t)
 
     def is_last_time_step(self):
         """

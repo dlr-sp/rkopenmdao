@@ -1,5 +1,7 @@
 """Tests the time integration with the various components of test_components.py"""
 
+# pylint: disable=duplicate-code
+
 from itertools import product
 
 import openmdao.api as om

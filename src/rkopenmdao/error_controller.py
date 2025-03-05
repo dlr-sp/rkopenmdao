@@ -163,7 +163,8 @@ class ErrorController:
         if not accepted:
             if suggestion > delta_t and self.inner_most:
                 raise OuterErrorControllerError(
-                    f"Suggested delta T {suggestion} is larger than delta t {delta_t} on failure"
+                    f"""Suggested delta T {suggestion} is larger than 
+                    delta t {delta_t} on failure."""
                 )
         return suggestion, accepted
 
@@ -189,7 +190,7 @@ class ErrorController:
         Returns
         -------
         Tuple(float,bool)
-            1. A suggestion to next time step size and
+            1. A suggestion to next time step size.
             2. True if for current step size the norm is in tolerance, otherwise False.
         """
         current_norm = self.error_estimator(solution, embedded_solution)
@@ -309,7 +310,7 @@ class ErrorControllerDecorator(ErrorController):
     ) -> Tuple[float, bool]:
         """
         A call function which returns a delta_t suggestion and
-        an acceptance status
+        an acceptance status.
         """
         if self.is_not_inner:
             try:
@@ -321,7 +322,7 @@ class ErrorControllerDecorator(ErrorController):
                     if not (suggestion <= delta_t and self.outer_counter <= 3):
                         raise OuterErrorControllerError(
                             f"""Suggested delta T {suggestion} is larger than 
-                            delta t {delta_t} on failure"""
+                            delta t {delta_t} on failure."""
                         )
                 self.outer_counter = 0
                 return suggestion, accepted
@@ -331,9 +332,11 @@ class ErrorControllerDecorator(ErrorController):
             return self._run(solution, embedded_solution, delta_t)
 
     def __str__(self):
-        """Prints the class data"""
+        """Prints the class data."""
         current_str = super().__str__()
-        return f"{self.error_controller.__str__()}\n{' '*int(self.width/2)}+\n{current_str}"
+        return f"""{self.error_controller.__str__()}
+        \n{' '*int(self.width/2)}+
+        \n{current_str}"""
 
     def _run(
         self,
@@ -357,7 +360,7 @@ class ErrorControllerDecorator(ErrorController):
         Returns
         -------
         Tuple(float,bool)
-            1. A suggestion to next time step size and
+            1. A suggestion to next time step size.
             2. True if for current step size the norm is in tolerance, otherwise False.
         """
 
@@ -367,6 +370,7 @@ class ErrorControllerDecorator(ErrorController):
             self.is_not_inner = False
             if suggestion > delta_t and self.inner_most:
                 raise InnerErrorControllerError(
-                    f"Suggested delta T {suggestion} is larger than delta t {delta_t} on failure"
+                    f"""Suggested delta T {suggestion} is larger than 
+                    delta t {delta_t} on failure."""
                 )
         return suggestion, accepted

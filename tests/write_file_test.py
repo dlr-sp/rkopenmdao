@@ -6,7 +6,6 @@ import pytest
 import numpy as np
 
 from rkopenmdao.integration_control import (
-    IntegrationControl,
     StepTerminationIntegrationControl,
 )
 from rkopenmdao.butcher_tableaux import (
