@@ -2,15 +2,11 @@
 variables."""
 
 import openmdao.api as om
+
 from openmdao.utils.assert_utils import assert_check_totals
 import numpy as np
 import pytest
 
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import (
-    IntegrationControl,
-    StepTerminationIntegrationControl,
-)
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     embedded_second_order_two_stage_sdirk,
@@ -18,6 +14,20 @@ from rkopenmdao.butcher_tableaux import (
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+from rkopenmdao.error_controllers import integral
+from rkopenmdao.error_estimator import (
+    SimpleErrorEstimator,
+    ImprovedErrorEstimator,
+    _non_mpi_partial_norm,
+    _mpi_partial_norm,
+)
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    StepTerminationIntegrationControl,
+    TimeTerminationIntegrationControl,
+)
+from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from mpi4py import MPI
 
 
 class Test1Component1(om.ImplicitComponent):
@@ -351,6 +361,9 @@ def setup_time_integration_problem(
     postprocessing_problem=None,
     postprocessing_quantities=None,
     checkpointing_implementation=NoCheckpointer,
+    error_controller=[integral],
+    error_estimator_type=SimpleErrorEstimator,
+    adaptive_time_stepping=False,
 ):
     """Sets up the time integration problem for the following test."""
     if postprocessing_quantities is None:
@@ -363,6 +376,9 @@ def setup_time_integration_problem(
         time_integration_quantities=time_integration_quantities,
         postprocessing_quantities=postprocessing_quantities,
         checkpointing_type=checkpointing_implementation,
+        adaptive_time_stepping=adaptive_time_stepping,
+        error_controller=error_controller,
+        error_estimator_type=error_estimator_type,
     )
 
     time_test_prob = om.Problem()
@@ -755,3 +771,53 @@ def test_parallel_two_distributed_totals_with_postprocessing(
             rel_err_tol=1e-4,
         )
     assert_check_totals(data, atol=1e-4, rtol=1e-4)
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize("steps", [1, 10])
+def test_distributed_adaptive_step(steps):
+    """Test for Adaptive timestepping"""
+    # Distributed:
+    test_prob, integration_control = (
+        setup_parallel_single_distributed_problem_and_integration_control(
+            1.0, steps, embedded_second_order_two_stage_sdirk
+        )
+    )
+    test_prob.run_model()
+    time_test_prob = setup_time_integration_problem(
+        test_prob,
+        embedded_second_order_two_stage_sdirk,
+        integration_control,
+        ["x"],
+        adaptive_time_stepping=True,
+    )
+    time_test_prob.run_model()
+
+
+@pytest.mark.mpi
+@pytest.mark.parametrize(
+    "delta_t",
+    [
+        np.array([0.5, 0.1]),
+        np.array([0, 0.3]),
+        np.array([0.1, 0.2, 0.1]),
+        np.array([1, 2, 3, 4, 5, 6, 7]),
+    ],
+)
+@pytest.mark.parametrize("order", [-np.inf, 0, 1, 2, np.inf])
+def test_parallel_norm(delta_t, order):
+    """Test for ErrorEstimator's partial normalization"""
+
+    # Create MPI:
+    comm = MPI.COMM_WORLD
+    size = comm.size
+    rank = comm.rank
+    if rank == 0:
+        data = np.array_split(delta_t, size, axis=0)
+    else:
+        data = None
+    data = comm.scatter(data, root=0)
+
+    part_mpi_norms = _mpi_partial_norm(data, order, comm)
+    part_norm = _non_mpi_partial_norm(delta_t, order)
+    assert part_mpi_norms == pytest.approx(part_norm)

@@ -99,7 +99,7 @@ class Hdf5FileWriter(FileWriterInterface):
 class TXTFileWriter(FileWriterInterface):
     """
     File writer to write out to txt-files:
-    Does not support MPI Parallel.
+    Does not support parallelism.
     """
 
     def write_step(

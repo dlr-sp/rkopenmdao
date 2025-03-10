@@ -1,7 +1,8 @@
-"""Contains the class for the error controller of the adaptive Runge-Kutta schemes """
+"""Contains the class for the error controller of the adaptive Runge-Kutta schemes"""
 
 from dataclasses import dataclass, field
 from typing import Tuple
+import warnings
 
 import numpy as np
 
@@ -128,6 +129,7 @@ class ErrorController:
         b: float = 0,
         tol: float = 1e-6,
         safety_factor: float = 0.95,
+        max_iter=5,
         name: str = "ErrorController",
     ):
         # Constant parameters for the error controller equation
@@ -135,6 +137,7 @@ class ErrorController:
         # 1. General parameters
         self.safety_factor = safety_factor
         self.tol = tol
+        self.max_iter = max_iter
         # 2. Exponents for norm sensitivities
         self.alpha = alpha
         self.beta = beta
@@ -145,8 +148,8 @@ class ErrorController:
         # -----------
         self.local_data = LocalData(self.tol)  # Local step History object
         self.error_estimator = error_estimator  # Error estimator for the Norm
-        self.inner_most = True  # Indicator if it is not associated
-        self.name = "Outer " + name
+        self.inner_most = True  # Indicator if it is not associated with a decorator
+        self.name = "Outermost " + name
         self.width = 0
 
     def __call__(
@@ -159,14 +162,14 @@ class ErrorController:
         A call function which returns a delta_t suggestion and
         an acceptance status.
         """
-        suggestion, accepted = self._run(solution, embedded_solution, delta_t)
-        if not accepted:
+        suggestion, success = self._run(solution, embedded_solution, delta_t)
+        if not success:
             if suggestion > delta_t and self.inner_most:
                 raise OuterErrorControllerError(
                     f"""Suggested delta T {suggestion} is larger than 
                     delta t {delta_t} on failure."""
                 )
-        return suggestion, accepted
+        return suggestion, success
 
     def _run(
         self,
@@ -193,36 +196,37 @@ class ErrorController:
             1. A suggestion to next time step size.
             2. True if for current step size the norm is in tolerance, otherwise False.
         """
-        current_norm = self.error_estimator(solution, embedded_solution)
-        if current_norm <= self.tol:
-            if current_norm != 0:
-                delta_t = self._estimate_next_step_function(current_norm, delta_t)
-            self.local_data.push_to_local_error_norms(current_norm)
+        success = False
+        norm = self.error_estimator(solution, embedded_solution)
+        if norm <= self.tol:
+            success = True
             self.local_data.push_to_delta_time_steps(delta_t)
-            return delta_t, True
-        delta_t = self._estimate_next_step_function(current_norm, delta_t)
-        return delta_t, False
+            self.local_data.push_to_local_error_norms(norm)
+        if norm != 0:
+            delta_t = self._estimate_next_step_function(norm, delta_t)
+        else:
+            warnings.warn(
+                """Current error norm is 0, can't estimate new step size
+                and using old one."""
+            )
+        return delta_t, success
 
-    def _estimate_next_step_function(self, current_norm, current_dtime):
+    def _estimate_next_step_function(self, norm, delta_t):
         """
         Estimates the delta time of the current or next time step.
         """
-        delta_time_new = self.safety_factor * current_dtime
-        delta_time_new *= (self.tol / current_norm) ** self.alpha
-        delta_time_new *= (self.local_data.local_error_norms[0] / self.tol) ** self.beta
-        delta_time_new *= (
-            self.tol / self.local_data.local_error_norms[1]
-        ) ** self.gamma
+        delta_t_new = self.safety_factor * delta_t
+        delta_t_new *= (self.tol / norm) ** self.alpha
+        delta_t_new *= (self.local_data.local_error_norms[0] / self.tol) ** self.beta
+        delta_t_new *= (self.tol / self.local_data.local_error_norms[1]) ** self.gamma
         if self.local_data.delta_time_steps[0] is not None:
-            delta_time_new *= (
-                current_dtime / self.local_data.delta_time_steps[0]
-            ) ** self.a
+            delta_t_new *= (delta_t / self.local_data.delta_time_steps[0]) ** self.a
             if self.local_data.delta_time_steps[1] is not None:
-                delta_time_new *= (
+                delta_t_new *= (
                     self.local_data.delta_time_steps[0]
                     / self.local_data.delta_time_steps[1]
                 ) ** self.b
-        return delta_time_new
+        return delta_t_new
 
     def __str__(self):
         """
@@ -280,6 +284,7 @@ class ErrorControllerDecorator(ErrorController):
         tol: float = 1e-6,
         safety_factor: float = 0.95,
         name: str = "ErrorController",
+        max_iter=5,
     ):
         self.error_controller = error_controller
         self.error_controller.inner_most = False
@@ -287,18 +292,18 @@ class ErrorControllerDecorator(ErrorController):
             "Inner ", " ", 1
         )
         super().__init__(
-            alpha,
-            error_estimator,
-            beta,
-            gamma,
-            a,
-            b,
-            tol,
-            safety_factor,
-            name,
+            alpha=alpha,
+            beta=beta,
+            gamma=gamma,
+            a=a,
+            b=b,
         )
+        self.tol = error_controller.tol
+        self.safety_factor = error_controller.safety_factor
+        self.max_iter = error_controller.max_iter
+        self.error_estimator = error_controller.error_estimator
         self.is_not_inner = True
-        self.name = "Inner " + name
+        self.name = "Innermost " + name
         self.local_data = self.error_controller.local_data
         self.outer_counter = 0
 
@@ -314,18 +319,20 @@ class ErrorControllerDecorator(ErrorController):
         """
         if self.is_not_inner:
             try:
-                suggestion, accepted = self.error_controller(
+                suggestion, success = self.error_controller(
                     solution, embedded_solution, delta_t
                 )
-                if not accepted:
+                if not success:
                     self.outer_counter += 1
-                    if not (suggestion <= delta_t and self.outer_counter <= 3):
+                    if not (
+                        suggestion <= delta_t and self.outer_counter <= self.max_iter
+                    ):
                         raise OuterErrorControllerError(
                             f"""Suggested delta T {suggestion} is larger than 
                             delta t {delta_t} on failure."""
                         )
                 self.outer_counter = 0
-                return suggestion, accepted
+                return suggestion, success
             except OuterErrorControllerError:
                 return self._run(solution, embedded_solution, delta_t)
         else:
@@ -365,12 +372,12 @@ class ErrorControllerDecorator(ErrorController):
         """
 
         self.is_not_inner = True
-        suggestion, accepted = super()._run(solution, embedded_solution, delta_t)
-        if not accepted:
+        suggestion, success = super()._run(solution, embedded_solution, delta_t)
+        if not success:
             self.is_not_inner = False
             if suggestion > delta_t and self.inner_most:
                 raise InnerErrorControllerError(
                     f"""Suggested delta T {suggestion} is larger than 
                     delta t {delta_t} on failure."""
                 )
-        return suggestion, accepted
+        return suggestion, success

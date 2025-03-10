@@ -4,7 +4,9 @@ RungeKuttaIntegrator."""
 from __future__ import annotations
 import numpy as np
 
-from .integration_control import IntegrationControl
+from .integration_control import IntegrationControl, StepTerminationIntegrationControl
+
+# TODO : throw an error if the passed integration control is not StepTerminationIntegrationControl.
 
 
 class FunctionalCoefficients:
@@ -47,6 +49,12 @@ class AverageCoefficients(FunctionalCoefficients):
     ):
         self._quantity_list: list[str] = quantity_list
         self._integration_control: IntegrationControl = integration_control
+        if not isinstance(self._integration_control, StepTerminationIntegrationControl):
+            raise TypeError(
+                """
+            IntegrationControl must be of type StepTerminationIntegrationControl
+            """
+            )
 
     def list_quantities(self) -> list[str]:
         return self._quantity_list
@@ -66,6 +74,12 @@ class CompositeTrapezoidalCoefficients(FunctionalCoefficients):
     ):
         self._quantity_list: list[str] = quantity_list
         self._integration_control: IntegrationControl = integration_control
+        if not isinstance(self._integration_control, StepTerminationIntegrationControl):
+            raise TypeError(
+                """
+            IntegrationControl must be of type StepTerminationIntegrationControl
+            """
+            )
 
     def list_quantities(self) -> list[str]:
         return self._quantity_list

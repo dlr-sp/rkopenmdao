@@ -55,7 +55,7 @@ class ErrorEstimator(ABC):
 @dataclass
 class SimpleErrorEstimator(ErrorEstimator):
     """
-    A simple norm solver, that calculates the difference of two vectors:
+    A simple norm solver, that calculates the norm of the difference of two vectors:
     Delta = U - U_embedded
 
     Attributes
@@ -94,7 +94,8 @@ class SimpleErrorEstimator(ErrorEstimator):
             start = quantity.array_metadata.start_index
             end = quantity.array_metadata.end_index
             global_value = self._global_value_estimator(
-                global_value, self._process_quantity(quantity, delta.copy()[start:end])
+                global_value,
+                self._process_quantity(quantity, delta.copy()[start:end]),
             )
         global_value = self._normalize(global_value)
         return global_value
@@ -107,7 +108,8 @@ class SimpleErrorEstimator(ErrorEstimator):
 @dataclass
 class ImprovedErrorEstimator(ErrorEstimator):
     """
-    An improved norm solver that calculates difference of two vectors:
+    An improved norm solver that calculates the norm of the difference of two
+    vectors:
     Delta = (U - U_embedded)/(u + eta/eps)
 
     Attributes

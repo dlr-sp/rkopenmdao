@@ -1,3 +1,8 @@
+"""
+Generates a logarithmic graph of error over time for Runge-Kutta methods of different
+orders.
+"""
+
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpi4py import MPI
@@ -24,7 +29,7 @@ rank = comm.Get_rank()
 
 class ODE(om.ExplicitComponent):
     """
-    Using ODE from Springer https://link.springer.com/chapter/10.1007/978-3-030-39647-3_36#Equ1:
+    Using ODE from Springer https://doi.org/10.1007/978-3-030-39647-3_36:
     1) u' = lambda * (u - Phi(t)) + dPhi(t)/dt
     2) Phi(t) = sin(t + pi/4)
     3) u(0) = sin(pi/4)

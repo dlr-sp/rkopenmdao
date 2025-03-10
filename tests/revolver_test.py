@@ -7,7 +7,6 @@ import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import (
-    IntegrationControl,
     StepTerminationIntegrationControl,
 )
 from rkopenmdao.butcher_tableaux import implicit_euler

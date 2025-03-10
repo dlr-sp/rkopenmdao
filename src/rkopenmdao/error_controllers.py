@@ -17,6 +17,7 @@ def integral(
     safety_factor=0.95,
     name="I-Controller",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (1 + p)
     if base:
@@ -34,6 +35,7 @@ def integral(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -44,6 +46,7 @@ def h0_110(
     safety_factor=0.95,
     name="H0_110",
     base: ErrorController = None,
+    max_iter=5,
 ):
 
     return integral(
@@ -53,6 +56,7 @@ def h0_110(
         name=name,
         error_estimator=error_estimator,
         base=base,
+        max_iter=max_iter,
     )
 
 
@@ -63,6 +67,7 @@ def h_211(
     safety_factor=0.95,
     name="H_211",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (4 * p)
     beta = -1 / (4 * p)
@@ -86,6 +91,7 @@ def h_211(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -96,6 +102,7 @@ def h0_211(
     safety_factor=0.95,
     name="H0_211",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (2 * p)
     beta = -1 / (2 * p)
@@ -119,6 +126,7 @@ def h0_211(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -129,6 +137,7 @@ def pc(
     safety_factor=0.95,
     name="PC",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 2 / p
     beta = 1 / p
@@ -152,6 +161,7 @@ def pc(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -162,6 +172,7 @@ def h0_220(
     safety_factor=0.95,
     name="H0_220",
     base: ErrorController = None,
+    max_iter=5,
 ):
     return pc(
         p,
@@ -180,6 +191,7 @@ def pid(
     safety_factor=0.95,
     name="PID",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (18 * p)
     beta = -1 / (9 * p)
@@ -203,6 +215,7 @@ def pid(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -213,6 +226,7 @@ def h_312(
     safety_factor=0.95,
     name="H_312",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (8 * p)
     beta = -1 / (4 * p)
@@ -242,6 +256,7 @@ def h_312(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -252,6 +267,7 @@ def h0_312(
     safety_factor=0.95,
     name="H0_312",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (4 * p)
     beta = -1 / (2 * p)
@@ -281,6 +297,7 @@ def h0_312(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -294,6 +311,7 @@ def h_312_general(
     safety_factor=0.95,
     name="H_312_general",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = var_alpha / p
     beta = -2 * var_alpha / p
@@ -321,6 +339,7 @@ def h_312_general(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -331,6 +350,7 @@ def ppid(
     safety_factor=0.95,
     name="PPID",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 6 / (20 * p)
     beta = -1 / (20 * p)
@@ -357,6 +377,7 @@ def ppid(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -367,6 +388,7 @@ def h_321(
     safety_factor=0.95,
     name="H_321",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (3 * p)
     beta = -1 / (18 * p)
@@ -396,6 +418,7 @@ def h_321(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -406,6 +429,7 @@ def h0_321(
     safety_factor=0.95,
     name="H0_321",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 1 / (3 * p)
     beta = -1 / (2 * p)
@@ -435,6 +459,7 @@ def h0_321(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -448,6 +473,7 @@ def h_321_general(
     safety_factor=0.95,
     name="H_321_general",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = var_alpha / p
     beta = var_beta / p
@@ -476,16 +502,18 @@ def h_321_general(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
-def h0_330(
+def h0_330(  # delivers very small suggestions
     p,
     error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     name="H0_330",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = 3 / p
     beta = 3 / p
@@ -515,6 +543,7 @@ def h0_330(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )
 
 
@@ -528,6 +557,7 @@ def h_330_general(
     safety_factor=0.95,
     name="H_330_general",
     base: ErrorController = None,
+    max_iter=5,
 ):
     alpha = var_alpha / p
     beta = var_beta / p
@@ -557,4 +587,5 @@ def h_330_general(
         safety_factor=safety_factor,
         name=name,
         error_estimator=error_estimator,
+        max_iter=max_iter,
     )

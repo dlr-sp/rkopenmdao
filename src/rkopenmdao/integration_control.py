@@ -1,7 +1,8 @@
 # pylint: disable=missing-module-docstring
+from abc import ABC, abstractmethod
 
 
-class IntegrationControl:
+class IntegrationControl(ABC):
     """
     Interface for exchanging data between the Runge-Kutta integrator and the inner
     problems.
@@ -53,12 +54,22 @@ class IntegrationControl:
         """Update the smallest delta_t in the run"""
         self.smallest_delta_t = min(self.smallest_delta_t, self.delta_t)
 
+    @abstractmethod
     def is_last_time_step(self):
         """
         Returns
         ------
         bool
             True if last step.
+        """
+
+    @abstractmethod
+    def remaining_time(self):
+        """
+        Returns
+        ------
+        float
+            Remaining time.
         """
 
     def termination_condition_status(self, termination_step=0) -> bool:
