@@ -88,6 +88,8 @@ class ErrorController:
     ----------
     alpha : float
         The exponent constant to the tolerance by the current norm.
+    error_estimator: ErrorEstimator object, optional.
+        The error estimator class
     beta : float, optional
         The exponent constant to the current norm by the last norm.
     gamma : float, optional
@@ -101,20 +103,19 @@ class ErrorController:
         The tolerance of the error controller.
     safety_factor: float, optional
         Safety factor in the equation smaller than 1.
+    max_iter: int, optional
+        Threshold for number of times the controller is attempted
+        over the course of one step.
     name: str, optional
         Name of the error controller
-    error_estimator: ErrorEstimator object, optional.
-        The error estimator class
-    _local_error_norms: List[float]
-        List of the error norms of the 2 last time steps.
-    _delta_time_steps: List[float]
-        List of the time difference between the 2 last time steps.
+
+
 
     Methods
     -------
     __call__(solution, embedded_solution, delta_t)
-        Estimates next possible step size for a given state and embedded solution
-        and returns whether the next step size meets the tolerance.
+        A call function which returns a delta_t suggestion and
+        an acceptance status.
     __str__()
         Prints the class data.
     """
@@ -194,7 +195,7 @@ class ErrorController:
         -------
         Tuple(float,bool)
             1. A suggestion to next time step size.
-            2. True if for current step size the norm is in tolerance, otherwise False.
+            2. Acceptance Status.
         """
         success = False
         norm = self.error_estimator(solution, embedded_solution)
@@ -368,7 +369,7 @@ class ErrorControllerDecorator(ErrorController):
         -------
         Tuple(float,bool)
             1. A suggestion to next time step size.
-            2. True if for current step size the norm is in tolerance, otherwise False.
+            2. Acceptance Status.
         """
 
         self.is_not_inner = True

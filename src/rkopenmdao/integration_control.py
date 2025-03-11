@@ -11,10 +11,10 @@ class IntegrationControl(ABC):
     # Could solve this by putting things into subclasses, but I don't see the
     # benefit here.
     # pylint: disable=too-many-instance-attributes
-    def __init__(self, initial_delta_t: float, initial_time: float = 0.0):
+    def __init__(self, delta_t: float, initial_time: float = 0.0):
         # Time Data
         self.initial_time = initial_time
-        self.initial_delta_t = initial_delta_t
+        self.initial_delta_t = delta_t
         self.smallest_delta_t = self.initial_delta_t
         self._delta_t = self.initial_delta_t
         self.delta_t_suggestion = self.initial_delta_t
@@ -114,14 +114,14 @@ class TimeTerminationIntegrationControl(IntegrationControl):
 
     def __init__(
         self,
-        initial_delta_t: float,
+        delta_t: float,
         end_time: float,
         initial_time: float = 0.0,
         tol: float = 1e-7,
     ):
         self.end_time = end_time
         self.tol = tol
-        super().__init__(initial_delta_t, initial_time)
+        super().__init__(delta_t, initial_time)
 
     @property
     def delta_t(self):
@@ -164,10 +164,8 @@ class StepTerminationIntegrationControl(IntegrationControl):
     for the termination.
     """
 
-    def __init__(
-        self, initial_delta_t: float, num_steps: int, initial_time: float = 0.0
-    ):
-        super().__init__(initial_delta_t, initial_time)
+    def __init__(self, delta_t: float, num_steps: int, initial_time: float = 0.0):
+        super().__init__(delta_t, initial_time)
         self.num_steps = num_steps
 
     def is_last_time_step(self) -> bool:

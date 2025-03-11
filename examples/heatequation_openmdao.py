@@ -6,7 +6,7 @@ import openmdao.api as om
 from rkopenmdao.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import StepTerminationIntegrationControl
 from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
 )
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         {"tol": 1e-10, "atol": 1e-10},
     )
 
-    integration_control = IntegrationControl(0.0, 100, DELTA_T)
+    integration_control = StepTerminationIntegrationControl(DELTA_T, 100, 0.0)
 
     inner_prob = om.Problem()
 

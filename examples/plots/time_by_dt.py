@@ -1,5 +1,5 @@
 """
-Generates a graph of the delta time over time of adaptive Runge-Kutta method.
+Generates a graph of the delta time over time of different adaptive Runge-Kutta methods.
 """
 
 import json

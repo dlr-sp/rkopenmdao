@@ -6,8 +6,6 @@ import numpy as np
 
 from .integration_control import IntegrationControl, StepTerminationIntegrationControl
 
-# TODO : throw an error if the passed integration control is not StepTerminationIntegrationControl.
-
 
 class FunctionalCoefficients:
     """Base class for the functional coefficients object."""

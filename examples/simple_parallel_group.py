@@ -3,7 +3,10 @@ the time_stage_problem."""
 
 import openmdao.api as om
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.butcher_tableaux import (
     third_order_four_stage_esdirk,
 )
@@ -107,7 +110,7 @@ class ComponentPart2(om.ExplicitComponent):
 
 if __name__ == "__main__":
     butcher_tableau = third_order_four_stage_esdirk
-    integration_control = IntegrationControl(0.0, 3, 0.1)
+    integration_control = StepTerminationIntegrationControl(0.1, 3, 0.0)
     prob = om.Problem()
 
     par_group = om.ParallelGroup()
