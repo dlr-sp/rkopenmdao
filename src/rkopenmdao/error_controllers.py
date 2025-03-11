@@ -181,6 +181,7 @@ def h0_220(
         name=name,
         error_estimator=error_estimator,
         base=base,
+        max_iter=max_iter,
     )
 
 

@@ -17,14 +17,12 @@ from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveChec
 from rkopenmdao.error_controllers import integral
 from rkopenmdao.error_estimator import (
     SimpleErrorEstimator,
-    ImprovedErrorEstimator,
     _non_mpi_partial_norm,
     _mpi_partial_norm,
 )
 from rkopenmdao.integration_control import (
     IntegrationControl,
     StepTerminationIntegrationControl,
-    TimeTerminationIntegrationControl,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from mpi4py import MPI
@@ -361,8 +359,6 @@ def setup_time_integration_problem(
     postprocessing_problem=None,
     postprocessing_quantities=None,
     checkpointing_implementation=NoCheckpointer,
-    error_controller=[integral],
-    error_estimator_type=SimpleErrorEstimator,
     adaptive_time_stepping=False,
 ):
     """Sets up the time integration problem for the following test."""
@@ -377,8 +373,7 @@ def setup_time_integration_problem(
         postprocessing_quantities=postprocessing_quantities,
         checkpointing_type=checkpointing_implementation,
         adaptive_time_stepping=adaptive_time_stepping,
-        error_controller=error_controller,
-        error_estimator_type=error_estimator_type,
+        error_controller=[integral],
     )
 
     time_test_prob = om.Problem()
