@@ -3,7 +3,7 @@
 # pylint: disable = c-extension-no-member
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from mpi4py import MPI
 import numpy as np
@@ -19,7 +19,7 @@ class ErrorEstimator(ABC):
 
     order: int = 2
     quantity_metadata: TimeIntegrationMetadata = None
-    comm: MPI.COMM_WORLD = MPI.COMM_WORLD
+    comm: MPI.COMM_WORLD = field(default_factory=MPI.COMM_WORLD)
 
     @abstractmethod
     def __call__(self, u, embedded_u) -> float:
