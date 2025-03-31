@@ -421,8 +421,8 @@ if __name__ == "__main__":
     rk_prob.driver = om.ScipyOptimizeDriver(optimizer="SLSQP")
 
     rk_prob.setup()
-    rk_prob["y1_initial"] = 2.0
-    rk_prob["y2_initial"] = 2.0
+    rk_prob["y1_initial"] = 1.5
+    rk_prob["y2_initial"] = 1.5
 
     if epsilon_input_file is not None:
         rk_prob["epsilon"] = np.loadtxt(epsilon_input_file)

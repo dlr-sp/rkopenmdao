@@ -9,7 +9,26 @@ import argparse
 import h5py
 import matplotlib.pyplot as plt
 from matplotlib import animation
+import matplotlib as mpl
 import numpy as np
+
+mpl.rcParams["lines.linewidth"] = 1.0
+
+# mpl.rcParams["markers.fillstyle"] = "none"
+mpl.rcParams["legend.numpoints"] = 2
+mpl.rcParams["lines.markeredgewidth"] = 0.2
+mpl.rcParams["lines.markersize"] = 3.0
+
+mpl.rcParams["font.family"] = "serif"
+mpl.rcParams["font.size"] = 10
+
+# mpl.rcParams["text.usetex"] = True
+
+mpl.rcParams["xtick.labelsize"] = "large"
+mpl.rcParams["ytick.labelsize"] = "large"
+mpl.rcParams["axes.labelsize"] = "x-large"
+mpl.rcParams["legend.fontsize"] = "x-large"
+mpl.rcParams["figure.titlesize"] = "x-large"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--num_of_files", type=int)
@@ -27,8 +46,8 @@ delta_t = parsed_args.delta_t
 
 
 fig, ax = plt.subplots(1, 1)
-fig.suptitle("Van der Pol oscillator optimization")
-fig.subplots_adjust(top=0.8)
+# fig.suptitle("Van der Pol oscillator optimization")
+# fig.subplots_adjust(top=0.8)
 
 
 def animation_frame(iternum: int):
@@ -51,8 +70,8 @@ def animation_frame(iternum: int):
     ax.clear()
     ax.set_xlim(-3.1, 3.1)
     ax.set_ylim(-3.1, 3.1)
-    ax.set_xlabel("y_1")
-    ax.set_ylabel("y_2")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
     ax.plot(y1_arr, y2_arr, color="black")
     ax.plot(y1_arr[0], y2_arr[0], color="black", marker="x")
     ax.plot(
@@ -61,7 +80,11 @@ def animation_frame(iternum: int):
         color="black",
         linestyle="dashed",
     )
-    ax.set_title(f"y_1 = {y1_arr[0]}, y_2 = {y2_arr[0]}\n J = {j}")
+    ax.set_title(f"x_0 = {y1_arr[0]}, y_0 = {y2_arr[0]}\n J = {j}")
+
+    fig.savefig(
+        f"vdp_{delta_t}_{epsilon_parameters}_y1_{y1_optimization}_y2_{y2_optimization}_{iternum}.png"
+    )
 
 
 # ani = animation.ArtistAnimation(fig, ims, interval=500, blit=True, repeat=False)
