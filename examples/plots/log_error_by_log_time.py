@@ -3,7 +3,6 @@ Generates a logarithmic graph of error over time for Runge-Kutta methods of diff
 orders.
 """
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpi4py import MPI
 import numpy as np
@@ -21,7 +20,6 @@ from rkopenmdao.butcher_tableaux import (
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
     fifth_order_six_stage_esdirk as six_stage_esdirk,
 )
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()

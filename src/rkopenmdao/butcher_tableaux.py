@@ -374,6 +374,7 @@ fourth_order_six_stage_esdirk = ButcherTableau(
         ]
     ),
     np.array([0.0, 0.5, (2 - 2**0.5) / 4, 5 / 8, 26 / 25, 1.0]),
+    p=4,
 )
 
 fifth_order_six_stage_esdirk = ButcherTableau(

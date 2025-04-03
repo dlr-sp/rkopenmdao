@@ -8,7 +8,7 @@ from rkopenmdao.integration_control import (
     StepTerminationIntegrationControl,
 )
 from rkopenmdao.butcher_tableaux import (
-    third_order_four_stage_esdirk,
+    embedded_third_order_four_stage_esdirk,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
@@ -109,7 +109,7 @@ class ComponentPart2(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
     integration_control = StepTerminationIntegrationControl(0.1, 3, 0.0)
     prob = om.Problem()
 

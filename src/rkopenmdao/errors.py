@@ -25,12 +25,12 @@ class ErrorControllerError(Exception):
 
 
 class OuterErrorControllerError(ErrorControllerError, Exception):
-    """Exception for the case the the outer ErrorController suggests
+    """Exception for the case that the outer ErrorController suggests
     larger delta T on failure.
     """
 
 
 class InnerErrorControllerError(ErrorControllerError, Exception):
-    """Exception for the case the the inner ErrorController suggests
+    """Exception for the case that the inner ErrorController suggests
     larger delta T on failure.
     """
