@@ -41,7 +41,7 @@ if __name__ == "__main__":
         boundary_condition,
         1.0,
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
-        {"tol": 1e-10, "atol": 1e-10},
+        {"rtol": 1e-10, "atol": 1e-10},
     )
 
     integration_control = StepTerminationIntegrationControl(DELTA_T, 100, 0.0)

@@ -115,7 +115,7 @@ if __name__ == "__main__":
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         integration_control,
-        {"tol": 1e-10, "atol": "legacy"},
+        {"rtol": 1e-10, "atol": 1e-10},
     )
 
     inner_prob.model.add_subsystem("heat_group", heat_group)

@@ -8,10 +8,9 @@ import numpy as np
 
 def _get_column_widths(col_arrays):
     """
-    Gives the maximal colomn string length of the butcher tableau.
+    Gives the maximal column string length of the butcher tableau.
     """
     len_max = []
-    col_max = None
     for col_array in col_arrays:
         len_max.append(max(len(ai) for ai in col_array.reshape(-1)))
     col_max = max(len_max)
@@ -56,15 +55,14 @@ class ButcherTableau:
         self,
         butcher_matrix: np.ndarray,
         butcher_weight_vector: np.ndarray,
-        butcher_time_stages: np.ndarray | None = None,
-        p=None,
-        name="Runge-Kutta method",
+        butcher_time_stages: np.ndarray,
+        p: int,
+        name: str = "Runge-Kutta method",
     ):
         # If square matrix
-        if butcher_matrix.shape[0] == butcher_matrix.shape[1]:
-            self.butcher_matrix = butcher_matrix
-        else:
-            self.butcher_matrix = np.array([butcher_matrix])
+        if butcher_matrix.shape[0] != butcher_matrix.shape[1]:
+            raise ValueError("Butcher matrix is not square.")
+        self.butcher_matrix = butcher_matrix
         self.butcher_weight_vector = butcher_weight_vector
         if np.abs(np.sum(self.butcher_weight_vector) - 1.0) > 1e-5:
             warnings.warn("Averaging weights do not sum up to 1")
@@ -254,9 +252,9 @@ class EmbeddedButcherTableau(ButcherTableau):
         butcher_matrix: np.ndarray,
         butcher_weight_vector: np.ndarray,
         butcher_adaptive_weights: np.ndarray,
-        butcher_time_stages: np.ndarray | None = None,
-        p: int = None,
-        phat: int = None,
+        butcher_time_stages: np.ndarray,
+        p: int,
+        phat: int,
         name: str = "Adaptive Runge-Kutta method",
     ):
         super().__init__(
