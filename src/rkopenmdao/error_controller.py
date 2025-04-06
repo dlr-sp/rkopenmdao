@@ -263,6 +263,10 @@ class ErrorController:
         _str += "-" * width
         return _str
 
+    def get_last_step_norm(self):
+        """Returns the norm of the last step."""
+        return self.local_data.local_error_norms[0]
+
     def reset(self):
         """Resets the error controller to the initial state."""
         self.local_data.reset()

@@ -104,7 +104,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._accumulated_stage_perturbations = None
         self._stage_perturbations_cache = None
         self._error_controller = None
-
         self._independent_input_array = None
         self._independent_input_perturbations = None
 
@@ -730,9 +729,21 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         postprocessing_state=None,
     ):
         if self._file_writer is not None:
-            self._file_writer.write_step(
-                step, time, serialized_state, postprocessing_state
-            )
+            if self.options["adaptive_time_stepping"]:
+                self._file_writer.write_step(
+                    step,
+                    time,
+                    serialized_state,
+                    postprocessing_state,
+                    self._error_controller.get_last_step_norm(),
+                )
+            else:
+                self._file_writer.write_step(
+                    step,
+                    time,
+                    serialized_state,
+                    postprocessing_state,
+                )
 
     def _compute_functional_phase(self):
         if self._functional_quantities:
@@ -852,7 +863,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _run_step(self, serialized_state):
         step = self.options["integration_control"].step
         if self.comm.rank == 0:
-            print(f"\nStarting step <{step}> of compute.\n")
+            print(
+                f"\nStarting step <{step}> of compute "
+                f"at {self.options['integration_control'].step_time:.5f}.\n"
+            )
         self._serialized_state = serialized_state
         self._run_step_time_integration_phase()
         self._update_integration_control_step()
@@ -881,12 +895,17 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.comm.rank == 0:
             print("" * 29 + "\n| Resetting error estimator |\n" + "-" * 29 + "\n")
 
-    def _iterate_on_step(self, delta_t_suggestion, stage_computation_func):
+    def _iterate_on_step(self, delta_t_suggestion, stage_computation_func, i=0):
         """Iterates on the a step until a time step that
         complies with the norm's tolerance"""
         self.options["integration_control"].delta_t = delta_t_suggestion
+        if self.options["adaptive_time_stepping"]:
+            if self.comm.rank == 0:
+                print(f"Start Iteration {i}: Trying with {delta_t_suggestion}")
+
         for stage in range(self.options["butcher_tableau"].number_of_stages()):
             stage_computation_func(stage)
+
         temp_serialized_state, delta_t_suggestion, accepted = (
             self._runge_kutta_scheme.compute_step(
                 self.options["integration_control"].delta_t,
@@ -894,8 +913,23 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._stage_cache,
             )
         )
+        if self.options["adaptive_time_stepping"]:
+            if self.comm.rank == 0:
+                nl = "\n"
+                print(
+                    f"""End Iteration {i}: {
+                    self.options['integration_control'].delta_t} {f'succeeded. {nl}'
+                    'Estimation for next step is:' 
+                    if accepted else f'failed. {nl}' 
+                    'Trying again with:'
+                    } {delta_t_suggestion}
+                    """
+                )
+
         if not accepted:
-            return self._iterate_on_step(delta_t_suggestion, stage_computation_func)
+            return self._iterate_on_step(
+                delta_t_suggestion, stage_computation_func, i + 1
+            )
         return temp_serialized_state, delta_t_suggestion
 
     def _run_step_time_integration_phase(self):

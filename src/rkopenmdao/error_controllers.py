@@ -5,9 +5,38 @@ Mark H. Carpenter.
 
 # No need to write this into doc again.
 # pylint: disable=missing-function-docstring
+import numpy as np
 
 from rkopenmdao.error_controller import ErrorController, ErrorControllerDecorator
 from rkopenmdao.error_estimator import ErrorEstimator
+
+
+def psuedo(
+    p,
+    error_estimator: ErrorEstimator,
+    tol=np.inf,
+    safety_factor=1.0,
+    name="Psuedo-Controller",
+    base: ErrorController = None,
+    max_iter=1000,
+):
+    if base:
+        return ErrorControllerDecorator(
+            0,
+            base,
+            tol=tol,
+            safety_factor=safety_factor,
+            name=name,
+            error_estimator=error_estimator,
+        )
+    return ErrorController(
+        0,
+        tol=tol,
+        safety_factor=safety_factor,
+        name=name,
+        error_estimator=error_estimator,
+        max_iter=max_iter,
+    )
 
 
 def integral(

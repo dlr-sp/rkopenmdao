@@ -47,6 +47,24 @@ class Hdf5FileWriter(FileWriterInterface):
             with h5py.File(self.file_name, mode="w") as f:
                 for quantity in written_out_quantities:
                     f.create_group(quantity.name)
+                f.create_group("Norm")
+
+    @staticmethod
+    def get_write_indices(quantity: Quantity) -> tuple:
+        """Gets indices of where to write the local part of the quantity
+        into the respective dataset."""
+        start_tuple = np.unravel_index(
+            quantity.array_metadata.global_start_index,
+            quantity.array_metadata.global_shape,
+        )
+        end_tuple = np.unravel_index(
+            quantity.array_metadata.global_end_index - 1,
+            quantity.array_metadata.global_shape,
+        )
+        access_list = []
+        for start_index, end_index in zip(start_tuple, end_tuple):
+            access_list.append(slice(start_index, end_index + 1))
+        return tuple(access_list)
 
     def write_step(
         self,
@@ -54,6 +72,7 @@ class Hdf5FileWriter(FileWriterInterface):
         time: float,
         time_integration_data: np.ndarray,
         postprocessing_data: np.ndarray,
+        norm: float = None,
     ) -> None:
         data_map = {
             "time_integration": time_integration_data,
@@ -77,23 +96,14 @@ class Hdf5FileWriter(FileWriterInterface):
                     f[quantity.name][str(step)][write_indices] = data_map[
                         quantity.type
                     ][start_array:end_array].reshape(quantity.array_metadata.shape)
-
-    @staticmethod
-    def get_write_indices(quantity: Quantity) -> tuple:
-        """Gets indices of where to write the local part of the quantity
-        into the respective HDF5 dataset."""
-        start_tuple = np.unravel_index(
-            quantity.array_metadata.global_start_index,
-            quantity.array_metadata.global_shape,
-        )
-        end_tuple = np.unravel_index(
-            quantity.array_metadata.global_end_index - 1,
-            quantity.array_metadata.global_shape,
-        )
-        access_list = []
-        for start_index, end_index in zip(start_tuple, end_tuple):
-            access_list.append(slice(start_index, end_index + 1))
-        return tuple(access_list)
+            if norm:
+                norm_data = f["Norm"].create_dataset(
+                    str(step),
+                    shape=(1,),
+                    dtype=np.float64,
+                )
+                norm_data.attrs["time"] = time
+                f["Norm"][str(step)][0] = norm
 
 
 class TXTFileWriter(FileWriterInterface):
@@ -108,6 +118,7 @@ class TXTFileWriter(FileWriterInterface):
         time: float,
         time_integration_data: np.ndarray,
         postprocessing_data: np.ndarray,
+        norm: float = None,
     ) -> None:
         if self.comm.rank == 0:
             mode = "a"
@@ -133,20 +144,3 @@ class TXTFileWriter(FileWriterInterface):
                             .tolist()
                         )
                 file_out.write(json.dumps(data_dict) + "\n")
-
-    @staticmethod
-    def get_write_indices(quantity: Quantity) -> tuple:
-        """Gets indices of where to write the local part of the quantity
-        into the respective dataset."""
-        start_tuple = np.unravel_index(
-            quantity.array_metadata.global_start_index,
-            quantity.array_metadata.global_shape,
-        )
-        end_tuple = np.unravel_index(
-            quantity.array_metadata.global_end_index - 1,
-            quantity.array_metadata.global_shape,
-        )
-        access_list = []
-        for start_index, end_index in zip(start_tuple, end_tuple):
-            access_list.append(slice(start_index, end_index + 1))
-        return tuple(access_list)
