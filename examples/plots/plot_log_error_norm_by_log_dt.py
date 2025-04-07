@@ -1,15 +1,15 @@
 import argparse
-import numpy as np
 import pathlib
 
 import h5py
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from mpi4py import MPI
+import numpy as np
 
 from rkopenmdao.butcher_tableaux import (
-    embedded_second_order_two_stage_sdirk as two_stage_dirk,
-    embedded_third_order_four_stage_esdirk as four_stage_dirk,
+    embedded_second_order_two_stage_sdirk as two_stage_esdirk,
+    embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
 
@@ -18,12 +18,12 @@ if __name__ == "__main__":
     comm = MPI.COMM_WORLD
     rank = comm.Get_rank()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base_name", type=str)
+    parser.add_argument("--base_name", default="data", type=str)
     parsed_args = parser.parse_args()
     folder_path = pathlib.Path(__file__).parent / "data"
     butcher_tableaux = [
-        two_stage_dirk,
-        four_stage_dirk,
+        two_stage_esdirk,
+        four_stage_esdirk,
         five_stage_esdirk,
     ]
 
@@ -35,9 +35,12 @@ if __name__ == "__main__":
         error_data[f"{butcher_tableau.name}"] = {}
         for dt in delta_t_list:
             error_data[f"{butcher_tableau.name}"][str(dt)] = []
-            file_path = (
-                folder_path / f"{parsed_args.base_name}_{dt}_{butcher_tableau.name}.h5"
-            )
+            file_name = f"{parsed_args.base_name}_{dt:.0E}_{butcher_tableau.name}"
+            file_name = file_name.replace(" ", "_")
+            file_name = file_name.replace(",", "")
+            file_name = file_name.replace(".", "f")
+            file_name = file_name.lower()
+            file_path = folder_path / f"{file_name}.h5"
             # print(file_path)
 
             with h5py.File(

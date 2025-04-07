@@ -3,6 +3,8 @@ Generates a logarithmic graph of error over time for Runge-Kutta methods of diff
 orders.
 """
 
+import argparse
+
 import numpy as np
 
 import openmdao.api as om
@@ -13,11 +15,11 @@ from rkopenmdao.integration_control import (
     IntegrationControl,
     TimeTerminationIntegrationControl,
 )
-from rkopenmdao.error_controllers import psuedo
+from rkopenmdao.error_controllers import pseudo
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
-    embedded_second_order_two_stage_sdirk as two_stage_dirk,
-    embedded_third_order_four_stage_esdirk as four_stage_dirk,
+    embedded_second_order_two_stage_sdirk as two_stage_esdirk,
+    embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
 from .odes import ODE
@@ -27,7 +29,7 @@ rank = comm.Get_rank()
 
 
 def component_integration(
-    component_class, solution, delta_t, butcher_tableau, quantities
+    component_class, solution, delta_t, butcher_tableau, quantities, parsed_args
 ):
     """
     Integrates the component with the Runge-kutta Integrator for a given step size
@@ -39,6 +41,10 @@ def component_integration(
         "test_comp", component_class(integration_control=integration_control)
     )
     runge_kutta_prob = om.Problem()
+    write_file = f"{parsed_args.base_name}_{delta_t:.0E}_{butcher_tableau.name}"
+    write_file = write_file.replace(" ", "_")
+    write_file = write_file.replace(",", "")
+    write_file = write_file.lower()
     runge_kutta_prob.model.add_subsystem(
         "rk_integrator",
         RungeKuttaIntegrator(
@@ -46,9 +52,9 @@ def component_integration(
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             time_integration_quantities=quantities,
-            error_controller=[psuedo],
+            error_controller=[pseudo],
             adaptive_time_stepping=True,
-            write_file=f"data_{str(delta_t)}_{butcher_tableau.name}.h5",
+            write_file=f"{write_file}.h5",
             write_out_distance=1,
         ),
         promotes=["*"],
@@ -70,17 +76,23 @@ def component_integration(
 
 
 if __name__ == "__main__":
-    delta_t = [1e-4, 0.5e-3, 1e-3, 0.5e-2, 1e-2, 0.5e-1, 1e-1, 0.5, 1.0]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base_name", default="data", type=str)
+    parsed_args = parser.parse_args()
+
+    delta_t = [0.5e-3, 1e-3, 0.5e-2, 1e-2, 0.5e-1, 1e-1, 0.5, 1.0, 2.0]
     delta_t = np.array(delta_t)
     error_data = {}
     butcher_tableaux = [
-        two_stage_dirk,
-        four_stage_dirk,
+        two_stage_esdirk,
+        four_stage_esdirk,
         five_stage_esdirk,
     ]
     for scheme in butcher_tableaux:
         error_data[f"{scheme.name}"] = []
         for step_size in delta_t:
             error_data[f"{scheme.name}"].append(
-                component_integration(ODE, ODE.solution, step_size, scheme, ["x"])
+                component_integration(
+                    ODE, ODE.solution, step_size, scheme, ["x"], parsed_args
+                )
             )

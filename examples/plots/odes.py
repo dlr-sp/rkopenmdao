@@ -3,7 +3,6 @@ Usable odes for plotting.
 """
 
 import numpy as np
-
 import openmdao.api as om
 
 from rkopenmdao.integration_control import IntegrationControl
@@ -41,14 +40,6 @@ class ODE(om.ExplicitComponent):
             "integration_control"
         ].butcher_diagonal_element
         stage_time = self.options["integration_control"].stage_time
-        print(
-            delta_t,
-            butcher_diagonal_element,
-            stage_time,
-            stage_time,
-            inputs["acc_stages"],
-            inputs["x"],
-        )
         outputs["x_stage"] = (
             0.5 * delta_t * butcher_diagonal_element * stage_time
             + np.sqrt(

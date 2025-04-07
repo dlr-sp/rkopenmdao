@@ -49,23 +49,6 @@ class Hdf5FileWriter(FileWriterInterface):
                     f.create_group(quantity.name)
                 f.create_group("Norm")
 
-    @staticmethod
-    def get_write_indices(quantity: Quantity) -> tuple:
-        """Gets indices of where to write the local part of the quantity
-        into the respective dataset."""
-        start_tuple = np.unravel_index(
-            quantity.array_metadata.global_start_index,
-            quantity.array_metadata.global_shape,
-        )
-        end_tuple = np.unravel_index(
-            quantity.array_metadata.global_end_index - 1,
-            quantity.array_metadata.global_shape,
-        )
-        access_list = []
-        for start_index, end_index in zip(start_tuple, end_tuple):
-            access_list.append(slice(start_index, end_index + 1))
-        return tuple(access_list)
-
     def write_step(
         self,
         step: int,
@@ -105,6 +88,23 @@ class Hdf5FileWriter(FileWriterInterface):
                 norm_data.attrs["time"] = time
                 f["Norm"][str(step)][0] = norm
 
+    @staticmethod
+    def get_write_indices(quantity: Quantity) -> tuple:
+        """Gets indices of where to write the local part of the quantity
+        into the respective dataset."""
+        start_tuple = np.unravel_index(
+            quantity.array_metadata.global_start_index,
+            quantity.array_metadata.global_shape,
+        )
+        end_tuple = np.unravel_index(
+            quantity.array_metadata.global_end_index - 1,
+            quantity.array_metadata.global_shape,
+        )
+        access_list = []
+        for start_index, end_index in zip(start_tuple, end_tuple):
+            access_list.append(slice(start_index, end_index + 1))
+        return tuple(access_list)
+
 
 class TXTFileWriter(FileWriterInterface):
     """
@@ -128,7 +128,10 @@ class TXTFileWriter(FileWriterInterface):
                 "time_integration": time_integration_data,
                 "postprocessing": postprocessing_data,
             }
-            data_dict = {"step": step, "time": time}
+            if norm:
+                data_dict = {"step": step, "time": time, "norm": norm}
+            else:
+                data_dict = {"step": step, "time": time}
 
             with open(self.file_name, mode, encoding="utf-8") as file_out:
                 for quantity in chain(

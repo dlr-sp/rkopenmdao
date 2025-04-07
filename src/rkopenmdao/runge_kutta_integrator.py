@@ -65,6 +65,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _serialized_state_perturbations_from_functional: np.ndarray | None
     _accumulated_stage_perturbations: np.ndarray | None
     _stage_perturbations_cache: np.ndarray | None
+
     _error_estimator: ErrorEstimator | None
     _error_controller: ErrorController | None
 
@@ -921,7 +922,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     self.options['integration_control'].delta_t} {f'succeeded. {nl}'
                     'Estimation for next step is:' 
                     if accepted else f'failed. {nl}' 
-                    'Trying again with:'
+                    'retrying with:'
                     } {delta_t_suggestion}
                     """
                 )

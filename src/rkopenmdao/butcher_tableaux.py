@@ -44,6 +44,7 @@ __all__ = [
     "embedded_third_order_five_stage_esdirk",
     "embedded_fourth_order_five_stage_esdirk",
     "embedded_runge_kutta_fehlberg",
+    "embedded_fifth_order_six_stage_esdirk",
 ]
 
 # one stage methods
@@ -789,7 +790,7 @@ def create_fourth_order_five_stage_esdirk():  # STIFF METHOD
 
 embedded_fourth_order_five_stage_esdirk = create_fourth_order_five_stage_esdirk()
 
-
+# Source: https://doi.org/10.1016/j.aej.2015.12.026
 embedded_runge_kutta_fehlberg = EmbeddedButcherTableau(
     np.array(
         [
@@ -804,8 +805,8 @@ embedded_runge_kutta_fehlberg = EmbeddedButcherTableau(
     np.array([16 / 135, 0.0, 6656 / 12825, 28561 / 56430, -9 / 50, 2 / 55]),
     np.array([25 / 216, 0.0, 1408 / 2565, 2197 / 4104, -1 / 5, 0.0]),
     np.array([0.0, 1 / 4, 3 / 8, 12 / 13, 1.0, 1 / 2]),
-    p=4,
-    phat=5,
+    p=5,
+    phat=4,
     name="The Runge–Kutta–Fehlberg method",
 )
 
@@ -861,7 +862,7 @@ def create_fifth_order_six_stage_esdirk():
             0.0,
             4024571134387 / 7237035672548,
             14228244952610 / 13832614967709,
-            1 / 10,
+            0.1,
             3 / 50,
             1.0,
         ]
@@ -886,7 +887,7 @@ def create_fifth_order_six_stage_esdirk():
             2847520232427 / 11515777524847,
         ]
     )
-    tableau = EmbeddedButcherTableau(
+    return EmbeddedButcherTableau(
         a,
         b,
         bhat,
@@ -895,3 +896,6 @@ def create_fifth_order_six_stage_esdirk():
         phat=3,
         name="ESDIRK 6-stage, 5th order",
     )
+
+
+embedded_fifth_order_six_stage_esdirk = create_fifth_order_six_stage_esdirk()

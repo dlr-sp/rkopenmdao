@@ -11,12 +11,12 @@ from rkopenmdao.error_controller import ErrorController, ErrorControllerDecorato
 from rkopenmdao.error_estimator import ErrorEstimator
 
 
-def psuedo(
+def pseudo(
     p,
     error_estimator: ErrorEstimator,
     tol=np.inf,
     safety_factor=1.0,
-    name="Psuedo-Controller",
+    name="pseudo-Controller",
     base: ErrorController = None,
     max_iter=1000,
 ):
