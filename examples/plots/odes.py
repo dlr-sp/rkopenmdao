@@ -71,7 +71,7 @@ class ODE(om.ExplicitComponent):
             )
 
     @staticmethod
-    def solution(time, initial_value, initial_time=0):
+    def solution(time, initial_value, initial_time):
         """Analytical solution to the ODE of the above component."""
         return (
             np.sqrt(initial_value) + (np.sqrt(time**3) - np.sqrt(initial_time**3)) / 3
@@ -81,23 +81,21 @@ class ODE(om.ExplicitComponent):
 class ODE_CFD(om.ExplicitComponent):
     """
     Using ODE from Springer https://doi.org/10.1007/978-3-030-39647-3_36:
-    1) u' = lambda * (u - Phi(t)) + dPhi(t)/dt
+    1) x' = lambda * (x - Phi(t)) + dPhi(t)/dt
     2) Phi(t) = sin(t + pi/4)
-    3) u(0) = sin(pi/4)
-    Analytical Solution u = sin(t + pi/4) + e^(lambda*t)
-    True Solution: , lambda = -10^4, u(0) = sin(pi/4)
+    3) x(0) = sin(pi/4)
+    Analytical Solution x = sin(t + pi/4) + e^(lambda*t)
+    for lambda = -1.0e+4, x(0) = sin(pi/4)
     """
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
+        self.options.declare("lambda", default=0, types=float)
 
     def setup(self):
-        self.add_input("u", shape=1, tags=["step_input_var", "u"])
-        self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "u"])
-        self.add_input(
-            "lambda", val=-1e2, shape=1, tags=["time_independent_input_var", "lambda"]
-        )
-        self.add_output("u_stage", shape=1, tags=["stage_output_var", "u"])
+        self.add_input("x", shape=1, tags=["step_input_var", "x"])
+        self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
+        self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     @staticmethod
     def phi(time):
@@ -116,19 +114,19 @@ class ODE_CFD(om.ExplicitComponent):
     def compute(self, inputs, outputs):
         _delta_t = self.options["integration_control"].delta_t
         stage_time = self.options["integration_control"].stage_time
-
-        outputs["u_stage"] = (
-            inputs["lambda"]
-            * (inputs["u"] + _delta_t * inputs["acc_stages"] - self.phi(stage_time))
+        lambd = self.options["lambda"]
+        outputs["x_stage"] = (
+            lambd
+            * (inputs["x"] + _delta_t * inputs["acc_stages"] - self.phi(stage_time))
             + self.dphi(stage_time)
         ) / (
             1
-            - inputs["lambda"]
+            - lambd
             * _delta_t
             * self.options["integration_control"].butcher_diagonal_element
         )
 
     @staticmethod
-    def solution(time, coefficient, initial_time=0):
+    def solution(time, coefficient):
         """Analytical solution of the ODE"""
-        return np.sin(time + initial_time + np.pi / 4) + np.exp(coefficient * time)
+        return np.sin(time + np.pi / 4) + np.exp(coefficient * time)

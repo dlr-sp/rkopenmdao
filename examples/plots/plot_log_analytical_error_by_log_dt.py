@@ -1,4 +1,4 @@
-"""Plots the error wrt. to embedded schemes over delta time"""
+"""Plots the error wrt. to analytical solution over delta time"""
 
 import argparse
 import pathlib
@@ -14,11 +14,14 @@ from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
+from .odes import ODE_CFD
 
+OBJECTIVE_TIME = 10.0  # in seconds
+QUANTITY = "x"
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
 
 if __name__ == "__main__":
-    comm = MPI.COMM_WORLD
-    rank = comm.Get_rank()
     parser = argparse.ArgumentParser()
     parser.add_argument("--base_name", default="data", type=str)
     parsed_args = parser.parse_args()
@@ -41,7 +44,6 @@ if __name__ == "__main__":
         1.0,
     ]
     delta_t_list = np.array(delta_t_list)
-
     error_data = {}
     for butcher_tableau in butcher_tableaux:
         error_data[f"{butcher_tableau.name}"] = {}
@@ -50,29 +52,32 @@ if __name__ == "__main__":
             file_name = f"{parsed_args.base_name}_{dt:.0E}_{butcher_tableau.name}"
             file_name = file_name.replace(" ", "_")
             file_name = file_name.replace(",", "")
-            file_name = file_name.replace(".", "f")
             file_name = file_name.lower()
             file_path = folder_path / f"{file_name}.h5"
-            # print(file_path)
-
             with h5py.File(
                 file_path,
                 mode="r",
                 driver="mpio",
                 comm=comm,
             ) as f:
-                last_step = int(1.0 / dt)
+                last_step = int(OBJECTIVE_TIME / dt)
                 error_data[butcher_tableau.name][f"{dt}"].append(
-                    f["Norm"][str(last_step)][0]
+                    np.abs(
+                        ODE_CFD.solution(OBJECTIVE_TIME, -1e4)
+                        - f[QUANTITY][str(last_step)][0]
+                    )
                 )
-    print(error_data[butcher_tableau.name].values())
+                print(
+                    ODE_CFD.solution(OBJECTIVE_TIME, -1e4),
+                    f[QUANTITY][str(last_step)][0],
+                )
     if rank == 0:
         fig = plt.figure()
         # x axis
         plt.xlabel("Step size t [s] (log scale)")
         plt.xscale("log")
         # y axis
-        plt.ylabel("Norm Error E [-] (log scale)")
+        plt.ylabel("Error E [-] (log scale)")
         plt.yscale("log")
         plt.grid(True)
         for scheme in butcher_tableaux:
@@ -94,4 +99,4 @@ if __name__ == "__main__":
         plt.xlim(delta_t_list[0], delta_t_list[-1])
         plt.legend()
         plt.show()
-        fig.savefig("norm_error_time_plot.pdf")
+        fig.savefig("analytical_error_time_plot.pdf")
