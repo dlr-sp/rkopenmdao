@@ -82,15 +82,15 @@ class ODE_CFD(om.ExplicitComponent):
     """
     Using ODE from Springer https://doi.org/10.1007/978-3-030-39647-3_36:
     1) x' = lambda * (x - Phi(t)) + dPhi(t)/dt
-    2) Phi(t) = sin(t + pi/4)
-    3) x(0) = sin(pi/4)
-    Analytical Solution x = sin(t + pi/4) + e^(lambda*t)
-    for lambda = -1.0e+4, x(0) = sin(pi/4)
+    2) Phi(t) = sin(t)
+    3) x(0) = 1
+    Analytical Solution x = sin(t) + e^(lambda*t)
+    for lambda = -1.0e+4, x(0) = 1
     """
 
     def initialize(self):
         self.options.declare("integration_control", types=IntegrationControl)
-        self.options.declare("lambda", default=0, types=float)
+        self.options.declare("lambda", default=-1e1, types=float)
 
     def setup(self):
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
@@ -100,16 +100,16 @@ class ODE_CFD(om.ExplicitComponent):
     @staticmethod
     def phi(time):
         """
-        Calculates Phi(t) = sin(t + pi/4)
+        Calculates Phi(t) = sin(t)
         """
-        return np.sin(np.pi / 4 + time)
+        return np.sin(time)
 
     @staticmethod
     def dphi(time):
         """
-        Calculates derivative of Phi'(t)= cos(t+pi/4)
+        Calculates derivative of Phi'(t)= cos(t)
         """
-        return np.cos(np.pi / 4 + time)
+        return np.cos(time)
 
     def compute(self, inputs, outputs):
         _delta_t = self.options["integration_control"].delta_t
@@ -127,6 +127,6 @@ class ODE_CFD(om.ExplicitComponent):
         )
 
     @staticmethod
-    def solution(time, coefficient):
+    def solution(time, coefficient, initial_value=1.0):
         """Analytical solution of the ODE"""
-        return np.sin(time + np.pi / 4) + np.exp(coefficient * time)
+        return np.sin(time) + initial_value * np.exp(coefficient * time)

@@ -66,6 +66,6 @@ for butcher_tableau in butcher_tableaux:
     runge_kutta_prob.setup()
 
     for quantity in quantities:
-        runge_kutta_prob[quantity + "_initial"] = np.sin(np.pi / 4)
+        runge_kutta_prob[quantity + "_initial"] = 1
 
     runge_kutta_prob.run_model()

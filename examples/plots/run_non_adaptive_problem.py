@@ -9,7 +9,6 @@ import numpy as np
 
 import openmdao.api as om
 from mpi4py import MPI
-import matplotlib.pyplot as plt
 
 from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
@@ -36,7 +35,7 @@ def component_integration(component_class, dt, butcher_tableau, quantities, args
     write_file = write_file.replace(",", "")
     write_file = write_file.lower()
 
-    initial_values = np.array([np.sin(np.pi / 4)])
+    initial_values = np.array([1])
     integration_control = TimeTerminationIntegrationControl(dt, 10.0, 0.0)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -71,11 +70,11 @@ if __name__ == "__main__":
     parsed_args = parser.parse_args()
 
     delta_t = [
-        # 1.0e-4,
-        # 0.5e-3,
-        # 1e-3,
-        # 0.5e-2,
-        # 1e-2,
+        1.0e-4,
+        0.5e-3,
+        1e-3,
+        0.5e-2,
+        1e-2,
         0.5e-1,
         1e-1,
         0.5,

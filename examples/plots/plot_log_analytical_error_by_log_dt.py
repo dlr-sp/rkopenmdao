@@ -37,7 +37,7 @@ if __name__ == "__main__":
         # 0.5e-3,
         # 1e-3,
         # 0.5e-2,
-        # 1e-2,
+        1e-2,
         0.5e-1,
         1e-1,
         0.5,
@@ -63,12 +63,12 @@ if __name__ == "__main__":
                 last_step = int(OBJECTIVE_TIME / dt)
                 error_data[butcher_tableau.name][f"{dt}"].append(
                     np.abs(
-                        ODE_CFD.solution(OBJECTIVE_TIME, -1e4)
+                        ODE_CFD.solution(OBJECTIVE_TIME, -1e1)
                         - f[QUANTITY][str(last_step)][0]
                     )
                 )
                 print(
-                    ODE_CFD.solution(OBJECTIVE_TIME, -1e4),
+                    ODE_CFD.solution(OBJECTIVE_TIME, -1e1),
                     f[QUANTITY][str(last_step)][0],
                 )
     if rank == 0:
