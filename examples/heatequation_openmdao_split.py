@@ -11,7 +11,7 @@ import openmdao.api as om
 from rkopenmdao.runge_kutta_integrator import (
     RungeKuttaIntegrator,
 )
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import StepTerminationIntegrationControl
 
 from rkopenmdao.butcher_tableaux import (
     third_order_third_weak_stage_order_four_stage_dirk,
@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
     butcher_tableau = third_order_third_weak_stage_order_four_stage_dirk
 
-    integration_control = IntegrationControl(0.0, 100, 1e-3)
+    integration_control = StepTerminationIntegrationControl(1e-3, 100, 0.0)
 
     inner_prob = om.Problem()
 
@@ -53,7 +53,7 @@ if __name__ == "__main__":
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         lambda x, y: np.cos(2 * np.pi * x) * np.cos(2 * np.pi * y) + 1,
         integration_control,
-        {"tol": 1e-10, "atol": "legacy"},
+        {"rtol": 1e-10, "atol": 1e-10},
     )
 
     inner_prob.model.add_subsystem("heat_group", heat_group)

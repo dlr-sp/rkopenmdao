@@ -10,7 +10,7 @@ import pytest
 from rkopenmdao.runge_kutta_scheme import RungeKuttaScheme
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
-    second_order_two_stage_sdirk as two_stage_dirk,
+    embedded_second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
 
@@ -464,7 +464,7 @@ def test_compute_step(
     expected_new_state: np.ndarray,
 ):
     """Tests the compute_step function."""
-    assert rk_scheme.compute_step(delta_t, old_state, stage_field) == pytest.approx(
+    assert rk_scheme.compute_step(delta_t, old_state, stage_field)[0] == pytest.approx(
         expected_new_state
     )
 

@@ -5,9 +5,11 @@ import h5py
 import pytest
 import numpy as np
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.butcher_tableaux import (
-    third_order_four_stage_esdirk,
+    embedded_third_order_four_stage_esdirk,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from .test_components import TestComp1, Testcomp51, Testcomp52
@@ -20,9 +22,9 @@ from .test_postprocessing_problems import SquaringComponent
 def test_monodisciplinary(write_out_distance, write_file):
     """Tests write-out for monodisciplinary problems."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp", TestComp1(integration_control=integration_control)
@@ -60,9 +62,9 @@ def test_monodisciplinary(write_out_distance, write_file):
 def test_time_attribute(write_out_distance, write_file):
     """Checks that the time attribute in the written out file is correct."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp", TestComp1(integration_control=integration_control)
@@ -96,9 +98,9 @@ def test_time_attribute(write_out_distance, write_file):
 def test_multidisciplinary(write_out_distance, write_file):
     """Tests write-out for multidisciplinary problems."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp_1",
@@ -148,9 +150,9 @@ def test_multidisciplinary(write_out_distance, write_file):
 def test_postprocessing(write_out_distance, write_file):
     """Tests write out when postprocessing is involved."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     test_prob.model.add_subsystem(
         "test_comp", TestComp1(integration_control=integration_control)
@@ -204,9 +206,9 @@ def test_postprocessing(write_out_distance, write_file):
 def test_n_d_array(write_out_distance):
     """Tests write-out when shape isn't just 1D."""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     time_int_indep = om.IndepVarComp()
     time_int_indep.add_output(
@@ -252,9 +254,9 @@ def test_n_d_array(write_out_distance):
 def test_parallel_write_out(write_out_distance, shape):
     """Tests write-out with parallel execution. (Needs h5py that has MPI support.)"""
     test_prob = om.Problem()
-    integration_control = IntegrationControl(1.0, 100, 0.01)
+    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
-    butcher_tableau = third_order_four_stage_esdirk
+    butcher_tableau = embedded_third_order_four_stage_esdirk
 
     time_int_indep = om.IndepVarComp()
     time_int_indep.add_output(

@@ -6,11 +6,13 @@ import numpy as np
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
-    second_order_two_stage_sdirk as two_stage_dirk,
+    embedded_second_order_two_stage_sdirk as two_stage_dirk,
 )
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
@@ -105,7 +107,7 @@ def test_postprocessing_after_time_integration(
     butcher_tableau,
 ):
     """Tests the postprocessing after time integration."""
-    integration_control = IntegrationControl(0.0, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, 0.0)
     postproc_problem = postprocessing_problem_creator([("x", quantity_size)])
 
     time_stage_problem = om.Problem()
@@ -164,8 +166,8 @@ def test_postprocessing_after_time_integration_split(
 ):
     """Tests whether postprocessing works the same when split over multiple
     components."""
-    integration_control_1 = IntegrationControl(0.0, 10, 0.001)
-    integration_control_2 = IntegrationControl(0.0, 10, 0.001)
+    integration_control_1 = StepTerminationIntegrationControl(0.001, 10, 0.0)
+    integration_control_2 = StepTerminationIntegrationControl(0.001, 10, 0.0)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])
     postproc_problem_2 = postprocessing_problem_creator([("x", 1), ("y", 1)])
 
@@ -269,7 +271,7 @@ def test_postprocessing_after_time_integration_partials(
     checkpointing_implementation,
 ):
     """Tests partials of the postprocessing after time integration."""
-    integration_control = IntegrationControl(0.0, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, 0.0)
     postproc_problem = postprocessing_problem_creator(quantity_list)
     quantities = [quantity_tuple[0] for quantity_tuple in quantity_list]
 
@@ -329,8 +331,8 @@ def test_postprocessing_after_time_integration_split_partials(
 ):
     """Tests whether the partials of the postprocessing are the same for a split and
     unsplit problem."""
-    integration_control_1 = IntegrationControl(0.0, 10, 0.01)
-    integration_control_2 = IntegrationControl(0.0, 10, 0.01)
+    integration_control_1 = StepTerminationIntegrationControl(0.01, 10, 0.0)
+    integration_control_2 = StepTerminationIntegrationControl(0.01, 10, 0.0)
     postproc_problem_1 = postprocessing_problem_creator([("x", 2)])
     postproc_problem_2 = postprocessing_problem_creator([("x", 1), ("y", 1)])
 

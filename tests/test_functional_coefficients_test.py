@@ -6,11 +6,13 @@ import pytest
 import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
-    second_order_two_stage_sdirk as two_stage_dirk,
+    embedded_second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
 from rkopenmdao.functional_coefficients import (
@@ -44,7 +46,7 @@ def test_average_functional(
     butcher_tableau,
 ):
     """Tests the averaging functional with various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -93,7 +95,7 @@ def test_average_functional_partials(
 ):
     """Tests the partials of the averaging functional with various time
     integration schemes."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -137,7 +139,7 @@ def test_composite_trapezoidal_functional(
 ):
     """Tests the functional for the composite trapezoidal rule with various time
     integration schemes."""
-    integration_control = IntegrationControl(initial_time, 1000, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 1000, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -184,7 +186,7 @@ def test_composite_trapezoidal_functional_partials(
 ):
     """Tests the partials of the functional for the composite trapezoidal rule with
     various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -229,7 +231,7 @@ def test_fifth_value_functional(
     butcher_tableau,
 ):
     """Tests the functional for the fifth step with various time integration schemes."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -274,7 +276,7 @@ def test_fifth_value_functional_partials(
 ):
     """Tests the partials of the functional for the fifth step with various time
     integration schemes."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -317,7 +319,7 @@ def test_average_functional_with_postprocessing(
     butcher_tableau,
 ):
     """Tests the averaging functional with time integration and postprocessing."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -375,7 +377,7 @@ def test_average_functional_with_postprocessing_partials(
 ):
     """Tests the partials of the averaging functional with time integration and
     postprocessing."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -424,7 +426,7 @@ def test_average_functional_with_only_postprocessing(
     butcher_tableau,
 ):
     """Tests the averaging functional with only postprocessing."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -479,7 +481,7 @@ def test_average_functional_with_only_postprocessing_partials(
     initial_time, initial_value, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the averaging functional with only postprocessing."""
-    integration_control = IntegrationControl(initial_time, 10, 0.001)
+    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
 
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(

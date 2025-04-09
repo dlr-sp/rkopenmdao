@@ -89,24 +89,31 @@ class StageUpdateComponent(om.ExplicitComponent):
 
     def setup(self):
         for quantity in self.options["quantity_list"]:
-            self.add_input(quantity, shape_by_conn=True)
+            self.add_input(
+                quantity,
+                shape_by_conn=True,
+                distributed=True,
+            )
             self.add_input(
                 quantity + "_old",
                 val=0.0,
                 tags=[quantity, "step_input_var"],
                 copy_shape=quantity,
+                distributed=True,
             )
             self.add_input(
                 quantity + "_acc_stages",
                 val=0.0,
                 tags=[quantity, "accumulated_stage_var"],
                 copy_shape=quantity,
+                distributed=True,
             )
             self.add_output(
                 quantity + "_update",
                 val=0.0,
                 tags=[quantity, "stage_output_var"],
                 copy_shape=quantity,
+                distributed=True,
             )
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):

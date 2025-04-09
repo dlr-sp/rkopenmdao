@@ -2,6 +2,7 @@
 RungeKuttaIntegrator used for organizing its own data structures."""
 
 # pylint: disable=protected-access
+# pylint: disable = c-extension-no-member
 from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field

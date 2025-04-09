@@ -3,9 +3,12 @@ components in the time_stage_problem"""
 
 import openmdao.api as om
 import numpy as np
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.butcher_tableaux import (
-    third_order_four_stage_esdirk,
+    embedded_third_order_four_stage_esdirk,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
@@ -108,8 +111,8 @@ class SimpleDistributedComponent(om.ExplicitComponent):
 
 
 if __name__ == "__main__":
-    butcher_tableau = third_order_four_stage_esdirk
-    integration_control = IntegrationControl(0.0, 3, 0.1)
+    butcher_tableau = embedded_third_order_four_stage_esdirk
+    integration_control = StepTerminationIntegrationControl(0.1, 3, 0.0)
     prob = om.Problem()
 
     prob.model.add_subsystem(
