@@ -654,8 +654,8 @@ embedded_third_order_three_stage_sdirk = EmbeddedButcherTableau(
     np.array(
         [5/6, 29/108, 1/6]
     ),
-    p=3,
-    phat=2,
+    p=2,
+    phat=3,
     name="SDIRK 3-stage, 3rd order",
 )
 
