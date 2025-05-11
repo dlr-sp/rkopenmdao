@@ -43,6 +43,7 @@ __all__ = [
     "embedded_third_order_three_stage_sdirk",
     "embedded_third_order_four_stage_esdirk",
     "embedded_third_order_five_stage_esdirk",
+    "embedded_fourth_order_four_stage_sdirk",
     "embedded_fourth_order_five_stage_esdirk",
     "embedded_runge_kutta_fehlberg",
     "embedded_fifth_order_six_stage_esdirk",
@@ -646,16 +647,16 @@ embedded_third_order_three_stage_sdirk = EmbeddedButcherTableau(
         ]
     ),
     np.array(
-        [25/61, 36/61, 0.0]
+        [26/61, 324/671, 1/11]
     ),
     np.array(
-        [26/61, 324/671, 1/11]
+        [25/61, 36/61, 0.0]
     ),
     np.array(
         [5/6, 29/108, 1/6]
     ),
-    p=2,
-    phat=3,
+    p=3,
+    phat=2,
     name="SDIRK 3-stage, 3rd order",
 )
 
@@ -810,6 +811,28 @@ def create_fourth_order_five_stage_esdirk():  # STIFF METHOD
 
     return tableau
 
+embedded_fourth_order_four_stage_sdirk = EmbeddedButcherTableau(
+    np.array(
+        [
+            [5 / 6, 0.0, 0.0, 0.0],
+            [-15 / 26, 5 / 6, 0.0, 0.0],
+            [215 / 54, -130 / 27, 5 / 6, 0.0],
+            [4007 / 6075, -31031 / 24300, -133 / 2700, 5 / 6]
+        ]
+    ),
+    np.array(
+        [61/150, 2197/2100, 19//100, -9/14]
+    ),
+    np.array(
+        [32/75, 169/300, 1/100, 0.0]
+    ),
+    np.array(
+        [5/6, 10/39, 0.0, 1/6]
+    ),
+    p=4,
+    phat=3,
+    name="SDIRK 4-stage, 4rd order",
+)
 
 embedded_fourth_order_five_stage_esdirk = create_fourth_order_five_stage_esdirk()
 
