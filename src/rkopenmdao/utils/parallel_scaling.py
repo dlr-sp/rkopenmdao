@@ -6,13 +6,13 @@ import openmdao.api as om
 from openmdao.utils.array_utils import get_evenly_distributed_size
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import StepTerminationIntegrationControl
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
-    second_order_two_stage_sdirk,
+    embedded_second_order_two_stage_sdirk,
     third_order_three_stage_sdirk,
-    third_order_four_stage_esdirk,
-    third_order_five_stage_esdirk,
+    embedded_third_order_four_stage_esdirk,
+    embedded_third_order_five_stage_esdirk,
     fifth_order_six_stage_esdirk,
 )
 
@@ -104,17 +104,17 @@ if __name__ == "__main__":
     )
     tableau_dict = {
         "1 stage": implicit_euler,
-        "2 stage": second_order_two_stage_sdirk,
+        "2 stage": embedded_second_order_two_stage_sdirk,
         "3 stage": third_order_three_stage_sdirk,
-        "4 stage": third_order_four_stage_esdirk,
-        "5 stage": third_order_five_stage_esdirk,
+        "4 stage": embedded_third_order_four_stage_esdirk,
+        "5 stage": embedded_third_order_five_stage_esdirk,
         "6 stage": fifth_order_six_stage_esdirk,
     }
     file_name = f"stage_time_{args.runtime}_core_count_{args.core_count}"
     file_name = file_name + f"_size_{args.size}_scaling_{args.scaling_type}.txt"
     with open(file_name, mode="w") as f:
         for stage_num_string, tableau in tableau_dict.items():
-            integration_control = IntegrationControl(0.0, 20, 0.1)
+            integration_control = StepTerminationIntegrationControl(0.1, 20, 0.0)
             rk_prob = om.Problem()
             rk_indep = om.IndepVarComp()
             rk_indep.add_output("x_initial", distributed=True, shape_by_conn=True)
@@ -135,4 +135,5 @@ if __name__ == "__main__":
             t1 = time.perf_counter()
             rk_prob.run_model()
             t2 = time.perf_counter()
-            f.write(f"{stage_num_string} {t2-t1}\n")
+            if rk_prob.comm.rank == 0:
+                f.write(f"{stage_num_string} {t2-t1}\n")
