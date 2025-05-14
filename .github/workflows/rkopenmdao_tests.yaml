@@ -28,12 +28,11 @@ jobs:
         cache-dependency-path: setup.py
     - name: Install dependencies
       run: |
-        pip install cython<3  # required to build petsc4py
+        pip install cython < 3  # required to build petsc4py
         export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
         pip install petsc
         pip install petsc4py
         CC="mpicc" HDF5_MPI="ON" pip install --no-binary=h5py ".[dev]"
-        pip install
     - name: Lint with pylint
       continue-on-error: true
       run: |
