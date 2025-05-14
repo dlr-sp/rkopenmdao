@@ -23,12 +23,11 @@ jobs:
     - name: Set up Python 3.8
       uses: actions/setup-python@v5
       with:
-        python-version: "3.8"
+        python-version: "3.9"
         cache: "pip"
         cache-dependency-path: setup.py
     - name: Install dependencies
       run: |
-        pip install --no-binary=h5py h5py
         pip install cython  # required to build petsc4py
         export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
         pip install petsc
