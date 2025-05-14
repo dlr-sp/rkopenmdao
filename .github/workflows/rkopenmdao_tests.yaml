@@ -28,7 +28,8 @@ jobs:
         cache-dependency-path: setup.py
     - name: Install dependencies
       run: |
-        pip install cython<3.0.0  # required to build petsc4py
+        pip install --no-binary=h5py h5py
+        pip install cython  # required to build petsc4py
         export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
         pip install petsc
         pip install petsc4py
