@@ -35,8 +35,11 @@ import argparse
 import numpy as np
 import openmdao.api as om
 
-from rkopenmdao.butcher_tableaux import third_order_four_stage_esdirk
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.butcher_tableaux import embedded_third_order_four_stage_esdirk
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 
@@ -378,8 +381,8 @@ if __name__ == "__main__":
     SIMULATION_TIME = 10.0
     DELTA_T = parsed_args.delta_t
     NUM_STEPS = int(SIMULATION_TIME / DELTA_T)
-    butcher_tableau = third_order_four_stage_esdirk
-    integration_control = IntegrationControl(0.0, NUM_STEPS, DELTA_T)
+    butcher_tableau = embedded_third_order_four_stage_esdirk
+    integration_control = StepTerminationIntegrationControl(DELTA_T, NUM_STEPS, 0.0)
     vdp_1 = VanDerPolComponent1(integration_control=integration_control)
     vdp_2 = VanDerPolComponent2(
         integration_control=integration_control,

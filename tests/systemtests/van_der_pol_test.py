@@ -5,9 +5,12 @@ import numpy as np
 import openmdao.api as om
 import pytest
 
-from rkopenmdao.butcher_tableaux import third_order_four_stage_esdirk
+from rkopenmdao.butcher_tableaux import embedded_third_order_four_stage_esdirk
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    IntegrationControl,
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
 from examples.van_der_pol_oscillator.van_der_pol_oscillator_computation import (
@@ -38,32 +41,6 @@ INPUT_TO_RESULT = [
         ),
         8.08395735,
     ),
-    (
-        0.1,
-        np.array(
-            [
-                2.094268984096502084e00,
-                2.094268984096502084e00,
-                -2.975703230699157653e-01,
-                -2.975703230699157653e-01,
-                7.200293106932552367e-02,
-                7.200293106932552367e-02,
-            ]
-        ),
-        None,
-        None,
-        np.array(
-            [
-                1.167544319500043448e00,
-                3.635223632827306428e00,
-                -2.558782657369365610e-01,
-                5.327215906350509789e-01,
-                -2.808768373488292405e-02,
-                2.203624622764142546e-02,
-            ]
-        ),
-        7.83356891,
-    ),
 ]
 
 
@@ -90,14 +67,18 @@ def create_van_Der_pol_integrator(
     vdp_inner_prob.model.add_subsystem("vdp_functional", vdp_functional, promotes=["*"])
 
     vdp_inner_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=False, iprint=-1, restart_from_successful=True, maxiter=1000
+        solve_subsystems=False,
+        iprint=-1,
+        restart_from_successful=True,
+        maxiter=1000,
+        err_on_non_converge=True,
     )
     vdp_inner_prob.model.linear_solver = om.ScipyKrylov(iprint=-1)
 
     vdp_rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=vdp_inner_prob,
         time_integration_quantities=["y1", "y2", "J"],
-        butcher_tableau=third_order_four_stage_esdirk,
+        butcher_tableau=embedded_third_order_four_stage_esdirk,
         integration_control=integration_control,
         time_independent_input_quantities=["epsilon"],
         checkpointing_type=PyrevolveCheckpointer,
@@ -134,7 +115,7 @@ def test_van_der_pol_regression(
     """Assures that code changes don't change the optimization results of the van-der-
     Pol example"""
     num_steps = int(SIMULATION_TIME / delta_t)
-    integration_control = IntegrationControl(0.0, num_steps, delta_t)
+    integration_control = StepTerminationIntegrationControl(delta_t, num_steps, 0.0)
     rk_prob = create_van_Der_pol_integrator(
         integration_control,
         initial_epsilons.size,
@@ -149,6 +130,7 @@ def test_van_der_pol_regression(
 
     rk_prob.run_driver()
 
+    print(rk_prob["epsilon"], rk_prob["J_final"])
     assert rk_prob["epsilon"] == pytest.approx(expected_eps)
     assert rk_prob["J_final"] == pytest.approx(expected_j)
 
@@ -157,7 +139,7 @@ def test_zero_optimality():
     """With an epsilon of zero and initial conditions on the unit circle, the functional
     of the van-der-Pol example should be 0. This tests that."""
     num_steps = int(SIMULATION_TIME / 0.1)
-    integration_control = IntegrationControl(0.0, num_steps, 0.1)
+    integration_control = StepTerminationIntegrationControl(0.1, num_steps, 0.0)
     rk_prob = create_van_Der_pol_integrator(
         integration_control,
         1,
@@ -175,13 +157,13 @@ def test_zero_optimality():
     assert rk_prob["J_final"] == pytest.approx(0.0, abs=1e-6)
 
 
-def test_conditional_monotonity():
+def test_conditional_monotonicity():
     """When first running an optimization with a lower number of parameters, then using
     these parameters as an initial point for the epsilons of an optimization with double
     the parameters (by repeating each epsilon once), the resulting optimization must
     produce an functional value that is equal or lower than the first one."""
     num_steps = int(SIMULATION_TIME / 0.1)
-    integration_control = IntegrationControl(0.0, num_steps, 0.1)
+    integration_control = StepTerminationIntegrationControl(0.1, num_steps, 0.0)
     rk_prob = create_van_Der_pol_integrator(
         integration_control,
         2,

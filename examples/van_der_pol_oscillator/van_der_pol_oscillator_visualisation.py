@@ -14,7 +14,6 @@ import numpy as np
 
 mpl.rcParams["lines.linewidth"] = 1.0
 
-# mpl.rcParams["markers.fillstyle"] = "none"
 mpl.rcParams["legend.numpoints"] = 2
 mpl.rcParams["lines.markeredgewidth"] = 0.2
 mpl.rcParams["lines.markersize"] = 3.0
@@ -22,7 +21,6 @@ mpl.rcParams["lines.markersize"] = 3.0
 mpl.rcParams["font.family"] = "serif"
 mpl.rcParams["font.size"] = 10
 
-# mpl.rcParams["text.usetex"] = True
 
 mpl.rcParams["xtick.labelsize"] = "large"
 mpl.rcParams["ytick.labelsize"] = "large"
@@ -46,8 +44,6 @@ delta_t = parsed_args.delta_t
 
 
 fig, ax = plt.subplots(1, 1)
-# fig.suptitle("Van der Pol oscillator optimization")
-# fig.subplots_adjust(top=0.8)
 
 
 def animation_frame(iternum: int):
@@ -87,7 +83,6 @@ def animation_frame(iternum: int):
     )
 
 
-# ani = animation.ArtistAnimation(fig, ims, interval=500, blit=True, repeat=False)
 ani = animation.FuncAnimation(
     fig,
     animation_frame,
