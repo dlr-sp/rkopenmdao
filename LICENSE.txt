@@ -1,3 +1,5 @@
+BSD 3-Clause License
+
 Copyright 2023 German Aerospace Center (DLR e.V.) - Institute of
 Software Methods for Product Virtualization
 
