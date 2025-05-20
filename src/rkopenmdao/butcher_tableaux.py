@@ -821,7 +821,7 @@ embedded_fourth_order_four_stage_sdirk = EmbeddedButcherTableau(
         ]
     ),
     np.array(
-        [61/150, 2197/2100, 19//100, -9/14]
+        [61/150, 2197/2100, 19/100, -9/14]
     ),
     np.array(
         [32/75, 169/300, 1/100, 0.0]
