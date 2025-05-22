@@ -18,8 +18,10 @@ from .test_postprocessing_problems import SquaringComponent
 
 @pytest.mark.rk
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
-@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
-def test_monodisciplinary(write_out_distance, write_file):
+@pytest.mark.parametrize(
+    "write_file, expected_name", [("file.h5", "file_0.h5"), ("file", "file_0")]
+)
+def test_monodisciplinary(write_out_distance, write_file, expected_name):
     """Tests write-out for monodisciplinary problems."""
     test_prob = om.Problem()
     integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
@@ -46,7 +48,7 @@ def test_monodisciplinary(write_out_distance, write_file):
     time_int_prob.setup()
     time_int_prob.run_model()
 
-    with h5py.File(write_file) as f:
+    with h5py.File(expected_name) as f:
         assert "x" in f.keys()
         for i in range(0, 100, write_out_distance):
             assert str(i) in f["x"].keys()
@@ -58,8 +60,10 @@ def test_monodisciplinary(write_out_distance, write_file):
 
 @pytest.mark.rk
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
-@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
-def test_time_attribute(write_out_distance, write_file):
+@pytest.mark.parametrize(
+    "write_file, expected_name", [("file.h5", "file_0.h5"), ("file", "file_0")]
+)
+def test_time_attribute(write_out_distance, write_file, expected_name):
     """Checks that the time attribute in the written out file is correct."""
     test_prob = om.Problem()
     integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
@@ -86,7 +90,7 @@ def test_time_attribute(write_out_distance, write_file):
     time_int_prob.setup()
     time_int_prob.run_model()
 
-    with h5py.File(write_file) as f:
+    with h5py.File(expected_name) as f:
         for i in range(0, 100, write_out_distance):
             assert f["x"][str(i)].attrs["time"] == pytest.approx(i * 0.01 + 1.0)
         assert f["x"][str(100)].attrs["time"] == pytest.approx(2.0)
@@ -94,8 +98,10 @@ def test_time_attribute(write_out_distance, write_file):
 
 @pytest.mark.rk
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
-@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
-def test_multidisciplinary(write_out_distance, write_file):
+@pytest.mark.parametrize(
+    "write_file, expected_name", [("file.h5", "file_0.h5"), ("file", "file_0")]
+)
+def test_multidisciplinary(write_out_distance, write_file, expected_name):
     """Tests write-out for multidisciplinary problems."""
     test_prob = om.Problem()
     integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
@@ -129,7 +135,7 @@ def test_multidisciplinary(write_out_distance, write_file):
     time_int_prob.setup()
     time_int_prob.run_model()
 
-    with h5py.File(write_file) as f:
+    with h5py.File(expected_name) as f:
         assert "x" in f.keys()
         assert "y" in f.keys()
         for i in range(0, 100, write_out_distance):
@@ -146,8 +152,10 @@ def test_multidisciplinary(write_out_distance, write_file):
 
 @pytest.mark.rk
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
-@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
-def test_postprocessing(write_out_distance, write_file):
+@pytest.mark.parametrize(
+    "write_file, expected_name", [("file.h5", "file_0.h5"), ("file", "file_0")]
+)
+def test_postprocessing(write_out_distance, write_file, expected_name):
     """Tests write out when postprocessing is involved."""
     test_prob = om.Problem()
     integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
@@ -181,7 +189,7 @@ def test_postprocessing(write_out_distance, write_file):
     time_int_prob.setup()
     time_int_prob.run_model()
 
-    with h5py.File(write_file) as f:
+    with h5py.File(expected_name) as f:
         assert "x" in f.keys()
         assert "squared_x" in f.keys()
         for i in range(0, 100, write_out_distance):
@@ -235,7 +243,7 @@ def test_n_d_array(write_out_distance):
     time_int_prob["time_int_initial"] = np.zeros((2, 2))
     time_int_prob.run_model()
 
-    with h5py.File("file.h5") as f:
+    with h5py.File("file_0.h5") as f:
         assert "time_int" in f.keys()
         for i in range(0, 100, write_out_distance):
             assert str(i) in f["time_int"].keys()
@@ -293,7 +301,7 @@ def test_parallel_write_out(write_out_distance, shape):
     )
     time_int_prob.run_model()
 
-    with h5py.File("file.h5", mode="r") as f:
+    with h5py.File("file_0.h5", mode="r") as f:
         assert "time_int" in f.keys()
         for i in range(0, 100, write_out_distance):
             assert str(i) in f["time_int"].keys()
