@@ -6,6 +6,7 @@ from collections.abc import Callable
 import numpy as np
 
 from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.error_controller import ErrorController
 
 from rkopenmdao.errors import RungeKuttaError
@@ -45,21 +46,7 @@ class RungeKuttaScheme:
     def __init__(
         self,
         butcher_tableau: ButcherTableau,
-        stage_computation_functor: Callable[
-            [np.ndarray, np.ndarray, np.ndarray, float, float, float], np.ndarray
-        ],
-        # old_state, accumulated_stages, parameters, stage_time, delta_t,
-        # butcher_diagonal_element
-        # -> stage_state
-        stage_computation_functor_jacvec: Callable[
-            [np.ndarray, np.ndarray, np.ndarray, float, float, float], np.ndarray
-        ],
-        # old_state_perturbation, accumulated_stages_perturbation,
-        # parameter_perturbations, stage_time, delta_t, butcher_diagonal_element
-        # -> stage_perturbation
-        stage_computation_functor_transposed_jacvec: Callable[
-            [np.ndarray, float, float, float], tuple[np.ndarray, np.ndarray, np.ndarray]
-        ],
+        ode: DiscretizedODE,
         use_adaptive_time_stepping: bool = False,
         # stage_perturbation, stage_time, delta_t, butcher_diagonal_element
         # -> old_state_perturbation, accumulated_stages_perturbation,
@@ -67,11 +54,7 @@ class RungeKuttaScheme:
         error_controller: ErrorController = None,
     ):
         self.butcher_tableau = butcher_tableau
-        self.stage_computation_functor = stage_computation_functor
-        self.stage_computation_functor_jacvec = stage_computation_functor_jacvec
-        self.stage_computation_functor_transposed_jacvec = (
-            stage_computation_functor_transposed_jacvec
-        )
+        self.ode = ode
         self.use_adaptive_time_stepping = use_adaptive_time_stepping
         if use_adaptive_time_stepping and not error_controller:
             raise RungeKuttaError(
@@ -94,14 +77,14 @@ class RungeKuttaScheme:
             old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
         )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
-        return self.stage_computation_functor(
+        return self.ode.compute_update(
             old_state,
             accumulated_stages,
             parameters,
             stage_time,
             delta_t,
             butcher_diagonal_element,
-        )
+        )[0]
 
     def compute_accumulated_stages(
         self, stage: int, stage_field: np.ndarray
@@ -152,25 +135,22 @@ class RungeKuttaScheme:
         old_state_perturbation: np.ndarray,
         accumulated_stages_perturbation: np.ndarray,
         parameter_perturbations: np.ndarray,
-        **linearization_args,
+        linearization_cache=None,
     ) -> np.ndarray:
         """Computes the matrix-vector-product of the Jacobian of the stage wrt. to the
         old state and the accumulated stages."""
-        if hasattr(self.stage_computation_functor_jacvec, "linearize"):
-            self.stage_computation_functor_jacvec.linearize(**linearization_args)
+        if linearization_cache:
+            self.ode.import_linearization(linearization_cache)
 
-        stage_time = (
-            old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
-        )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
-        return self.stage_computation_functor_jacvec(
+        return self.ode.compute_update_derivative(
             old_state_perturbation,
             accumulated_stages_perturbation,
             parameter_perturbations,
-            stage_time,
+            0.0,  # currently not used
             delta_t,
             butcher_diagonal_element,
-        )
+        )[0]
 
     def compute_accumulated_stage_perturbations(
         self, stage: int, stage_perturbation_field: np.ndarray
@@ -203,23 +183,23 @@ class RungeKuttaScheme:
         delta_t: float,
         old_time: float,
         joined_perturbation: np.ndarray,
-        **linearization_args,
+        linearization_cache=None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Computes the matrix-vector-product of the transposed of the jacobian of the
         stage wrt. to the old state and the accumulated stages."""
-        if hasattr(self.stage_computation_functor_transposed_jacvec, "linearize"):
-            self.stage_computation_functor_transposed_jacvec.linearize(
-                **linearization_args
-            )
+        if linearization_cache:
+            self.ode.import_linearization(linearization_cache)
 
-        stage_time = (
-            old_time + delta_t * self.butcher_tableau.butcher_time_stages[stage]
-        )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
-        result = self.stage_computation_functor_transposed_jacvec(
-            joined_perturbation, stage_time, delta_t, butcher_diagonal_element
+        result = self.ode.compute_update_adjoint_derivative(
+            joined_perturbation,
+            0.0,  # currently not used
+            0.0,  # currently not used
+            0.0,  # currently not used
+            delta_t,
+            butcher_diagonal_element,
         )
-        return result
+        return result[0], result[1], result[2]
 
     def join_perturbations(
         self,

@@ -43,8 +43,8 @@ class DiscretizedODE(ABC):
     @abstractmethod
     def compute_update_adjoint_derivative(
         self,
-        stage_output_pert: np.ndarray,
         stage_update_pert: np.ndarray,
+        stage_output_pert: np.ndarray,
         independent_output_pert: np.ndarray,
         step_size: float,
         stage_factor: float,

@@ -8,6 +8,7 @@ import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
 
 from .butcher_tableau import ButcherTableau
+from .discretized_ode.openmdao_ode import OpenMDAOODE
 from .functional_coefficients import FunctionalCoefficients, EmptyFunctionalCoefficients
 from .integration_control import IntegrationControl
 from .runge_kutta_scheme import RungeKuttaScheme
@@ -56,6 +57,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _wrt_vars: list
     _of_vars_postproc: list
     _wrt_vars_postproc: list
+
+    _ode: OpenMDAOODE
 
     _runge_kutta_scheme: RungeKuttaScheme | None
     _serialized_state: np.ndarray | None
@@ -397,21 +400,18 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.options["postprocessing_problem"] is not None:
             self.options["postprocessing_problem"].setup()
             self.options["postprocessing_problem"].final_setup()
+        self._ode = OpenMDAOODE(
+            self.options["time_stage_problem"],
+            self.options["integration_control"],
+            self.options["time_integration_quantities"],
+            self.options["time_independent_input_quantities"],
+        )
 
     def _setup_variables(self):
         self._functional_quantities = self.options[
             "functional_coefficients"
         ].list_quantities()
-        self._time_integration_metadata = extract_time_integration_metadata(
-            self.options["time_stage_problem"],
-            self.options["time_integration_quantities"],
-        )
-        if self.options["time_independent_input_quantities"]:
-            add_time_independent_input_metadata(
-                self.options["time_stage_problem"],
-                self.options["time_independent_input_quantities"],
-                self._time_integration_metadata,
-            )
+        self._time_integration_metadata = self.ode
         if self.options["postprocessing_problem"] is not None:
             add_postprocessing_metadata(
                 self.options["postprocessing_problem"],
@@ -422,9 +422,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         add_functional_metadata(
             self._functional_quantities, self._time_integration_metadata
-        )
-        add_distributivity_information(
-            self.options["time_stage_problem"], self._time_integration_metadata
         )
 
         self._setup_wrt_and_of_vars()
@@ -582,25 +579,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         self._runge_kutta_scheme = RungeKuttaScheme(
             butcher_tableau,
-            TimeStageProblemComputeFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._time_integration_metadata,
-            ),
-            TimeStageProblemComputeJacvecFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._time_integration_metadata,
-                self._of_vars,
-                self._wrt_vars,
-            ),
-            TimeStageProblemComputeTransposeJacvecFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._time_integration_metadata,
-                self._of_vars,
-                self._wrt_vars,
-            ),
+            self._ode,
             self.options["adaptive_time_stepping"],
             self._error_controller,
         )
