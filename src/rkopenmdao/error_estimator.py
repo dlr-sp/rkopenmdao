@@ -4,7 +4,7 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List
+
 from mpi4py import MPI
 import numpy as np
 
@@ -18,7 +18,6 @@ class ErrorEstimator(ABC):
     """
 
     order: int = 2
-    exclude: List[str] = field(default_factory=list)
     quantity_metadata: TimeIntegrationMetadata = None
     comm: MPI.Comm = field(default_factory=MPI.COMM_WORLD)
 
@@ -92,13 +91,12 @@ class SimpleErrorEstimator(ErrorEstimator):
         global_value = 0
         delta = u - embedded_u
         for quantity in self.quantity_metadata.time_integration_quantity_list:
-            if quantity.name not in self.exclude:
-                start = quantity.array_metadata.start_index
-                end = quantity.array_metadata.end_index
-                global_value = self._global_value_estimator(
-                    global_value,
-                    self._process_quantity(quantity, delta.copy()[start:end]),
-                )
+            start = quantity.array_metadata.start_index
+            end = quantity.array_metadata.end_index
+            global_value = self._global_value_estimator(
+                global_value,
+                self._process_quantity(quantity, delta.copy()[start:end]),
+            )
         global_value = self._normalize(global_value)
         return global_value
 
@@ -155,22 +153,20 @@ class ImprovedErrorEstimator(ErrorEstimator):
         global_value = 0
 
         for quantity in self.quantity_metadata.time_integration_quantity_list:
-            if quantity.name not in self.exclude:
-                start = quantity.array_metadata.start_index
-                end = quantity.array_metadata.end_index
-                global_temp_value = self._global_value_estimator(
-                    global_temp_value, self._process_quantity(quantity, u.copy()[start:end])
-                )
+            start = quantity.array_metadata.start_index
+            end = quantity.array_metadata.end_index
+            global_temp_value = self._global_value_estimator(
+                global_temp_value, self._process_quantity(quantity, u.copy()[start:end])
+            )
         global_temp_value = self._normalize(global_temp_value)
 
         delta = u - embedded_u
         for quantity in self.quantity_metadata.time_integration_quantity_list:
-            if quantity.name not in self.exclude:
-                start = quantity.array_metadata.start_index
-                end = quantity.array_metadata.end_index
-                global_value = self._global_value_estimator(
-                    global_value, self._process_quantity(quantity, delta.copy()[start:end])
-                )
+            start = quantity.array_metadata.start_index
+            end = quantity.array_metadata.end_index
+            global_value = self._global_value_estimator(
+                global_value, self._process_quantity(quantity, delta.copy()[start:end])
+            )
         global_value /= global_temp_value + self.eta / self.eps
         return global_value
 
