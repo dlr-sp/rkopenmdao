@@ -104,10 +104,14 @@ class ErrorController:
     safety_factor: float, optional
         Safety factor in the equation smaller than 1.
     max_iter: int, optional
-        Threshold for number of times the controller is attempted
+        Threshold for number of times the controller is attempted.
         over the course of one step.
+    lower_bound: float, optional
+        Minimum step size allowed.
+    upper_bound: float, optional
+        Maximum step size allowed.
     name: str, optional
-        Name of the error controller
+        Name of the error controller.
 
 
 
@@ -129,6 +133,8 @@ class ErrorController:
         a: float = 0,
         b: float = 0,
         tol: float = 1e-6,
+        lower_bound:float = 0,
+        upper_bound:float = np.inf,
         safety_factor: float = 0.95,
         max_iter=5,
         name: str = "ErrorController",
@@ -147,6 +153,8 @@ class ErrorController:
         self.a = a
         self.b = b
         # -----------
+        self.lower_bound=lower_bound
+        self.upper_bound=upper_bound
         self.local_data = LocalData(self.tol)  # Local step History object
         self.error_estimator = error_estimator  # Error estimator for the Norm
         self.inner_most = True  # Indicator if it is not associated with a decorator
@@ -199,17 +207,26 @@ class ErrorController:
         """
         success = False
         norm = self.error_estimator(solution, embedded_solution)
+        if np.abs(delta_t - self.lower_bound) < 1e-10:
+            self.local_data.push_to_delta_time_steps(delta_t)
+            self.local_data.push_to_local_error_norms(norm)
+            return self.lower_bound, True
         if norm <= self.tol:
             success = True
             self.local_data.push_to_delta_time_steps(delta_t)
             self.local_data.push_to_local_error_norms(norm)
         if norm != 0:
             delta_t = self._estimate_next_step_function(norm, delta_t)
+            if delta_t <= self.lower_bound:
+                delta_t = self.lower_bound
+            elif delta_t >= self.upper_bound:
+                delta_t = self.upper_bound
         else:
             warnings.warn(
                 """Current error norm is 0, can't estimate new step size
                 and using old one."""
             )
+            
         return delta_t, success
 
     def _estimate_next_step_function(self, norm, delta_t):
@@ -281,13 +298,10 @@ class ErrorControllerDecorator(ErrorController):
         self,
         alpha,
         error_controller: ErrorController,
-        error_estimator: ErrorEstimator = None,
         beta: float = 0,
         gamma: float = 0,
         a: float = 0,
         b: float = 0,
-        tol: float = 1e-6,
-        safety_factor: float = 0.95,
         name: str = "ErrorController",
         max_iter=5,
     ):
@@ -304,6 +318,8 @@ class ErrorControllerDecorator(ErrorController):
             b=b,
         )
         self.tol = error_controller.tol
+        self.lower_bound=error_controller.lower_bound
+        self.upper_bound=error_controller.upper_bound
         self.safety_factor = error_controller.safety_factor
         self.max_iter = error_controller.max_iter
         self.error_estimator = error_controller.error_estimator
