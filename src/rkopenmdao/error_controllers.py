@@ -17,6 +17,8 @@ def pseudo(
     tol=np.inf,
     safety_factor=1.0,
     name="pseudo-Controller",
+    lower_bound=0,
+    upper_bound=np.inf,
     base: ErrorController = None,
     max_iter=1000,
 ):
@@ -30,8 +32,6 @@ def pseudo(
         0,
         tol=tol,
         safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
         name=name,
         error_estimator=error_estimator,
         max_iter=max_iter,

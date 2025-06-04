@@ -381,6 +381,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _setup_error_controller(self):
         p = self.options["butcher_tableau"].min_p_order()
         self._error_controller = None
+        # Sets initial delta_t to be at boundary if given wrongly by mistake 
+        if "upper_bound" in self.options["error_controller_options"].keys():
+            if self.options["integration_control"].initial_delta_t > self.options["error_controller_options"]["upper_bound"]:
+                self.options["integration_control"].initial_delta_t = self.options["error_controller_options"]["upper_bound"]
+        if "lower_bound" in self.options["error_controller_options"].keys():
+            if self.options["integration_control"].initial_delta_t > self.options["error_controller_options"]["lower_bound"]:
+                self.options["integration_control"].initial_delta_t = self.options["error_controller_options"]["lower_bound"]
         for controller in self.options["error_controller"]:
             self._error_controller = controller(
                 p=p,
@@ -912,6 +919,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.options["integration_control"].delta_t,
                 self._serialized_state,
                 self._stage_cache,
+                self.options["integration_control"].remaining_time()
             )
         )
         if self.options["adaptive_time_stepping"]:
