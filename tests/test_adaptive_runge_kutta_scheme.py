@@ -6,9 +6,11 @@ import numpy as np
 import pytest
 from mpi4py import MPI
 from rkopenmdao.runge_kutta_scheme import RungeKuttaScheme
+from rkopenmdao.butcher_tableau import EmbeddedButcherTableau
 from rkopenmdao.butcher_tableaux import (
     embedded_heun_euler,
 )
+from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.error_estimator import (
     SimpleErrorEstimator,
     ImprovedErrorEstimator,
@@ -22,24 +24,9 @@ from rkopenmdao.metadata_extractor import (
     ArrayMetadata,
 )
 from rkopenmdao.error_controllers import pid
-from tests.test_runge_kutta_scheme import (
-    RkFunctionProvider,
-    RootOdeJacvec,
-    RootOdeJacvecTransposed,
-)
 
-root_ode_jacvec = RootOdeJacvec()
-root_ode_jacvec_transposed = RootOdeJacvecTransposed()
-root_ode_provider = RkFunctionProvider(
-    lambda old_state, acc_stages, stage_time, delta_t, butcher_diagonal_element: delta_t
-    * butcher_diagonal_element
-    / 2
-    + np.sqrt(
-        delta_t**2 * butcher_diagonal_element**2 / 4 + old_state + delta_t * acc_stages
-    ),
-    root_ode_jacvec,
-    root_ode_jacvec_transposed,
-)
+from .test_runge_kutta_scheme import RootODE
+
 comm = MPI.COMM_WORLD
 array_metadata = ArrayMetadata()
 translations_metadata = TimeIntegrationTranslationMetadata()
@@ -74,23 +61,16 @@ improved_error_estimator = ImprovedErrorEstimator(
 error_controller = pid(
     embedded_heun_euler.min_p_order(), error_estimator=simple_error_estimator
 )
-root_ode_embedded_heun = RungeKuttaScheme(
-    embedded_heun_euler,
-    root_ode_provider.stage_computation_functor,
-    root_ode_provider.stage_computation_functor_jacvec,
-    root_ode_provider.stage_computation_functor_transposed_jacvec,
-    use_adaptive_time_stepping=True,
-    error_controller=error_controller,
-)
 
 
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "rk_scheme, delta_t, old_state, stage_field, expected_new_state",
+    "ode, embedded_tableau, delta_t, old_state, stage_field, expected_new_state",
     (
         [
-            root_ode_embedded_heun,
+            RootODE,
+            embedded_heun_euler,
             0.1,
             np.array([1.0]),
             np.array([[1.0], [21 / 20]]),
@@ -99,13 +79,15 @@ root_ode_embedded_heun = RungeKuttaScheme(
     ),
 )
 def test_compute_step(
-    rk_scheme: RungeKuttaScheme,
+    ode: DiscretizedODE,
+    embedded_tableau: EmbeddedButcherTableau,
     delta_t: float,
     old_state: np.ndarray,
     stage_field: np.ndarray,
     expected_new_state: np.ndarray,
 ):
     """Tests the compute_step function."""
+    rk_scheme = RungeKuttaScheme(embedded_tableau, ode, True, error_controller)
     assert rk_scheme.compute_step(delta_t, old_state, stage_field) == pytest.approx(
         (np.array([expected_new_state]), 0.1, True)
     )
