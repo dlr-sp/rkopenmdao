@@ -1,5 +1,4 @@
 import openmdao.api as om
-import os
 from openmdao.utils.assert_utils import assert_check_totals
 import numpy as np
 import pytest
