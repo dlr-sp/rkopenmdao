@@ -1,7 +1,6 @@
 # pylint: disable=missing-module-docstring
 
 from __future__ import annotations
-from collections.abc import Callable
 
 import numpy as np
 
@@ -21,21 +20,8 @@ class RungeKuttaScheme:
     ----------
     butcher_tableau: ButcherTableau, EmbeddedButcherTableau
         The butcher tableau to apply the Runge-Kutta method to.
-    stage_computation_functor:
-    Callable[[np.ndarray, np.ndarray, float, float, float], np.ndarray]
-        Has the following form:
-        (old_state, accumulated_stages, stage_time, delta_t, butcher_diagonal_element).
-    stage_computation_functor_jacvec:
-    Callable[[np.ndarray, np.ndarray, float, float, float], np.ndarray]
-        The Forward derivative of the stage.
-        Has the following form: (old_state_perturbation,
-        accumulated_stages_perturbation, stage_time, delta_t,
-        butcher_diagonal_element).
-    stage_computation_functor_transposed_jacvec:
-    Callable[[np.ndarray, float, float, float],Tuple[np.ndarray,np.ndarray]
-        The Backwards derivative of the stage.
-        Has the following form: (stage_perturbation, stage_time, delta_t,
-        butcher_diagonal_element).
+    ode: DiscretizedODE
+        The ODE that the Runge-Kutta scheme is applied to.
     use_adaptive_time_stepping: bool
         Whether to use adaptive time stepping.
     error_controller: ErrorController
@@ -48,9 +34,6 @@ class RungeKuttaScheme:
         butcher_tableau: ButcherTableau,
         ode: DiscretizedODE,
         use_adaptive_time_stepping: bool = False,
-        # stage_perturbation, stage_time, delta_t, butcher_diagonal_element
-        # -> old_state_perturbation, accumulated_stages_perturbation,
-        #    parameter_perturbations
         error_controller: ErrorController = None,
     ):
         self.butcher_tableau = butcher_tableau
@@ -131,13 +114,12 @@ class RungeKuttaScheme:
         self,
         stage: int,
         delta_t: float,
-        old_time: float,
         old_state_perturbation: np.ndarray,
         accumulated_stages_perturbation: np.ndarray,
         parameter_perturbations: np.ndarray,
         linearization_cache=None,
     ) -> np.ndarray:
-        """Computes the matrix-vector-product of the Jacobian of the stage wrt. to the
+        """Computes the matrix-vector-product of the jacobian of the stage wrt. to the
         old state and the accumulated stages."""
         if linearization_cache:
             self.ode.import_linearization(linearization_cache)
@@ -181,7 +163,6 @@ class RungeKuttaScheme:
         self,
         stage: int,
         delta_t: float,
-        old_time: float,
         joined_perturbation: np.ndarray,
         linearization_cache=None,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -194,8 +175,7 @@ class RungeKuttaScheme:
         result = self.ode.compute_update_adjoint_derivative(
             joined_perturbation,
             0.0,  # currently not used
-            0.0,  # currently not used
-            0.0,  # currently not used
+            0.0,  # currently not used  # currently not used
             delta_t,
             butcher_diagonal_element,
         )

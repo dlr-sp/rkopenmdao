@@ -298,7 +298,8 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
     + [[TestComp7, 2.0]],
 )
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
+    "butcher_tableau",
+    [implicit_euler, two_stage_dirk, runge_kutta_four],
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",

@@ -15,11 +15,6 @@ from .runge_kutta_scheme import RungeKuttaScheme
 from .error_controller import ErrorController
 from .error_controllers import integral
 from .error_estimator import ErrorEstimator, SimpleErrorEstimator
-from .time_stage_problem_computation_functors import (
-    TimeStageProblemComputeFunctor,
-    TimeStageProblemComputeJacvecFunctor,
-    TimeStageProblemComputeTransposeJacvecFunctor,
-)
 from .postprocessing import Postprocessor
 from .postprocessing_computation_functors import (
     PostprocessingProblemComputeFunctor,
@@ -29,11 +24,8 @@ from .postprocessing_computation_functors import (
 from .checkpoint_interface.checkpoint_interface import CheckpointInterface
 from .checkpoint_interface.no_checkpointer import NoCheckpointer
 from .metadata_extractor import (
-    extract_time_integration_metadata,
-    add_time_independent_input_metadata,
     add_postprocessing_metadata,
     add_functional_metadata,
-    add_distributivity_information,
     Quantity,
     TimeIntegrationMetadata,
 )
@@ -411,7 +403,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._functional_quantities = self.options[
             "functional_coefficients"
         ].list_quantities()
-        self._time_integration_metadata = self.ode
+        self._time_integration_metadata = self._ode.time_integration_metadata
         if self.options["postprocessing_problem"] is not None:
             add_postprocessing_metadata(
                 self.options["postprocessing_problem"],
@@ -1097,7 +1089,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._runge_kutta_scheme.compute_stage_jacvec(
                 stage,
                 self.options["integration_control"].delta_t,
-                time,
                 self._serialized_state_perturbations,
                 self._accumulated_stage_perturbations,
                 self._independent_input_perturbations,
@@ -1342,10 +1333,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     f"Starting stage [{stage + 1}] of the rev iteration of rev-mode "
                     f"jvp in step <{step}>."
                 )
-            linearization_args = {
-                "inputs": inputs_cache[stage],
-                "outputs": outputs_cache[stage],
-            }
+            linearization_args = (
+                self.options["integration_control"].step_time
+                + butcher_tableau.butcher_time_stages[stage] * delta_t,
+                inputs_cache[stage],
+                outputs_cache[stage],
+            )
             joined_perturbations = self._runge_kutta_scheme.join_perturbations(
                 stage,
                 self._serialized_state_perturbations,
@@ -1358,9 +1351,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ) = self._runge_kutta_scheme.compute_stage_transposed_jacvec(
                 stage,
                 delta_t,
-                self.options["integration_control"].step_time,
                 joined_perturbations,
-                **linearization_args,
+                linearization_args,
             )
             new_serialized_state_perturbations += (
                 self.options["integration_control"].delta_t * wrt_old_state
