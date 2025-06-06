@@ -4,7 +4,6 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import List
 from mpi4py import MPI
 import numpy as np
 
@@ -18,7 +17,7 @@ class ErrorEstimator(ABC):
     """
 
     order: int = 2
-    exclude: List[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
     quantity_metadata: TimeIntegrationMetadata = None
     comm: MPI.Comm = field(default_factory=MPI.COMM_WORLD)
 

@@ -209,17 +209,14 @@ class ErrorController:
         """
         success = False
         norm = self.error_estimator(solution, embedded_solution)
-        if np.abs(delta_t - self.lower_bound) < 1e-10 or np.abs(delta_t - remaining_time) < 1e-10:
+        if np.abs(delta_t - self.lower_bound) < 1e-10 or np.abs(delta_t - remaining_time) < 1e-10 or norm <= self.tol:
             self.local_data.push_to_delta_time_steps(delta_t)
             self.local_data.push_to_local_error_norms(norm)
             success= True
-        elif norm <= self.tol:
-            success = True
-            self.local_data.push_to_delta_time_steps(delta_t)
-            self.local_data.push_to_local_error_norms(norm)
-            
+
         if norm != 0:
             new_delta_t = self._estimate_next_step_function(norm, delta_t)
+            print("suggestion=",new_delta_t)
         else: 
             new_delta_t = delta_t
             warnings.warn(
@@ -227,14 +224,9 @@ class ErrorController:
                 and using old one."""
             )
 
-        if new_delta_t <= self.lower_bound:
-            new_delta_t = self.lower_bound
-        elif new_delta_t >= self.upper_bound:
-            new_delta_t = self.upper_bound
-
+        new_delta_t = max(self.lower_bound, min(self.upper_bound, new_delta_t))
         if remaining_time - (delta_t+new_delta_t) < self.lower_bound:
             new_delta_t = remaining_time
-             
         return new_delta_t, success
 
     def _estimate_next_step_function(self, norm, delta_t):
@@ -355,7 +347,7 @@ class ErrorControllerDecorator(ErrorController):
                 if not success:
                     self.outer_counter += 1
                     if not (
-                        suggestion <= delta_t and self.outer_counter <= self.max_iter
+                        suggestion < delta_t and self.outer_counter <= self.max_iter
                     ):
                         raise OuterErrorControllerError(
                             f"""Suggested delta T {suggestion} is larger than 
