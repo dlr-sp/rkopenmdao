@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Tuple, List
+from typing import Callable
 
 import numpy as np
+from rkopenmdao.integration_control import IntegrationControl
 
 
 @dataclass
@@ -13,9 +15,11 @@ class CheckpointInterface(ABC):
     """Abstract interface for checkpointing implementations."""
 
     array_size: int
-    num_steps: int
-    run_step_func: Callable[[int, np.ndarray], np.ndarray]
-    run_step_jacvec_rev_func: Callable[[int, np.ndarray, np.ndarray], np.ndarray]
+    integration_control: IntegrationControl
+    run_step_func: Callable[[np.ndarray], Tuple[np.ndarray, List, List]]
+    run_step_jacvec_rev_func: Callable[[np.ndarray, np.ndarray, list, list], np.ndarray]
+    _state: np.ndarray = field(init=False)
+    _serialized_state_perturbation: np.ndarray = field(init=False)
 
     @abstractmethod
     def create_checkpointer(self):

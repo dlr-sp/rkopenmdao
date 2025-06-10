@@ -6,7 +6,9 @@ from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.butcher_tableaux import implicit_euler
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 from .test_components import TestComp6
@@ -57,7 +59,7 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
 def test_rk_integrator_revolver_options(revolver_type, revolver_options):
     """Tests that the options given to the RungeKuttaIntegrator are passed through to
     the Revolver."""
-    integration_control = IntegrationControl(0.0, 10, 0.01)
+    integration_control = StepTerminationIntegrationControl(0.01, 10, 0.0)
 
     inner_prob = om.Problem()
     inner_prob.model.add_subsystem(

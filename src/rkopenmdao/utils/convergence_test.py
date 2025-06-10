@@ -17,19 +17,21 @@ from rkopenmdao.utils.convergence_test_components import (
 
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.integration_control import (
+    StepTerminationIntegrationControl,
+)
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     implicit_midpoint,
-    second_order_two_stage_sdirk,
+    embedded_second_order_two_stage_sdirk,
     third_order_two_stage_sdirk,
-    second_order_three_stage_esdirk,
+    embedded_second_order_three_stage_esdirk,
     third_order_three_stage_esdirk,
     third_order_three_stage_sdirk,
-    third_order_four_stage_esdirk,
+    embedded_third_order_four_stage_esdirk,
     third_order_four_stage_sdirk,
-    third_order_five_stage_esdirk,
-    fourth_order_five_stage_esdirk,
+    embedded_third_order_five_stage_esdirk,
+    embedded_fourth_order_five_stage_esdirk,
     fourth_order_five_stage_sdirk,
     fifth_order_five_stage_sdirk,
     fourth_order_six_stage_esdirk,
@@ -67,7 +69,7 @@ butcher_tableau_dict = {
     # "explicit_euler": explicit_euler,
     "Implicit Euler": implicit_euler,
     # "implicit_midpoint": implicit_midpoint,
-    "Second order two stage SDIRK": second_order_two_stage_sdirk,
+    "Second order two stage SDIRK": embedded_second_order_two_stage_sdirk,
     # "third_order_two_stage_sdirk": third_order_two_stage_sdirk,
     # "second_order_three_stage_esdirk": second_order_three_stage_esdirk,
     "Third order three stage ESDIRK": third_order_three_stage_esdirk,
@@ -75,7 +77,7 @@ butcher_tableau_dict = {
     # "third_order_four_stage_esdirk": third_order_four_stage_esdirk,
     # "third_order_four_stage_sdirk": third_order_four_stage_sdirk,
     # "third_order_five_stage_esdirk": third_order_five_stage_esdirk,
-    "Fourth order five stage ESDIRK": fourth_order_five_stage_esdirk,
+    "Fourth order five stage ESDIRK": embedded_fourth_order_five_stage_esdirk,
     # "fourth_order_five_stage_sdirk": fourth_order_five_stage_sdirk,
     # "fifth_order_five_stage_sdirk": fifth_order_five_stage_sdirk,
     # "fourth_order_six_stage_esdirk": fourth_order_six_stage_esdirk,
@@ -119,7 +121,9 @@ for problem_name, (Class, Solution, var_list) in problem_dict.items():
                 # implementation
                 continue
             for i, num_steps in enumerate(step_nums):
-                integration_control = IntegrationControl(0.0, num_steps, delta_t[i])
+                integration_control = StepTerminationIntegrationControl(
+                    delta_t[i], num_steps, 0.0
+                )
                 time_integration_problem = om.Problem()
                 if problem_name == "Kaps":
                     time_integration_problem.model.add_subsystem(
