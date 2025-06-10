@@ -17,6 +17,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-latest]
         python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        om_version: ["==3.33", ""]
 
 
     runs-on: ${{ matrix.os }}
@@ -37,7 +38,7 @@ jobs:
         export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
         pip install petsc
         pip install petsc4py
-        pip install openmdao==3.33
+        pip install openmdao${{ matrix.om_version }}
         CC="mpicc" HDF5_MPI="ON" pip install --no-binary=h5py ".[dev]"
     - name: Lint with pylint
       continue-on-error: true
