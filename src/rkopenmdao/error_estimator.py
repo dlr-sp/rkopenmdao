@@ -158,7 +158,8 @@ class ImprovedErrorEstimator(ErrorEstimator):
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 global_temp_value = self._global_value_estimator(
-                    global_temp_value, self._process_quantity(quantity, u.copy()[start:end])
+                    global_temp_value,
+                    self._process_quantity(quantity, u.copy()[start:end]),
                 )
         global_temp_value = self._normalize(global_temp_value)
 
@@ -168,7 +169,8 @@ class ImprovedErrorEstimator(ErrorEstimator):
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 global_value = self._global_value_estimator(
-                    global_value, self._process_quantity(quantity, delta.copy()[start:end])
+                    global_value,
+                    self._process_quantity(quantity, delta.copy()[start:end]),
                 )
         global_value /= global_temp_value + self.eta / self.eps
         return global_value

@@ -119,7 +119,7 @@ class RungeKuttaScheme:
         delta_t: float,
         old_state: np.ndarray,
         stage_field: np.ndarray,
-        remaining_time: float
+        remaining_time: float,
     ) -> (np.ndarray, float, bool):
         """Computes the next state and"""
         new_state = old_state.copy()
