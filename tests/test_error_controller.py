@@ -71,6 +71,7 @@ error_controller_list = [
     pid,
 ]
 
+
 def get_dt(
     name,
     quantity,
@@ -83,7 +84,7 @@ def get_dt(
 
     time_list = dict(sorted(time_list.items()))
 
-    delta_t = [0] * (len(time_list)-1)
+    delta_t = [0] * (len(time_list) - 1)
     for i in range(len(time_list) - 1):
         delta_t[i] = time_list[i + 1] - time_list[i]
     return delta_t
@@ -156,9 +157,7 @@ def run_rk(
     ],
 )
 @pytest.mark.parametrize("quantities", [["x"]])
-@pytest.mark.parametrize(
-    "test_estimator", [SimpleErrorEstimator]
-)
+@pytest.mark.parametrize("test_estimator", [SimpleErrorEstimator])
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_upper_bound(
     test_class,
@@ -185,31 +184,30 @@ def test_upper_bound(
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
     rk_dict = {
-        'time_stage_problem':time_integration_prob,
-        'butcher_tableau':butcher_tableau,
-        'integration_control':integration_control,
-        'time_integration_quantities':quantities,
-        'error_controller':[test_controller, integral],
-        'error_estimator_type':test_estimator,
-        'initial_values':initial_values,
-        'test_functor':test_functor
+        "time_stage_problem": time_integration_prob,
+        "butcher_tableau": butcher_tableau,
+        "integration_control": integration_control,
+        "time_integration_quantities": quantities,
+        "error_controller": [test_controller, integral],
+        "error_estimator_type": test_estimator,
+        "initial_values": initial_values,
+        "test_functor": test_functor,
     }
-
 
     run_rk(
         **rk_dict,
-        error_controller_options={'tol':1e-5, 'upper_bound':upper_bound},
-        write_file="test_upper_bound.h5"
+        error_controller_options={"tol": 1e-5, "upper_bound": upper_bound},
+        write_file="test_upper_bound.h5",
     )
     run_rk(
         **rk_dict,
-        error_controller_options={'tol':1e-5},
+        error_controller_options={"tol": 1e-5},
         write_file="test_without_upper_bound.h5",
     )
 
     delta_t = get_dt("test_upper_bound.h5", quantities)
-    assert max(np.max(delta_t),upper_bound) == pytest.approx(upper_bound, rel=1e-4)
-    
+    assert max(np.max(delta_t), upper_bound) == pytest.approx(upper_bound, rel=1e-4)
+
     delta_t = get_dt("test_without_upper_bound.h5", quantities)
     assert np.max(delta_t) > upper_bound
 
@@ -232,9 +230,7 @@ def test_upper_bound(
     ],
 )
 @pytest.mark.parametrize("quantities", [["x"]])
-@pytest.mark.parametrize(
-    "test_estimator", [SimpleErrorEstimator]
-)
+@pytest.mark.parametrize("test_estimator", [SimpleErrorEstimator])
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_lower_bound(
     test_class,
@@ -249,7 +245,7 @@ def test_lower_bound(
 ):
     """Tests the whether the lower bound of the error controller functions."""
     integration_control = TimeTerminationIntegrationControl(
-        0.01, initial_time+1.0, initial_time
+        0.01, initial_time + 1.0, initial_time
     )
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -261,23 +257,23 @@ def test_lower_bound(
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
     rk_dict = {
-        'time_stage_problem':time_integration_prob,
-        'butcher_tableau':butcher_tableau,
-        'integration_control':integration_control,
-        'time_integration_quantities':quantities,
-        'error_controller':[test_controller, integral],
-        'error_estimator_type':test_estimator,
-        'initial_values':initial_values,
-        'test_functor':test_functor
+        "time_stage_problem": time_integration_prob,
+        "butcher_tableau": butcher_tableau,
+        "integration_control": integration_control,
+        "time_integration_quantities": quantities,
+        "error_controller": [test_controller, integral],
+        "error_estimator_type": test_estimator,
+        "initial_values": initial_values,
+        "test_functor": test_functor,
     }
 
     run_rk(
         **rk_dict,
-        error_controller_options={'tol':1e-5,'lower_bound':lower_bound},
+        error_controller_options={"tol": 1e-5, "lower_bound": lower_bound},
         write_file="test_lower_bound.h5",
     )
     integration_control = TimeTerminationIntegrationControl(
-        0.01, initial_time+1.0, initial_time
+        0.01, initial_time + 1.0, initial_time
     )
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -289,12 +285,12 @@ def test_lower_bound(
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
     run_rk(
         **rk_dict,
-        error_controller_options={'tol':1e-5},
+        error_controller_options={"tol": 1e-5},
         write_file="test_without_lower_bound.h5",
     )
 
     delta_t = get_dt("test_lower_bound.h5", quantities)
-    assert min(np.min(delta_t),lower_bound) == pytest.approx(lower_bound, rel=1e-4)
+    assert min(np.min(delta_t), lower_bound) == pytest.approx(lower_bound, rel=1e-4)
     delta_t = get_dt("test_without_lower_bound.h5", quantities)
     assert np.min(delta_t) < lower_bound
 
@@ -317,9 +313,7 @@ def test_lower_bound(
     ],
 )
 @pytest.mark.parametrize("quantities", [["x"]])
-@pytest.mark.parametrize(
-    "test_estimator", [SimpleErrorEstimator]
-)
+@pytest.mark.parametrize("test_estimator", [SimpleErrorEstimator])
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_upper_lower_bound(
     test_class,
@@ -335,7 +329,7 @@ def test_upper_lower_bound(
 ):
     """Tests the whether the lower bound of the error controller functions."""
     integration_control = TimeTerminationIntegrationControl(
-        0.005, initial_time+1.0, initial_time
+        0.005, initial_time + 1.0, initial_time
     )
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -347,30 +341,26 @@ def test_upper_lower_bound(
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
     rk_dict = {
-        'time_stage_problem':time_integration_prob,
-        'butcher_tableau':butcher_tableau,
-        'integration_control':integration_control,
-        'time_integration_quantities':quantities,
-        'error_controller':[test_controller, integral],
-        'error_estimator_type':test_estimator,
-        'initial_values':initial_values,
-        'test_functor':test_functor,
+        "time_stage_problem": time_integration_prob,
+        "butcher_tableau": butcher_tableau,
+        "integration_control": integration_control,
+        "time_integration_quantities": quantities,
+        "error_controller": [test_controller, integral],
+        "error_estimator_type": test_estimator,
+        "initial_values": initial_values,
+        "test_functor": test_functor,
     }
     write_file = f"test_upper_lower_bound.h5"
     run_rk(
-            **rk_dict,
-            error_controller_options={'tol':1e-5,'upper_bound':upper_bound,'lower_bound':lower_bound},
-            write_file="test_upper_lower_bound.h5",
+        **rk_dict,
+        error_controller_options={
+            "tol": 1e-5,
+            "upper_bound": upper_bound,
+            "lower_bound": lower_bound,
+        },
+        write_file="test_upper_lower_bound.h5",
     )
 
     delta_t = get_dt("test_upper_lower_bound.h5", quantities)
-    assert max(np.max(delta_t),upper_bound) == pytest.approx(upper_bound, rel=1e-4)
-    assert min(np.min(delta_t),lower_bound) == pytest.approx(lower_bound, rel=1e-4)
-
-
-
-
-
-
-
-
+    assert max(np.max(delta_t), upper_bound) == pytest.approx(upper_bound, rel=1e-4)
+    assert min(np.min(delta_t), lower_bound) == pytest.approx(lower_bound, rel=1e-4)
