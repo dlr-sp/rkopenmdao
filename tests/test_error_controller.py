@@ -71,7 +71,7 @@ error_controller_list = [
     pid,
 ]
 
-def getdt(
+def get_dt(
     name,
     quantity,
 ):
@@ -89,7 +89,7 @@ def getdt(
     return delta_t
 
 
-def callRK(
+def run_rk(
     time_stage_problem,
     butcher_tableau,
     integration_control,
@@ -184,7 +184,7 @@ def test_upper_bound(
     )
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
-    RKDict = {
+    rk_dict = {
         'time_stage_problem':time_integration_prob,
         'butcher_tableau':butcher_tableau,
         'integration_control':integration_control,
@@ -196,21 +196,21 @@ def test_upper_bound(
     }
 
 
-    callRK(
-        **RKDict,
+    run_rk(
+        **rk_dict,
         error_controller_options={'tol':1e-5, 'upper_bound':upper_bound},
         write_file="test_upper_bound.h5"
     )
-    callRK(
-        **RKDict,
+    run_rk(
+        **rk_dict,
         error_controller_options={'tol':1e-5},
         write_file="test_without_upper_bound.h5",
     )
 
-    delta_t = getdt("test_upper_bound.h5", quantities)
+    delta_t = get_dt("test_upper_bound.h5", quantities)
     assert max(np.max(delta_t),upper_bound) == pytest.approx(upper_bound, rel=1e-4)
     
-    delta_t = getdt("test_without_upper_bound.h5", quantities)
+    delta_t = get_dt("test_without_upper_bound.h5", quantities)
     assert np.max(delta_t) > upper_bound
 
 
@@ -260,7 +260,7 @@ def test_lower_bound(
     )
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
-    RKDict = {
+    rk_dict = {
         'time_stage_problem':time_integration_prob,
         'butcher_tableau':butcher_tableau,
         'integration_control':integration_control,
@@ -271,8 +271,8 @@ def test_lower_bound(
         'test_functor':test_functor
     }
 
-    callRK(
-        **RKDict,
+    run_rk(
+        **rk_dict,
         error_controller_options={'tol':1e-5,'lower_bound':lower_bound},
         write_file="test_lower_bound.h5",
     )
@@ -287,15 +287,15 @@ def test_lower_bound(
         solve_subsystems=True
     )
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
-    callRK(
-        **RKDict,
+    run_rk(
+        **rk_dict,
         error_controller_options={'tol':1e-5},
         write_file="test_without_lower_bound.h5",
     )
 
-    delta_t = getdt("test_lower_bound.h5", quantities)
+    delta_t = get_dt("test_lower_bound.h5", quantities)
     assert min(np.min(delta_t),lower_bound) == pytest.approx(lower_bound, rel=1e-4)
-    delta_t = getdt("test_without_lower_bound.h5", quantities)
+    delta_t = get_dt("test_without_lower_bound.h5", quantities)
     assert np.min(delta_t) < lower_bound
 
 
@@ -346,7 +346,7 @@ def test_upper_lower_bound(
     )
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
-    RKDict = {
+    rk_dict = {
         'time_stage_problem':time_integration_prob,
         'butcher_tableau':butcher_tableau,
         'integration_control':integration_control,
@@ -357,13 +357,13 @@ def test_upper_lower_bound(
         'test_functor':test_functor,
     }
     write_file = f"test_upper_lower_bound.h5"
-    callRK(
-            **RKDict,
+    run_rk(
+            **rk_dict,
             error_controller_options={'tol':1e-5,'upper_bound':upper_bound,'lower_bound':lower_bound},
             write_file="test_upper_lower_bound.h5",
     )
 
-    delta_t = getdt("test_upper_lower_bound.h5", quantities)
+    delta_t = get_dt("test_upper_lower_bound.h5", quantities)
     assert max(np.max(delta_t),upper_bound) == pytest.approx(upper_bound, rel=1e-4)
     assert min(np.min(delta_t),lower_bound) == pytest.approx(lower_bound, rel=1e-4)
 

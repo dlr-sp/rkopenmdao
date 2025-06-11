@@ -216,7 +216,6 @@ class ErrorController:
 
         if norm != 0:
             new_delta_t = self._estimate_next_step_function(norm, delta_t)
-            print("suggestion=",new_delta_t)
         else: 
             new_delta_t = delta_t
             warnings.warn(
