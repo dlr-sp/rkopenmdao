@@ -38,10 +38,12 @@ def setup_time_integration_problem(
     time_integration_quantities,
     initial_values=None,
     adaptive_time_stepping=False,
-    exclude: list = [],
+    exclude: list = None,
     name: str = "None",
 ):
     """Sets up the time integration problem for the following test."""
+    if exclude is None:
+        exclude = []
     rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=stage_prob,
         butcher_tableau=butcher_tableau,
