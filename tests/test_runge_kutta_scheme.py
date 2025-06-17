@@ -464,7 +464,11 @@ def test_compute_step(
     expected_new_state: np.ndarray,
 ):
     """Tests the compute_step function."""
-    assert rk_scheme.compute_step(delta_t, old_state, stage_field)[0] == pytest.approx(
+    assert rk_scheme.compute_step(
+        delta_t,
+        old_state,
+        stage_field,
+        remaining_time=delta_t)[0] == pytest.approx(
         expected_new_state
     )
 
