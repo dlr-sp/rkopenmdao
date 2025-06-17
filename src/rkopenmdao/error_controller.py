@@ -104,10 +104,14 @@ class ErrorController:
     safety_factor: float, optional
         Safety factor in the equation smaller than 1.
     max_iter: int, optional
-        Threshold for number of times the controller is attempted
+        Threshold for number of times the controller is attempted.
         over the course of one step.
+    lower_bound: float, optional
+        Minimum step size allowed.
+    upper_bound: float, optional
+        Maximum step size allowed.
     name: str, optional
-        Name of the error controller
+        Name of the error controller.
 
 
 
@@ -129,6 +133,8 @@ class ErrorController:
         a: float = 0,
         b: float = 0,
         tol: float = 1e-6,
+        lower_bound: float = 0,
+        upper_bound: float = np.inf,
         safety_factor: float = 0.95,
         max_iter=5,
         name: str = "ErrorController",
@@ -147,6 +153,8 @@ class ErrorController:
         self.a = a
         self.b = b
         # -----------
+        self.lower_bound = lower_bound
+        self.upper_bound = upper_bound
         self.local_data = LocalData(self.tol)  # Local step History object
         self.error_estimator = error_estimator  # Error estimator for the Norm
         self.inner_most = True  # Indicator if it is not associated with a decorator
@@ -158,12 +166,15 @@ class ErrorController:
         solution: np.ndarray,
         embedded_solution: np.ndarray,
         delta_t: float,
+        remaining_time: float,
     ) -> Tuple[float, bool]:
         """
         A call function which returns a delta_t suggestion and
         an acceptance status.
         """
-        suggestion, success = self._run(solution, embedded_solution, delta_t)
+        suggestion, success = self._run(
+            solution, embedded_solution, delta_t, remaining_time
+        )
         if not success:
             if suggestion > delta_t and self.inner_most:
                 raise OuterErrorControllerError(
@@ -177,6 +188,7 @@ class ErrorController:
         solution: np.ndarray,
         embedded_solution: np.ndarray,
         delta_t: float,
+        remaining_time: float,
     ) -> Tuple[float, bool]:
         """
         Estimates next possible step size for a given state and embedded solution
@@ -199,18 +211,28 @@ class ErrorController:
         """
         success = False
         norm = self.error_estimator(solution, embedded_solution)
-        if norm <= self.tol:
-            success = True
+        if (
+            np.abs(delta_t - self.lower_bound) < 1e-10
+            or np.abs(delta_t - remaining_time) < 1e-10
+            or norm <= self.tol
+        ):
             self.local_data.push_to_delta_time_steps(delta_t)
             self.local_data.push_to_local_error_norms(norm)
+            success = True
+
         if norm != 0:
-            delta_t = self._estimate_next_step_function(norm, delta_t)
+            new_delta_t = self._estimate_next_step_function(norm, delta_t)
         else:
+            new_delta_t = delta_t
             warnings.warn(
                 """Current error norm is 0, can't estimate new step size
                 and using old one."""
             )
-        return delta_t, success
+
+        new_delta_t = max(self.lower_bound, min(self.upper_bound, new_delta_t))
+        if remaining_time - (delta_t + new_delta_t) < self.lower_bound:
+            new_delta_t = remaining_time
+        return new_delta_t, success
 
     def _estimate_next_step_function(self, norm, delta_t):
         """
@@ -281,13 +303,10 @@ class ErrorControllerDecorator(ErrorController):
         self,
         alpha,
         error_controller: ErrorController,
-        error_estimator: ErrorEstimator = None,
         beta: float = 0,
         gamma: float = 0,
         a: float = 0,
         b: float = 0,
-        tol: float = 1e-6,
-        safety_factor: float = 0.95,
         name: str = "ErrorController",
         max_iter=5,
     ):
@@ -304,6 +323,8 @@ class ErrorControllerDecorator(ErrorController):
             b=b,
         )
         self.tol = error_controller.tol
+        self.lower_bound = error_controller.lower_bound
+        self.upper_bound = error_controller.upper_bound
         self.safety_factor = error_controller.safety_factor
         self.max_iter = error_controller.max_iter
         self.error_estimator = error_controller.error_estimator
@@ -317,6 +338,7 @@ class ErrorControllerDecorator(ErrorController):
         solution: np.ndarray,
         embedded_solution: np.ndarray,
         delta_t: float,
+        remaining_time: float,
     ) -> Tuple[float, bool]:
         """
         A call function which returns a delta_t suggestion and
@@ -325,12 +347,12 @@ class ErrorControllerDecorator(ErrorController):
         if self.is_not_inner:
             try:
                 suggestion, success = self.error_controller(
-                    solution, embedded_solution, delta_t
+                    solution, embedded_solution, delta_t, remaining_time
                 )
                 if not success:
                     self.outer_counter += 1
                     if not (
-                        suggestion <= delta_t and self.outer_counter <= self.max_iter
+                        suggestion < delta_t and self.outer_counter <= self.max_iter
                     ):
                         raise OuterErrorControllerError(
                             f"""Suggested delta T {suggestion} is larger than 
@@ -339,9 +361,9 @@ class ErrorControllerDecorator(ErrorController):
                 self.outer_counter = 0
                 return suggestion, success
             except OuterErrorControllerError:
-                return self._run(solution, embedded_solution, delta_t)
+                return self._run(solution, embedded_solution, delta_t, remaining_time)
         else:
-            return self._run(solution, embedded_solution, delta_t)
+            return self._run(solution, embedded_solution, delta_t, remaining_time)
 
     def __str__(self):
         """Prints the class data."""
@@ -355,6 +377,7 @@ class ErrorControllerDecorator(ErrorController):
         solution: np.ndarray,
         embedded_solution: np.ndarray,
         delta_t: float,
+        remaining_time: float,
     ) -> Tuple[float, bool]:
         """
         Estimates next possible step size for a given state and embedded solution
@@ -377,7 +400,9 @@ class ErrorControllerDecorator(ErrorController):
         """
 
         self.is_not_inner = True
-        suggestion, success = super()._run(solution, embedded_solution, delta_t)
+        suggestion, success = super()._run(
+            solution, embedded_solution, delta_t, remaining_time
+        )
         if not success:
             self.is_not_inner = False
             if suggestion > delta_t and self.inner_most:

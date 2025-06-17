@@ -85,6 +85,7 @@ class RungeKuttaScheme:
         delta_t: float,
         old_state: np.ndarray,
         stage_field: np.ndarray,
+        remaining_time: float,
     ) -> (np.ndarray, float, bool):
         """Computes the next state and"""
         new_state = old_state.copy()
@@ -101,7 +102,7 @@ class RungeKuttaScheme:
                 ((0,), (0,)),
             )
             delta_t_new, accepted = self.error_controller(
-                new_state, new_state_embedded, delta_t
+                new_state, new_state_embedded, delta_t, remaining_time
             )
             return new_state, delta_t_new, accepted
         elif not self.butcher_tableau.is_embedded and self.use_adaptive_time_stepping:

@@ -88,6 +88,6 @@ def test_compute_step(
 ):
     """Tests the compute_step function."""
     rk_scheme = RungeKuttaScheme(embedded_tableau, ode, True, error_controller)
-    assert rk_scheme.compute_step(delta_t, old_state, stage_field) == pytest.approx(
+    assert rk_scheme.compute_step(delta_t, old_state, stage_field, remaining_time=delta_t) == pytest.approx(
         (np.array([expected_new_state]), 0.1, True)
     )

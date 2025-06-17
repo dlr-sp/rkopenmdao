@@ -529,9 +529,9 @@ def test_compute_step(
 ):
     """Tests the compute_step function."""
     rk_scheme = RungeKuttaScheme(butcher_tableau, ode())
-    assert rk_scheme.compute_step(delta_t, old_state, stage_field)[0] == pytest.approx(
-        expected_new_state
-    )
+    assert rk_scheme.compute_step(
+        delta_t, old_state, stage_field, remaining_time=delta_t
+    )[0] == pytest.approx(expected_new_state)
 
 
 @pytest.mark.parametrize(
