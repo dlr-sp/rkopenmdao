@@ -6,6 +6,10 @@ import openmdao.api as om
 import numpy as np
 import pytest
 
+from rkopenmdao.discretized_ode.discretized_ode import (
+    DiscretizedODEInputState,
+    DiscretizedODEResultState,
+)
 from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
 from rkopenmdao.integration_control import StepTerminationIntegrationControl
 
@@ -40,9 +44,9 @@ def test_compute_update():
     """
     Tests the compute_update method of the OpenMDAO ODE.
     """
-    update, _, _ = ODE.compute_update(
-        np.ones(1), np.ones(1), np.ones(1), 0.0, DELTA_T, 0.0
-    )
+    update = ODE.compute_update(
+        DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
+    ).stage_update
     assert update == pytest.approx(1 + DELTA_T)
 
 
@@ -50,11 +54,13 @@ def test_compute_update_derivative():
     """
     Tests the compute_update_derivative method of the OpenMDAO ODE.
     """
-    _, _, _ = ODE.compute_update(np.ones(1), np.ones(1), np.ones(1), 0.0, DELTA_T, 0.0)
-
-    update_pert, _, _ = ODE.compute_update_derivative(
-        np.ones(1), np.ones(1), np.ones(1), 0.0, DELTA_T, 0.0
+    ODE.compute_update(
+        DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
     )
+
+    update_pert = ODE.compute_update_derivative(
+        DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
+    ).stage_update
 
     assert update_pert == pytest.approx(2 + 2 * DELTA_T)
 
@@ -63,17 +69,22 @@ def test_compute_update_adjoint_derivative():
     """
     Tests the compute_update_adjoint_derivative method of the OpenMDAO ODE.
     """
-    _, _, _ = ODE.compute_update(np.ones(1), np.ones(1), np.ones(1), 0.0, DELTA_T, 0.0)
+    ODE.compute_update(
+        DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
+    )
 
-    step_input_pert, stage_input_pert, independent_input_pert, _ = (
-        ODE.compute_update_adjoint_derivative(
-            np.ones(1), np.zeros(1), np.zeros(1), DELTA_T, 0.0
+    stage_input_perturbation = ODE.compute_update_adjoint_derivative(
+        DiscretizedODEResultState(np.ones(1), np.zeros(1), np.zeros(1)), DELTA_T, 0.0
+    )
+    assert stage_input_perturbation == pytest.approx(
+        DiscretizedODEInputState(
+            np.ones(1), np.full(1, DELTA_T), np.full(1, 1 + DELTA_T), 0.0
         )
     )
 
-    assert step_input_pert == pytest.approx(1.0)
-    assert stage_input_pert == pytest.approx(DELTA_T)
-    assert independent_input_pert == pytest.approx(1 + DELTA_T)
+    # assert step_input_pert == pytest.approx(1.0)
+    # assert stage_input_pert == pytest.approx(DELTA_T)
+    # assert independent_input_pert == pytest.approx(1 + DELTA_T)
 
 
 def test_reimport():
@@ -81,16 +92,22 @@ def test_reimport():
     Tests that exporting and reimporting a cached linearization state provides the
     correct results.
     """
-    _, _, _ = ODE.compute_update(np.ones(1), np.ones(1), np.ones(1), 0.0, DELTA_T, 0.0)
-    cache = ODE.export_linearization()
-    update_pert, _, _ = ODE.compute_update_derivative(
-        np.ones(1), np.ones(1), np.ones(1), 0.0, DELTA_T, 0.0
+    ODE.compute_update(
+        DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
+    )
+    cache = ODE.get_linearization_point()
+    update_pert = ODE.compute_update_derivative(
+        DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
+    ).stage_update
+
+    ODE.compute_update(
+        DiscretizedODEInputState(np.zeros(1), np.zeros(1), np.zeros(1), 0.0),
+        DELTA_T,
+        0.0,
     )
 
-    ODE.compute_update(np.zeros(1), np.zeros(1), np.zeros(1), 0.0, DELTA_T, 0.0)
-
-    ODE.import_linearization(cache)
-    update_pert_new, _, _ = ODE.compute_update_derivative(
-        np.ones(1), np.ones(1), np.ones(1), 0.0, DELTA_T, 0.0
-    )
+    ODE.set_linearization_point(cache)
+    update_pert_new = ODE.compute_update_derivative(
+        DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
+    ).stage_update
     assert update_pert_new == update_pert

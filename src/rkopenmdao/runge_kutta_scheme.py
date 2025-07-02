@@ -5,7 +5,11 @@ from __future__ import annotations
 import numpy as np
 
 from rkopenmdao.butcher_tableau import ButcherTableau
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
+from rkopenmdao.discretized_ode.discretized_ode import (
+    DiscretizedODE,
+    DiscretizedODEInputState,
+    DiscretizedODEResultState,
+)
 from rkopenmdao.error_controller import ErrorController
 
 from rkopenmdao.errors import RungeKuttaError
@@ -61,13 +65,12 @@ class RungeKuttaScheme:
         )
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         return self.ode.compute_update(
-            old_state,
-            accumulated_stages,
-            parameters,
-            stage_time,
+            DiscretizedODEInputState(
+                old_state, accumulated_stages, parameters, stage_time
+            ),
             delta_t,
             butcher_diagonal_element,
-        )[0]
+        ).stage_update
 
     def compute_accumulated_stages(
         self, stage: int, stage_field: np.ndarray
@@ -123,17 +126,19 @@ class RungeKuttaScheme:
         """Computes the matrix-vector-product of the jacobian of the stage wrt. to the
         old state and the accumulated stages."""
         if linearization_cache:
-            self.ode.import_linearization(linearization_cache)
+            self.ode.set_linearization_point(linearization_cache)
 
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         return self.ode.compute_update_derivative(
-            old_state_perturbation,
-            accumulated_stages_perturbation,
-            parameter_perturbations,
-            0.0,  # currently not used
+            DiscretizedODEInputState(
+                old_state_perturbation,
+                accumulated_stages_perturbation,
+                parameter_perturbations,
+                0.0,  # currently not used
+            ),
             delta_t,
             butcher_diagonal_element,
-        )[0]
+        ).stage_update
 
     def compute_accumulated_stage_perturbations(
         self, stage: int, stage_perturbation_field: np.ndarray
@@ -170,17 +175,19 @@ class RungeKuttaScheme:
         """Computes the matrix-vector-product of the transposed of the jacobian of the
         stage wrt. to the old state and the accumulated stages."""
         if linearization_cache:
-            self.ode.import_linearization(linearization_cache)
+            self.ode.set_linearization_point(linearization_cache)
 
         butcher_diagonal_element = self.butcher_tableau.butcher_matrix[stage, stage]
         result = self.ode.compute_update_adjoint_derivative(
-            joined_perturbation,
-            0.0,  # currently not used
-            0.0,  # currently not used  # currently not used
+            DiscretizedODEResultState(
+                joined_perturbation,
+                0.0,  # currently not used
+                0.0,  # currently not used
+            ),
             delta_t,
             butcher_diagonal_element,
         )
-        return result[0], result[1], result[2]
+        return result.step_input, result.stage_input, result.independent_input
 
     def join_perturbations(
         self,

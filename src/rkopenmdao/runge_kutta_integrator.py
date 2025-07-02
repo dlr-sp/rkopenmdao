@@ -8,7 +8,7 @@ import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
 
 from .butcher_tableau import ButcherTableau
-from .discretized_ode.openmdao_ode import OpenMDAOODE
+from .discretized_ode.openmdao_ode import OpenMDAOODE, OpenMDAOODELinearizationPoint
 from .functional_coefficients import FunctionalCoefficients, EmptyFunctionalCoefficients
 from .integration_control import IntegrationControl
 from .runge_kutta_scheme import RungeKuttaScheme
@@ -1335,7 +1335,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     f"Starting stage [{stage + 1}] of the rev iteration of rev-mode "
                     f"jvp in step <{step}>."
                 )
-            linearization_args = (
+            linearization_args = OpenMDAOODELinearizationPoint(
                 self.options["integration_control"].step_time
                 + butcher_tableau.butcher_time_stages[stage] * delta_t,
                 inputs_cache[stage],

@@ -1,9 +1,87 @@
 # pylint: disable=missing-module-docstring
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import TypeVar
 
 import numpy as np
+
+
+class DiscretizedODELinearizationPoint(ABC):
+    """
+    Abstract base class for the representation of a linearization point for the
+    DiscretizedODE class.
+    """
+
+    @abstractmethod
+    def to_numpy_array(self) -> np.ndarray:
+        """
+        Method to serialize the linearization point to a numpy array for use with
+        checkpointing.
+        """
+
+    @abstractmethod
+    def from_numpy_array(self, array: np.ndarray) -> None:
+        """
+        Method to deserialize the linearization point from a numpy array back to its
+        original form.
+        """
+
+
+@dataclass(slots=True)
+class DiscretizedODEInputState:
+    """
+    Dataclass containing all the information about the input state of a discretized ODE.
+    An instance of this class is used as an input for a non-differentiated run and for a
+    differentiated run in forward mode. A run for reverse-mode derivatives has an
+    instance of this class as result.
+
+    Parameters
+    ----------
+    step_input: np.ndarray
+        A vector corresponding to the input or a perturbation of the input data coming
+        from the start of a time step.
+    stage_input: np.ndarray
+        A vector corresponding to the input or a perturbation of the input data coming
+        from the start of a time stage.
+    independent_input: np.ndarray
+        A vector corresponding to the input or a perturbation of the input data that is
+        independent of the time.
+    time: float
+        The time the ODE is evaluated at.
+    """
+
+    step_input: np.ndarray
+    stage_input: np.ndarray
+    independent_input: np.ndarray
+    time: float
+
+
+@dataclass(slots=True)
+class DiscretizedODEResultState:
+    """
+    Dataclass containing all the information about the resulting state of a discretized
+    ODE. An instance of this class is the result of both a non-differentiated run and
+    for a differentiated run in forward mode. A run for reverse-mode derivatives needs
+    an instance of this class as input.
+
+    Parameters
+    ----------
+    stage_update: np.ndarray
+        A vector corresponding to the output or a perturbation of the output data coming
+        from the update of a time stage.
+    stage_state: np.ndarray
+        A vector corresponding to the output or a perturbation of the output data coming
+        from the state of a time stage.
+    independent_output: np.ndarray
+        A vector corresponding to the output or a perturbation of the output data that
+        is not directly dependent of the time integration (i.e. there is no time
+        derivative for the contained data in the ODE system).
+    """
+
+    stage_update: np.ndarray
+    stage_state: np.ndarray
+    independent_output: np.ndarray
 
 
 class DiscretizedODE(ABC):
@@ -17,13 +95,10 @@ class DiscretizedODE(ABC):
     @abstractmethod
     def compute_update(
         self,
-        step_input: np.ndarray,
-        stage_input: np.ndarray,
-        independent_input: np.ndarray,
-        time: float,
+        ode_input: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> DiscretizedODEResultState:
         """
         Given the information from the start of the time step and stage, as well as time
         independent information, time step size and a stage specific step size factor,
@@ -34,14 +109,8 @@ class DiscretizedODE(ABC):
 
         Parameters
         ----------
-        step_input: np.ndarray
-            Input from start of time step
-        stage_input: np.ndarray
-            Input from start of time stage
-        independent_input: np.ndarray
-            Time independent input information
-        time: float
-            Time of the current time stage
+        ode_input: DiscretizedODEInputState
+            Input for the calculation of the time stage.
         step_size: float
             Step size of the current time step
         stage_factor: float
@@ -49,29 +118,25 @@ class DiscretizedODE(ABC):
 
         Returns
         -------
-        stage_update: np.ndarray
-            Update for the current stage of the time integration scheme
-        stage_state: np.ndarray
-            State for the current stage of the time integration scheme
-        independent_output: np.ndarray
-            Output for the quantities not directly related to the time integration of
-            the current stage of the scheme
+        ode_result: DiscretizedODEResultState
+            Result for the calculation of the time stage.
         """
 
     @abstractmethod
-    def export_linearization(self) -> CacheType:
+    def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
         """
         Exports the data of the ODE necessary for linearization. Must to implemented in
         child class.
 
         Returns
         -------
-        cache: CacheType
-            A vector containing the linearization info the class instance.
+        cache: DiscretizedODELinearizationPoint
+            An object containing all the information necessary to linearize the class
+            instance.
         """
 
     @abstractmethod
-    def import_linearization(self, cache: CacheType) -> None:
+    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
         """
         Imports the data of the ODE necessary for linearization. After a call, the class
         instance is in a state where the functions compute_update_derivative and
@@ -80,20 +145,18 @@ class DiscretizedODE(ABC):
 
         Parameters
         ----------
-        cache: CacheType
-            A vector containing the linearization info the class instance.
+        cache: DiscretizedODELinearizationPoint
+            An object containing all the information necessary to linearize the class
+            instance.
         """
 
     @abstractmethod
     def compute_update_derivative(
         self,
-        step_input_pert: np.ndarray,
-        stage_input_pert: np.ndarray,
-        independent_input_pert: np.ndarray,
-        time_pert: float,
+        ode_input_perturbation: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> DiscretizedODEResultState:
         """
         Computes the matrix-vector product with the jacobian matrix of the stage update,
         the stage state and independent output wrt. step input, stage input independent
@@ -103,14 +166,8 @@ class DiscretizedODE(ABC):
 
         Parameters
         ----------
-        step_input_pert: np.ndarray
-            Input perturbation from start of time step
-        stage_input_pert: np.ndarray
-            Input perturbation from start of time stage
-        independent_input_pert: np.ndarray
-            Time independent input perturbation
-        time_pert: float
-            Time perturbation of the current time step
+        ode_input_perturbation: DiscretizedODEInputState
+            Input perturbation for the calculation of the derivative of time stage.
         step_size: float
             Step size of the current time step
         stage_factor: float
@@ -118,26 +175,17 @@ class DiscretizedODE(ABC):
 
         Returns
         -------
-        stage_update_pert: np.ndarray
-            Perturbation for the update of the current stage of the time integration
-            scheme
-        stage_stage_pert: np.ndarray
-            Perturbation for the state of the current stage of the time integration
-            scheme
-        independent_output_pert: np.ndarray
-            Perturbation of the output for the quantities not directly related to the
-            time integration of the current stage of the scheme
+        ode_result_perturbation: DiscretizedODEResultState
+            Result perturbation for the calculation of the derivative of the time stage.
         """
 
     @abstractmethod
     def compute_update_adjoint_derivative(
         self,
-        stage_update_pert: np.ndarray,
-        stage_output_pert: np.ndarray,
-        independent_output_pert: np.ndarray,
+        ode_result_perturbation: DiscretizedODEResultState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+    ) -> DiscretizedODEInputState:
         """
         Computes the matrix-vector product with the adjoint jacobian matrix of the stage
         update, the stage state and independent output wrt. step input, stage input
@@ -147,13 +195,9 @@ class DiscretizedODE(ABC):
 
         Parameters
         ----------
-        stage_update_pert: np.ndarray
-            Stage output perturbation from end of time stage
-        stage_output_pert: np.ndarray
-            Stage output perturbation from end of time stage
-        independent_output_pert: np.ndarray
-            Perturbation of the output for the quantities not directly related to the
-            time integration
+        ode_result_perturbation: DiscretizedODEResultState
+            Result perturbation for the calculation of the adjoint derivative of the
+            time stage.
         step_size: float
             Step size of the current time step
         stage_factor: float
@@ -161,12 +205,7 @@ class DiscretizedODE(ABC):
 
         Returns
         -------
-        step_input_pert: np.ndarray
-            Input perturbation from start of time step
-        stage_input_pert: np.ndarray
-            Input perturbation from start of time stage
-        independent_input_pert: np.ndarray
-            Time independent input perturbation
-        time_pert: float
-            Time perturbation of the current time step
+        ode_input_perturbation: DiscretizedODEInputState
+            Input perturbation for the calculation of the adjoint derivative of time
+            stage.
         """

@@ -2,14 +2,18 @@
 
 # pylint: disable=unused-argument
 from __future__ import annotations
-from copy import deepcopy
 from dataclasses import dataclass
 
 import numpy as np
 import pytest
 
 from rkopenmdao.butcher_tableau import ButcherTableau
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
+from rkopenmdao.discretized_ode.discretized_ode import (
+    DiscretizedODE,
+    DiscretizedODELinearizationPoint,
+    DiscretizedODEInputState,
+    DiscretizedODEResultState,
+)
 from rkopenmdao.runge_kutta_scheme import RungeKuttaScheme
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
@@ -18,66 +22,83 @@ from rkopenmdao.butcher_tableaux import (
 )
 
 
+@dataclass
+class SimpleODELinearizationPoint(DiscretizedODELinearizationPoint):
+    """
+    Minimal linearization point implementation for the ODEs used in the tests of this
+    file.
+
+    Parameters
+    ----------
+    time: float
+        Time of the simulation at the caching point.
+    ode_input: np.ndarray
+        Parts of the ODE input that need to be cached for linearization.
+    """
+
+    time: float
+    ode_input: np.ndarray
+
+    def to_numpy_array(self) -> np.ndarray:
+        array = np.zeros(1 + self.ode_input.size)
+        array[0] = self.time
+        array[1:] = self.ode_input
+        return array
+
+    def from_numpy_array(self, array: np.ndarray) -> None:
+        self.time = array[0]
+        self.ode_input = array[1:]
+
+
 class IdentityODE(DiscretizedODE):
     """
     Discretized ODE implementation for the ODE x'(t) = x(t).
     """
 
-    CacheType = None
-
     def compute_update(
         self,
-        step_input: np.ndarray,
-        stage_input: np.ndarray,
-        independent_input: np.ndarray,
-        time: float,
+        ode_input: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        stage_update = (step_input + step_size * stage_input) / (
+    ) -> DiscretizedODEResultState:
+        stage_update = (ode_input.step_input + step_size * ode_input.stage_input) / (
             1.0 - step_size * stage_factor
         )
         stage_state = stage_update.copy()
-        return stage_update, stage_state, np.zeros(0)
+        return DiscretizedODEResultState(stage_update, stage_state, np.zeros(0))
 
     # This is a linear ODE, there is no need for saving linearization data
-    def export_linearization(self) -> CacheType:
+    def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
         pass
 
-    def import_linearization(self, cache: CacheType) -> CacheType:
+    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
         pass
 
     def compute_update_derivative(
         self,
-        step_input_pert: np.ndarray,
-        stage_input_pert: np.ndarray,
-        independent_input_pert: np.ndarray,
-        time_pert: float,
+        ode_input_perturbation: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> DiscretizedODEResultState:
         return self.compute_update(
-            step_input_pert,
-            stage_input_pert,
-            independent_input_pert,
-            0.0,
+            ode_input_perturbation,
             step_size,
             stage_factor,
         )
 
     def compute_update_adjoint_derivative(
         self,
-        stage_update_pert: np.ndarray,
-        stage_output_pert: np.ndarray,
-        independent_output_pert: np.ndarray,
+        ode_result_perturbation: DiscretizedODEResultState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        step_input_pert = (stage_update_pert + stage_output_pert) / (
-            1 - step_size * stage_factor
-        )
+    ) -> DiscretizedODEInputState:
+        step_input_pert = (
+            ode_result_perturbation.stage_update + ode_result_perturbation.stage_state
+        ) / (1 - step_size * stage_factor)
         stage_output_pert = step_size * step_input_pert
-        return step_input_pert, stage_output_pert, np.zeros(0), 0.0
+        return DiscretizedODEInputState(
+            step_input_pert, stage_output_pert, np.zeros(0), 0.0
+        )
 
 
 class TimeODE(DiscretizedODE):
@@ -85,59 +106,53 @@ class TimeODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = t.
     """
 
-    CacheType = None
-
     def compute_update(
         self,
-        step_input: np.ndarray,
-        stage_input: np.ndarray,
-        independent_input: np.ndarray,
-        time: float,
+        ode_input: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        stage_update = np.array([time])
-        stage_state = step_input + step_size * (
-            stage_input + stage_factor * stage_update
+    ) -> DiscretizedODEResultState:
+        stage_update = np.array([ode_input.time])
+        stage_state = ode_input.step_input + step_size * (
+            ode_input.stage_input + stage_factor * stage_update
         )
-        return stage_update, stage_state, np.zeros(0)
+        return DiscretizedODEResultState(stage_update, stage_state, 0.0)
 
-    def export_linearization(self) -> CacheType:
+    def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
         pass
 
-    def import_linearization(self, cache: CacheType) -> CacheType:
+    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
         pass
 
     def compute_update_derivative(
         self,
-        step_input_pert: np.ndarray,
-        stage_input_pert: np.ndarray,
-        independent_input_pert: np.ndarray,
-        time_pert: float,
+        ode_input_perturbation: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    ) -> DiscretizedODEResultState:
         return self.compute_update(
-            step_input_pert,
-            stage_input_pert,
-            independent_input_pert,
-            time_pert,
+            ode_input_perturbation,
             step_size,
             stage_factor,
         )
 
     def compute_update_adjoint_derivative(
         self,
-        stage_update_pert: np.ndarray,
-        stage_output_pert: np.ndarray,
-        independent_output_pert: np.ndarray,
+        ode_result_perturbation: DiscretizedODEResultState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        step_input_pert = stage_output_pert
-        stage_input_pert = step_size * stage_output_pert
-        time_pert = stage_update_pert * step_size * stage_factor * stage_output_pert
-        return step_input_pert, stage_input_pert, np.zeros(0), time_pert
+    ) -> DiscretizedODEInputState:
+        step_input_pert = ode_result_perturbation.stage_state
+        stage_input_pert = step_size * ode_result_perturbation.stage_state
+        time_pert = (
+            ode_result_perturbation.stage_update
+            * step_size
+            * stage_factor
+            * ode_result_perturbation.stage_state
+        )
+        return DiscretizedODEInputState(
+            step_input_pert, stage_input_pert, np.zeros(0), time_pert
+        )
 
 
 @dataclass
@@ -146,81 +161,90 @@ class TimeScaledIdentityODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = t*x(t).
     """
 
-    CacheType = tuple[float, np.ndarray, np.ndarray]
-
-    _cache: CacheType = (0.0, np.zeros(0), np.zeros(0))
+    _cache: SimpleODELinearizationPoint = SimpleODELinearizationPoint(0.0, np.zeros(2))
 
     def compute_update(
         self,
-        step_input: np.ndarray,
-        stage_input: np.ndarray,
-        independent_input: np.ndarray,
-        time: float,
+        ode_input: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        self._cache = (time, deepcopy(step_input), deepcopy(stage_input))
-        stage_state = (step_input + step_size * stage_input) / (
-            1 - time * step_size * stage_factor
+    ) -> DiscretizedODEResultState:
+        cached_input = np.zeros(2)
+        cached_input[0] = ode_input.step_input
+        cached_input[1] = ode_input.stage_input
+        self._cache = SimpleODELinearizationPoint(ode_input.time, cached_input)
+        stage_state = (ode_input.step_input + step_size * ode_input.stage_input) / (
+            1 - ode_input.time * step_size * stage_factor
         )
-        stage_update = time * stage_state
-        return stage_update, stage_state, np.zeros(0)
+        stage_update = ode_input.time * stage_state
+        return DiscretizedODEResultState(stage_update, stage_state, np.zeros(0))
 
-    def export_linearization(self) -> CacheType:
-        return deepcopy(self._cache)
+    def get_linearization_point(self) -> SimpleODELinearizationPoint:
+        return self._cache
 
-    def import_linearization(self, cache: CacheType) -> None:
+    def set_linearization_point(self, cache: SimpleODELinearizationPoint) -> None:
         self._cache = cache
 
     def compute_update_derivative(
         self,
-        step_input_pert: np.ndarray,
-        stage_input_pert: np.ndarray,
-        independent_input_pert: np.ndarray,
-        time_pert: float,
+        ode_input_perturbation: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        time = self._cache[0]
-        step_input = self._cache[1]
-        stage_input = self._cache[2]
+    ) -> DiscretizedODEResultState:
+        time = self._cache.time
+        step_input = self._cache.ode_input[0]
+        stage_input = self._cache.ode_input[1]
 
         inv_divisor = 1 / (1 - time * step_size * stage_factor)
 
         stage_update_pert = (
-            time * (step_input_pert + step_size * stage_input_pert) * inv_divisor
+            time
+            * (
+                ode_input_perturbation.step_input
+                + step_size * ode_input_perturbation.stage_input
+            )
+            * inv_divisor
         ) + (step_input + step_size * stage_input) * inv_divisor**2
 
         stage_state_pert = (
-            step_input_pert + step_size * stage_input_pert
+            ode_input_perturbation.step_input
+            + step_size * ode_input_perturbation.stage_input
         ) * inv_divisor + (
             step_input + step_size * stage_input
         ) * step_size * stage_factor * inv_divisor**2
 
-        return stage_update_pert, stage_state_pert, np.zeros(0)
+        return DiscretizedODEResultState(
+            stage_update_pert, stage_state_pert, np.zeros(0)
+        )
 
     def compute_update_adjoint_derivative(
         self,
-        stage_update_pert: np.ndarray,
-        stage_output_pert: np.ndarray,
-        independent_output_pert: np.ndarray,
+        ode_result_perturbation: DiscretizedODEResultState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        time = self._cache[0]
-        step_input = self._cache[1]
-        stage_input = self._cache[2]
+    ) -> DiscretizedODEInputState:
+        time = self._cache.time
+        step_input = self._cache.ode_input[0]
+        stage_input = self._cache.ode_input[1]
 
         inv_divisor = 1 / (1 - time * step_size * stage_factor)
 
-        step_input_pert = (time * stage_update_pert + stage_output_pert) * inv_divisor
+        step_input_pert = (
+            time * ode_result_perturbation.stage_update
+            + ode_result_perturbation.stage_state
+        ) * inv_divisor
         stage_input_pert = step_size * step_input_pert
         time_pert = (
             (step_input + step_size * stage_input)
             * inv_divisor**2
-            * (stage_update_pert + step_size * stage_factor * stage_output_pert)
+            * (
+                ode_result_perturbation.stage_update
+                + step_size * stage_factor * ode_result_perturbation.stage_state
+            )
         )
-        return step_input_pert, stage_input_pert, np.zeros(0), time_pert
+        return DiscretizedODEInputState(
+            step_input_pert, stage_input_pert, np.zeros(0), time_pert
+        )
 
 
 class ParameterODE(DiscretizedODE):
@@ -229,60 +253,55 @@ class ParameterODE(DiscretizedODE):
     parameter.
     """
 
-    CacheType = None
-
     def compute_update(
         self,
-        step_input: np.ndarray,
-        stage_input: np.ndarray,
-        independent_input: np.ndarray,
-        time: float,
+        ode_input: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        stage_update = independent_input
-        stage_output = step_input + step_size * (
-            stage_input * stage_factor * stage_update
+    ) -> DiscretizedODEResultState:
+        stage_update = ode_input.independent_input
+        stage_output = ode_input.step_input + step_size * (
+            ode_input.stage_input * stage_factor * stage_update
         )
 
-        return stage_update, stage_output, np.zeros(0)
+        return DiscretizedODEResultState(stage_update, stage_output, np.zeros(0))
 
-    def export_linearization(self) -> CacheType:
+    def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
         pass
 
-    def import_linearization(self, cache: CacheType) -> None:
+    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
         pass
 
     def compute_update_derivative(
         self,
-        step_input_pert: np.ndarray,
-        stage_input_pert: np.ndarray,
-        independent_input_pert: np.ndarray,
-        time_pert: float,
+        ode_input_perturbation: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        stage_update_pert = independent_input_pert
-        stage_output_pert = step_input_pert + step_size * (
-            stage_input_pert + stage_factor * stage_update_pert
+    ) -> DiscretizedODEResultState:
+        stage_update_pert = ode_input_perturbation.independent_input
+        stage_output_pert = ode_input_perturbation.step_input + step_size * (
+            ode_input_perturbation.stage_input + stage_factor * stage_update_pert
         )
-        return stage_update_pert, stage_output_pert, np.zeros(0)
+        return DiscretizedODEResultState(
+            stage_update_pert, stage_output_pert, np.zeros(0)
+        )
 
     def compute_update_adjoint_derivative(
         self,
-        stage_update_pert: np.ndarray,
-        stage_output_pert: np.ndarray,
-        independent_output_pert: np.ndarray,
+        ode_result_perturbation: DiscretizedODEResultState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        step_input_pert = stage_output_pert
+    ) -> DiscretizedODEInputState:
+        step_input_pert = ode_result_perturbation.stage_state
         stage_input_pert = step_size * step_input_pert
         independent_input_pert = (
-            stage_update_pert + step_size * stage_factor * stage_output_pert
+            ode_result_perturbation.stage_update
+            + step_size * stage_factor * ode_result_perturbation.stage_state
         )
 
-        return step_input_pert, stage_input_pert, independent_input_pert, 0.0
+        return DiscretizedODEInputState(
+            step_input_pert, stage_input_pert, independent_input_pert, 0.0
+        )
 
 
 @dataclass
@@ -291,81 +310,84 @@ class RootODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = sqrt(x(t)).
     """
 
-    CacheType = tuple[np.ndarray, np.ndarray]
-
-    _cache = (np.zeros(0), np.zeros(0))
+    _cache: SimpleODELinearizationPoint = SimpleODELinearizationPoint(0.0, np.zeros(2))
 
     def compute_update(
         self,
-        step_input: np.ndarray,
-        stage_input: np.ndarray,
-        independent_input: np.ndarray,
-        time: float,
+        ode_input: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        self._cache = (deepcopy(step_input), deepcopy(stage_input))
+    ) -> DiscretizedODEResultState:
+        cached_input = np.zeros(2)
+        cached_input[0] = ode_input.step_input
+        cached_input[1] = ode_input.stage_input
+        self._cache = SimpleODELinearizationPoint(0.0, cached_input)
 
         stage_update = 0.5 * step_size * stage_factor + np.sqrt(
-            0.25 * step_size**2 * stage_factor**2 + step_input + step_size * stage_input
+            0.25 * step_size**2 * stage_factor**2
+            + ode_input.step_input
+            + step_size * ode_input.stage_input
         )
-        stage_output = step_input + step_size * (
-            stage_input + stage_factor * stage_update
+        stage_output = ode_input.step_input + step_size * (
+            ode_input.stage_input + stage_factor * stage_update
         )
 
-        return stage_update, stage_output, np.zeros(0)
+        return DiscretizedODEResultState(stage_update, stage_output, np.zeros(0))
 
-    def export_linearization(self) -> CacheType:
-        return deepcopy(self._cache)
+    def get_linearization_point(self) -> SimpleODELinearizationPoint:
+        return self._cache
 
-    def import_linearization(self, cache: CacheType) -> None:
+    def set_linearization_point(self, cache: SimpleODELinearizationPoint) -> None:
         self._cache = cache
 
     def compute_update_derivative(
         self,
-        step_input_pert: np.ndarray,
-        stage_input_pert: np.ndarray,
-        independent_input_pert: np.ndarray,
-        time_pert: float,
+        ode_input_perturbation: DiscretizedODEInputState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        step_input = self._cache[0]
-        stage_input = self._cache[1]
+    ) -> DiscretizedODEResultState:
+        step_input = self._cache.ode_input[0]
+        stage_input = self._cache.ode_input[1]
 
         inv_divisor = 0.5 / np.sqrt(
             0.25 * step_size**2 * stage_factor**2 + step_input + step_size * stage_input
         )
 
         stage_update_pert = inv_divisor * (
-            step_input_pert + step_size * stage_input_pert
+            ode_input_perturbation.step_input
+            + step_size * ode_input_perturbation.stage_input
         )
         stage_output_pert = (1 + 0.5 * step_size * stage_factor * inv_divisor) * (
-            step_input_pert + step_size * stage_input_pert
+            ode_input_perturbation.step_input
+            + step_size * ode_input_perturbation.stage_input
         )
-        return stage_update_pert, stage_output_pert, np.zeros(0)
+        return DiscretizedODEResultState(
+            stage_update_pert, stage_output_pert, np.zeros(0)
+        )
 
     def compute_update_adjoint_derivative(
         self,
-        stage_update_pert: np.ndarray,
-        stage_output_pert: np.ndarray,
-        independent_output_pert: np.ndarray,
+        ode_result_perturbation: DiscretizedODEResultState,
         step_size: float,
         stage_factor: float,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-        step_input = self._cache[0]
-        stage_input = self._cache[1]
+    ) -> DiscretizedODEInputState:
+        step_input = self._cache.ode_input[0]
+        stage_input = self._cache.ode_input[1]
 
         inv_divisor = 0.5 / np.sqrt(
             0.25 * step_size**2 * stage_factor**2 + step_input + step_size * stage_input
         )
 
-        step_input_pert = stage_update_pert * inv_divisor + stage_output_pert * (
-            1 + step_size * stage_factor * inv_divisor
+        step_input_pert = (
+            ode_result_perturbation.stage_update * inv_divisor
+            + ode_result_perturbation.stage_state
+            * (1 + step_size * stage_factor * inv_divisor)
         )
         stage_input_pert = step_size * step_input_pert
 
-        return step_input_pert, stage_input_pert, np.zeros(0), 0.0
+        return DiscretizedODEInputState(
+            step_input_pert, stage_input_pert, np.zeros(0), 0.0
+        )
 
 
 @pytest.mark.parametrize(
@@ -550,7 +572,7 @@ def test_compute_step(
             1.0,
             1.0,
             1.0,
-            (1.1, 0.0, 0.0),
+            SimpleODELinearizationPoint(1.1, np.array([0.0, 0.0])),
             1.21 / 0.89,
         ],
         [
@@ -561,7 +583,7 @@ def test_compute_step(
             10,
             20.0,
             111.1,
-            (10.01, 0.0, 0.0),
+            SimpleODELinearizationPoint(10.01, np.array([0.0, 0.0])),
             211.32111 / 0.8999,
         ],
         [
@@ -572,9 +594,14 @@ def test_compute_step(
             1.0,
             1.0,
             1.0,
-            (
-                0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
-                0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+            SimpleODELinearizationPoint(
+                0.0,
+                np.array(
+                    [
+                        0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                        0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                    ]
+                ),
             ),
             1.1 * 2 / (2 - 2**0.5),
         ],
@@ -586,9 +613,14 @@ def test_compute_step(
             1.0,
             1.0,
             1.0,
-            (
-                0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
-                0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+            SimpleODELinearizationPoint(
+                0.0,
+                np.array(
+                    [
+                        0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                        0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                    ]
+                ),
             ),
             1.01 * 2 / (2 - 2**0.5),
         ],
@@ -655,7 +687,7 @@ def test_compute_stage_jacvec_with_param(
             0.1,
             1.0,
             1.0,
-            (1.1, 0.0, 0.0),
+            SimpleODELinearizationPoint(1.1, np.array([0.0, 0.0])),
             (1.1 / 0.89, 0.11 / 0.89),
         ],
         [
@@ -665,7 +697,7 @@ def test_compute_stage_jacvec_with_param(
             0.01,
             10,
             111.1,
-            (10.01, 0.0, 0.0),
+            SimpleODELinearizationPoint(10.01, np.array([0.0, 0.0])),
             (1112.111 / 0.8999, 11.12111 / 0.8999),
         ],
         [
@@ -675,9 +707,14 @@ def test_compute_stage_jacvec_with_param(
             0.1,
             1.0,
             1.0,
-            (
-                0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
-                0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+            SimpleODELinearizationPoint(
+                0.0,
+                np.array(
+                    [
+                        0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                        0.9 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                    ]
+                ),
             ),
             (2 / (2 - 2**0.5), 0.1 * 2 / (2 - 2**0.5)),
         ],
@@ -688,9 +725,14 @@ def test_compute_stage_jacvec_with_param(
             0.01,
             1.0,
             1.0,
-            (
-                0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
-                0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+            SimpleODELinearizationPoint(
+                0.0,
+                np.array(
+                    [
+                        0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                        0.99 * ((2.0 - np.sqrt(2.0)) / 2.0) ** 2 / 4,
+                    ]
+                ),
             ),
             (2 / (2 - 2**0.5), 0.01 * 2 / (2 - 2**0.5)),
         ],
