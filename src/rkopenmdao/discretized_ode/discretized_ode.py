@@ -28,7 +28,7 @@ class DiscretizedODELinearizationPoint(ABC):
         """
 
 
-@dataclass(slots=True)
+@dataclass
 class DiscretizedODEInputState:
     """
     Dataclass containing all the information about the input state of a discretized ODE.
@@ -57,7 +57,7 @@ class DiscretizedODEInputState:
     time: float
 
 
-@dataclass(slots=True)
+@dataclass
 class DiscretizedODEResultState:
     """
     Dataclass containing all the information about the resulting state of a discretized
