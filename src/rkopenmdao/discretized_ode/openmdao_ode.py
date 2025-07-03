@@ -1,6 +1,7 @@
 # pylint: disable=missing-module-docstring, unused-argument
 
 from dataclasses import dataclass
+import functools
 import inspect
 from typing import Union, Callable
 
@@ -76,7 +77,7 @@ class OpenMDAOODE(DiscretizedODE):
 
     _time_stage_problem: om.Problem
     _integration_control: IntegrationControl
-    _om_solve_linear_runner: Callable[[str], None]
+    _om_run_solve_linear: Callable[[str], None]
 
     def __init__(
         self,
@@ -107,14 +108,12 @@ class OpenMDAOODE(DiscretizedODE):
             )
             == 1
         ):
-            self._om_solve_linear_runner = (
-                lambda mode: self._time_stage_problem.model.run_solve_linear(mode=mode)
+            self._om_run_solve_linear = functools.partial(
+                self._time_stage_problem.model.run_solve_linear
             )
         else:
-            self._om_solve_linear_runner = (
-                lambda mode: self._time_stage_problem.model.run_solve_linear(
-                    vec_names=["linear"], mode=mode
-                )
+            self._om_run_solve_linear = functools.partial(
+                self._time_stage_problem.model.run_solve_linear, vec_name=["linear"]
             )
 
     def compute_update(
@@ -158,11 +157,13 @@ class OpenMDAOODE(DiscretizedODE):
             outputs.asarray(copy=True),
         )
 
-    def set_linearization_point(self, cache: OpenMDAOODELinearizationPoint) -> None:
-        self._integration_control.stage_time = cache.stage_time
+    def set_linearization_point(
+        self, linearization_state: OpenMDAOODELinearizationPoint
+    ) -> None:
+        self._integration_control.stage_time = linearization_state.stage_time
         inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
-        inputs.asarray()[:] = cache.inputs_copy
-        outputs.asarray()[:] = cache.outputs_copy
+        inputs.asarray()[:] = linearization_state.inputs_copy
+        outputs.asarray()[:] = linearization_state.outputs_copy
 
     def compute_update_derivative(
         self,
@@ -185,7 +186,7 @@ class OpenMDAOODE(DiscretizedODE):
             -1.0,
         )
 
-        self._om_solve_linear_runner("fwd")
+        self._om_run_solve_linear("fwd")
 
         stage_update_pert = np.zeros_like(ode_input_perturbation.step_input)
         stage_state_pert = np.zeros(
@@ -222,7 +223,7 @@ class OpenMDAOODE(DiscretizedODE):
             d_outputs,
             -1.0,
         )
-        self._om_solve_linear_runner("rev")
+        self._om_run_solve_linear("rev")
         step_input_pert = np.zeros(
             self.time_integration_metadata.time_integration_array_size
         )

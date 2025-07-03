@@ -130,13 +130,15 @@ class DiscretizedODE(ABC):
 
         Returns
         -------
-        cache: DiscretizedODELinearizationPoint
+        linearization_state: DiscretizedODELinearizationPoint
             An object containing all the information necessary to linearize the class
             instance.
         """
 
     @abstractmethod
-    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
+    def set_linearization_point(
+        self, linearization_state: DiscretizedODELinearizationPoint
+    ) -> None:
         """
         Imports the data of the ODE necessary for linearization. After a call, the class
         instance is in a state where the functions compute_update_derivative and
@@ -145,7 +147,7 @@ class DiscretizedODE(ABC):
 
         Parameters
         ----------
-        cache: DiscretizedODELinearizationPoint
+        linearization_state: DiscretizedODELinearizationPoint
             An object containing all the information necessary to linearize the class
             instance.
         """

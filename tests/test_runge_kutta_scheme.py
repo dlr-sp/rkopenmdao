@@ -71,7 +71,9 @@ class IdentityODE(DiscretizedODE):
     def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
         pass
 
-    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
+    def set_linearization_point(
+        self, linearization_state: DiscretizedODELinearizationPoint
+    ) -> None:
         pass
 
     def compute_update_derivative(
@@ -121,7 +123,9 @@ class TimeODE(DiscretizedODE):
     def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
         pass
 
-    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
+    def set_linearization_point(
+        self, linearization_state: DiscretizedODELinearizationPoint
+    ) -> None:
         pass
 
     def compute_update_derivative(
@@ -161,7 +165,9 @@ class TimeScaledIdentityODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = t*x(t).
     """
 
-    _cache: SimpleODELinearizationPoint = SimpleODELinearizationPoint(0.0, np.zeros(2))
+    _cached_linearization: SimpleODELinearizationPoint = SimpleODELinearizationPoint(
+        0.0, np.zeros(2)
+    )
 
     def compute_update(
         self,
@@ -172,7 +178,9 @@ class TimeScaledIdentityODE(DiscretizedODE):
         cached_input = np.zeros(2)
         cached_input[0] = ode_input.step_input
         cached_input[1] = ode_input.stage_input
-        self._cache = SimpleODELinearizationPoint(ode_input.time, cached_input)
+        self._cached_linearization = SimpleODELinearizationPoint(
+            ode_input.time, cached_input
+        )
         stage_state = (ode_input.step_input + step_size * ode_input.stage_input) / (
             1 - ode_input.time * step_size * stage_factor
         )
@@ -180,10 +188,12 @@ class TimeScaledIdentityODE(DiscretizedODE):
         return DiscretizedODEResultState(stage_update, stage_state, np.zeros(0))
 
     def get_linearization_point(self) -> SimpleODELinearizationPoint:
-        return self._cache
+        return self._cached_linearization
 
-    def set_linearization_point(self, cache: SimpleODELinearizationPoint) -> None:
-        self._cache = cache
+    def set_linearization_point(
+        self, linearization_state: SimpleODELinearizationPoint
+    ) -> None:
+        self._cached_linearization = linearization_state
 
     def compute_update_derivative(
         self,
@@ -191,9 +201,9 @@ class TimeScaledIdentityODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEResultState:
-        time = self._cache.time
-        step_input = self._cache.ode_input[0]
-        stage_input = self._cache.ode_input[1]
+        time = self._cached_linearization.time
+        step_input = self._cached_linearization.ode_input[0]
+        stage_input = self._cached_linearization.ode_input[1]
 
         inv_divisor = 1 / (1 - time * step_size * stage_factor)
 
@@ -223,9 +233,9 @@ class TimeScaledIdentityODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEInputState:
-        time = self._cache.time
-        step_input = self._cache.ode_input[0]
-        stage_input = self._cache.ode_input[1]
+        time = self._cached_linearization.time
+        step_input = self._cached_linearization.ode_input[0]
+        stage_input = self._cached_linearization.ode_input[1]
 
         inv_divisor = 1 / (1 - time * step_size * stage_factor)
 
@@ -269,7 +279,9 @@ class ParameterODE(DiscretizedODE):
     def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
         pass
 
-    def set_linearization_point(self, cache: DiscretizedODELinearizationPoint) -> None:
+    def set_linearization_point(
+        self, linearization_state: DiscretizedODELinearizationPoint
+    ) -> None:
         pass
 
     def compute_update_derivative(
@@ -310,7 +322,9 @@ class RootODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = sqrt(x(t)).
     """
 
-    _cache: SimpleODELinearizationPoint = SimpleODELinearizationPoint(0.0, np.zeros(2))
+    _cached_linearization: SimpleODELinearizationPoint = SimpleODELinearizationPoint(
+        0.0, np.zeros(2)
+    )
 
     def compute_update(
         self,
@@ -321,7 +335,7 @@ class RootODE(DiscretizedODE):
         cached_input = np.zeros(2)
         cached_input[0] = ode_input.step_input
         cached_input[1] = ode_input.stage_input
-        self._cache = SimpleODELinearizationPoint(0.0, cached_input)
+        self._cached_linearization = SimpleODELinearizationPoint(0.0, cached_input)
 
         stage_update = 0.5 * step_size * stage_factor + np.sqrt(
             0.25 * step_size**2 * stage_factor**2
@@ -335,10 +349,12 @@ class RootODE(DiscretizedODE):
         return DiscretizedODEResultState(stage_update, stage_output, np.zeros(0))
 
     def get_linearization_point(self) -> SimpleODELinearizationPoint:
-        return self._cache
+        return self._cached_linearization
 
-    def set_linearization_point(self, cache: SimpleODELinearizationPoint) -> None:
-        self._cache = cache
+    def set_linearization_point(
+        self, linearization_state: SimpleODELinearizationPoint
+    ) -> None:
+        self._cached_linearization = linearization_state
 
     def compute_update_derivative(
         self,
@@ -346,8 +362,8 @@ class RootODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEResultState:
-        step_input = self._cache.ode_input[0]
-        stage_input = self._cache.ode_input[1]
+        step_input = self._cached_linearization.ode_input[0]
+        stage_input = self._cached_linearization.ode_input[1]
 
         inv_divisor = 0.5 / np.sqrt(
             0.25 * step_size**2 * stage_factor**2 + step_input + step_size * stage_input
@@ -371,8 +387,8 @@ class RootODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEInputState:
-        step_input = self._cache.ode_input[0]
-        stage_input = self._cache.ode_input[1]
+        step_input = self._cached_linearization.ode_input[0]
+        stage_input = self._cached_linearization.ode_input[1]
 
         inv_divisor = 0.5 / np.sqrt(
             0.25 * step_size**2 * stage_factor**2 + step_input + step_size * stage_input
