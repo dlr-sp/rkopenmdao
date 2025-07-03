@@ -8,17 +8,13 @@ import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
 
 from .butcher_tableau import ButcherTableau
+from .discretized_ode.openmdao_ode import OpenMDAOODE, OpenMDAOODELinearizationPoint
 from .functional_coefficients import FunctionalCoefficients, EmptyFunctionalCoefficients
 from .integration_control import IntegrationControl
 from .runge_kutta_scheme import RungeKuttaScheme
 from .error_controller import ErrorController
 from .error_controllers import integral
 from .error_estimator import ErrorEstimator, SimpleErrorEstimator
-from .time_stage_problem_computation_functors import (
-    TimeStageProblemComputeFunctor,
-    TimeStageProblemComputeJacvecFunctor,
-    TimeStageProblemComputeTransposeJacvecFunctor,
-)
 from .postprocessing import Postprocessor
 from .postprocessing_computation_functors import (
     PostprocessingProblemComputeFunctor,
@@ -28,11 +24,8 @@ from .postprocessing_computation_functors import (
 from .checkpoint_interface.checkpoint_interface import CheckpointInterface
 from .checkpoint_interface.no_checkpointer import NoCheckpointer
 from .metadata_extractor import (
-    extract_time_integration_metadata,
-    add_time_independent_input_metadata,
     add_postprocessing_metadata,
     add_functional_metadata,
-    add_distributivity_information,
     Quantity,
     TimeIntegrationMetadata,
 )
@@ -56,6 +49,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _wrt_vars: list
     _of_vars_postproc: list
     _wrt_vars_postproc: list
+
+    _ode: OpenMDAOODE
 
     _runge_kutta_scheme: RungeKuttaScheme | None
     _serialized_state: np.ndarray | None
@@ -381,7 +376,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _setup_error_controller(self):
         p = self.options["butcher_tableau"].min_p_order()
         self._error_controller = None
-        # Sets initial delta_t to be at boundary if given wrongly by mistake 
+        # Sets initial delta_t to be at boundary if given wrongly by mistake
         for controller in self.options["error_controller"]:
             self._error_controller = controller(
                 p=p,
@@ -398,21 +393,18 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.options["postprocessing_problem"] is not None:
             self.options["postprocessing_problem"].setup()
             self.options["postprocessing_problem"].final_setup()
+        self._ode = OpenMDAOODE(
+            self.options["time_stage_problem"],
+            self.options["integration_control"],
+            self.options["time_integration_quantities"],
+            self.options["time_independent_input_quantities"],
+        )
 
     def _setup_variables(self):
         self._functional_quantities = self.options[
             "functional_coefficients"
         ].list_quantities()
-        self._time_integration_metadata = extract_time_integration_metadata(
-            self.options["time_stage_problem"],
-            self.options["time_integration_quantities"],
-        )
-        if self.options["time_independent_input_quantities"]:
-            add_time_independent_input_metadata(
-                self.options["time_stage_problem"],
-                self.options["time_independent_input_quantities"],
-                self._time_integration_metadata,
-            )
+        self._time_integration_metadata = self._ode.time_integration_metadata
         if self.options["postprocessing_problem"] is not None:
             add_postprocessing_metadata(
                 self.options["postprocessing_problem"],
@@ -423,9 +415,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         add_functional_metadata(
             self._functional_quantities, self._time_integration_metadata
-        )
-        add_distributivity_information(
-            self.options["time_stage_problem"], self._time_integration_metadata
         )
 
         self._setup_wrt_and_of_vars()
@@ -583,25 +572,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
         self._runge_kutta_scheme = RungeKuttaScheme(
             butcher_tableau,
-            TimeStageProblemComputeFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._time_integration_metadata,
-            ),
-            TimeStageProblemComputeJacvecFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._time_integration_metadata,
-                self._of_vars,
-                self._wrt_vars,
-            ),
-            TimeStageProblemComputeTransposeJacvecFunctor(
-                self.options["time_stage_problem"],
-                self.options["integration_control"],
-                self._time_integration_metadata,
-                self._of_vars,
-                self._wrt_vars,
-            ),
+            self._ode,
             self.options["adaptive_time_stepping"],
             self._error_controller,
         )
@@ -913,7 +884,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.options["integration_control"].delta_t,
                 self._serialized_state,
                 self._stage_cache,
-                self.options["integration_control"].remaining_time()
+                self.options["integration_control"].remaining_time(),
             )
         )
         if self.options["adaptive_time_stepping"]:
@@ -1120,7 +1091,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._runge_kutta_scheme.compute_stage_jacvec(
                 stage,
                 self.options["integration_control"].delta_t,
-                time,
                 self._serialized_state_perturbations,
                 self._accumulated_stage_perturbations,
                 self._independent_input_perturbations,
@@ -1365,10 +1335,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     f"Starting stage [{stage + 1}] of the rev iteration of rev-mode "
                     f"jvp in step <{step}>."
                 )
-            linearization_args = {
-                "inputs": inputs_cache[stage],
-                "outputs": outputs_cache[stage],
-            }
+            linearization_args = OpenMDAOODELinearizationPoint(
+                self.options["integration_control"].step_time
+                + butcher_tableau.butcher_time_stages[stage] * delta_t,
+                inputs_cache[stage],
+                outputs_cache[stage],
+            )
             joined_perturbations = self._runge_kutta_scheme.join_perturbations(
                 stage,
                 self._serialized_state_perturbations,
@@ -1381,9 +1353,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             ) = self._runge_kutta_scheme.compute_stage_transposed_jacvec(
                 stage,
                 delta_t,
-                self.options["integration_control"].step_time,
                 joined_perturbations,
-                **linearization_args,
+                linearization_args,
             )
             new_serialized_state_perturbations += (
                 self.options["integration_control"].delta_t * wrt_old_state
