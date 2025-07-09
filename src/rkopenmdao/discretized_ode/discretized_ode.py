@@ -1,4 +1,4 @@
-# pylint: disable=missing-module-docstring
+"""Interface for representing ODEs in RKOpenMDAO."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
