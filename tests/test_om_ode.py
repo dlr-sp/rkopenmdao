@@ -82,11 +82,6 @@ def test_compute_update_adjoint_derivative():
         )
     )
 
-    # assert step_input_pert == pytest.approx(1.0)
-    # assert stage_input_pert == pytest.approx(DELTA_T)
-    # assert independent_input_pert == pytest.approx(1 + DELTA_T)
-
-
 def test_reimport():
     """
     Tests that exporting and reimporting a cached linearization state provides the
