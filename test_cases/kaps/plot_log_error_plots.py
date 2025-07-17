@@ -260,13 +260,14 @@ if __name__ == "__main__":
             color=COLORS[i],
             label=f"{BUTCHERNAMES[i]}",
         )
-        plt.loglog(
-            DELTA_T_LIST,
-            (local_error_data[scheme.name]["0.01"] / DELTA_T_LIST[0] ** p)
-            * (DELTA_T_LIST) ** p,
-            "k--",
-            lw=1,
-        )
+       # Asymptote set local_error_data[scheme.name][j][%SET_HERE%] a string of the smallest time step size
+       # plt.loglog(
+       #     DELTA_T_LIST,
+       #     (local_error_data[scheme.name]["0.01"] / DELTA_T_LIST[0] ** p)
+       #     * (DELTA_T_LIST) ** p,
+       #    "k--",
+       #     lw=1,
+       # )
     ax.set_xlim(DELTA_T_LIST[0], DELTA_T_LIST[-1])
     ax.legend()
     fig.savefig(f"local_error_time_plot.png")
