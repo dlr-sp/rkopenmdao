@@ -85,7 +85,7 @@ for butcher_tableau in butcher_tableaux:
     runge_kutta_prob.run_model()
 
     errors[butcher_tableau.name]["x"] = (
-        np.linalg.norm(runge_kutta_prob["x_final"] - exact_solution[j])
+        np.linalg.norm(runge_kutta_prob["x_final"] - exact_solution)
     )
     errors[butcher_tableau.name]["steps"] = integration_control.step
 

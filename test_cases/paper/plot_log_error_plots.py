@@ -172,13 +172,13 @@ if __name__ == "__main__":
             axs[0].grid(True)
             axs[0].plot(
                 time.values(),
-                adaptive_error_data,
+                adaptive_error_data.values(),
                 "-",
                 label="Adaptive",
             )
             axs[0].plot(
                 time_nonadapt.values(),
-                error_nonadapt,
+                error_nonadapt.values(),
                 "--",
                 label="Avg. Homogeneous",
             )
@@ -214,14 +214,14 @@ if __name__ == "__main__":
                 color=COLORS[i],
                 label=f"{BUTCHERNAMES[i]}",
             )
-
-            plt.loglog(
-                DELTA_T_LIST,
-                (local_error_data[scheme.name][j]["0.0001"] / DELTA_T_LIST[0] ** p)
-                * (DELTA_T_LIST) ** p,
-                "k--",
-                lw=1,
-            )
+            # Asymptote set local_error_data[scheme.name][j][%SET_HERE%] a string of the smallest time step size
+            # plt.loglog(
+            #     DELTA_T_LIST,
+            #     (local_error_data[scheme.name][j]["0.0001"] / DELTA_T_LIST[0] ** p)
+            #    * (DELTA_T_LIST) ** p,
+            #     "k--",
+            #     lw=1,
+            # )
 
         ax.set_xlim(DELTA_T_LIST[0], DELTA_T_LIST[-1])
         ax.legend()
