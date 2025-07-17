@@ -16,11 +16,14 @@ from rkopenmdao.integration_control import (
 from rkopenmdao.error_controllers import pseudo
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
-    embedded_second_order_two_stage_sdirk as two_stage_sdirk,
-    embedded_third_order_four_stage_esdirk as four_stage_esdirk,
-    embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
+    embedded_second_order_two_stage_sdirk as second_order_sdirk,
+    embedded_second_order_three_stage_esdirk as second_order_esdirk,
+    embedded_third_order_three_stage_sdirk as third_order_sdirk,
+    embedded_third_order_four_stage_esdirk as third_order_esdirk,
+    embedded_fourth_order_four_stage_sdirk as fourth_order_sdirk,
+    embedded_fourth_order_five_stage_esdirk as fourth_order_esdirk,
 )
-from .odes import ODE_CFD
+from .odes import ODE_CFD_REAL
 
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -35,7 +38,7 @@ def component_integration(component_class, dt, butcher_tableau, quantities, args
     write_file = write_file.replace(",", "")
     write_file = write_file.lower()
 
-    initial_values = np.array([1])
+    initial_values = np.array([np.sin(np.pi / 4)])
     integration_control = TimeTerminationIntegrationControl(dt, 10.0, 0.0)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
@@ -70,26 +73,35 @@ if __name__ == "__main__":
     parsed_args = parser.parse_args()
 
     delta_t = [
-        1.0e-4,
-        0.5e-3,
-        1e-3,
-        0.5e-2,
-        1e-2,
-        0.5e-1,
-        1e-1,
-        0.5,
-        1.0,
+        1e-4,
+        2e-4,
+        4e-4,
+        5e-4,
+        # 1e-3,
+        # 2e-3,
+        # e-3,
+        # 5e-3,
+        # 1e-2,
+        # 2e-2,
+        # 4e-2,
+        # 5e-2,
+        # 1e-1,
     ]
     delta_t = np.array(delta_t)
     error_data = {}
     butcher_tableaux = [
-        two_stage_sdirk,
-        four_stage_esdirk,
-        five_stage_esdirk,
+        # second_order_sdirk,
+        # second_order_esdirk,
+        # third_order_sdirk,
+        # third_order_esdirk,
+        fourth_order_sdirk,
+        fourth_order_esdirk,
     ]
     for scheme in butcher_tableaux:
         error_data[f"{scheme.name}"] = []
         for step_size in delta_t:
             error_data[f"{scheme.name}"].append(
-                component_integration(ODE_CFD, step_size, scheme, ["x"], parsed_args)
+                component_integration(
+                    ODE_CFD_REAL, step_size, scheme, ["x"], parsed_args
+                )
             )
