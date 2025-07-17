@@ -1,20 +1,13 @@
 """
-Generates a logarithmic graph of error over time for Runge-Kutta methods of different
-orders.
+Runs a homogeneous time integration for the Kaps' problem for:
+1. Time step size delta_t,
+2. Epsilon (stiffness) parameter
+4. L-norm order (np.inf, 2) (For different local error plot types L_2 or L_\infty)
 """
-
-import argparse
 
 import numpy as np
 
 import openmdao.api as om
-from mpi4py import MPI
-
-from rkopenmdao.integration_control import (
-    TimeTerminationIntegrationControl,
-)
-from rkopenmdao.error_controllers import pseudo
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk as second_order_sdirk,
     embedded_second_order_three_stage_esdirk as second_order_esdirk,
@@ -23,26 +16,30 @@ from rkopenmdao.butcher_tableaux import (
     embedded_fourth_order_four_stage_sdirk as fourth_order_sdirk,
     embedded_fourth_order_five_stage_esdirk as fourth_order_esdirk,
 )
+from rkopenmdao.error_controllers import pseudo
+from rkopenmdao.integration_control import (
+    TimeTerminationIntegrationControl,
+)
+from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.utils.convergence_test_components import KapsGroup, kaps_solution
 
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
 
+OBJECTIVE_TIME = 1.0
 
-def component_integration(component_class, dt, butcher_tableau, quantities, args):
+def component_integration(component_class, dt, butcher_tableau, quantities):
     """
     Integrates the component with the Runge-kutta Integrator for a given step size
     """
-    write_file = f"non_adaptive_test_{butcher_tableau.name}"
+    write_file = f"data_{dt:.0E}_{butcher_tableau.name}"
     write_file = write_file.replace(" ", "_")
     write_file = write_file.replace(",", "")
     write_file = write_file.lower()
 
-    integration_control = TimeTerminationIntegrationControl(dt, 1.0, 0.0)
+    integration_control = TimeTerminationIntegrationControl(dt, OBJECTIVE_TIME, 0.0)
     time_integration_prob = om.Problem()
     time_integration_prob.model.add_subsystem(
         "test_comp",
-        component_class(integration_control=integration_control, epsilon=1.0e-3),
+        component_class(integration_control=integration_control, epsilon=1.0), # set epsilon = 1.e-3 or 1.0
     )
     runge_kutta_prob = om.Problem()
     runge_kutta_prob.model.add_subsystem(
@@ -64,7 +61,6 @@ def component_integration(component_class, dt, butcher_tableau, quantities, args
 
     for quantity in quantities:
         runge_kutta_prob[quantity + "_initial"].fill(1.0)
-
     try:
         runge_kutta_prob.run_model()
     except om.AnalysisError:
@@ -94,20 +90,6 @@ def component_integration(component_class, dt, butcher_tableau, quantities, args
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base_name", default="data", type=str)
-    parsed_args = parser.parse_args()
-
-    delta_t = [
-        1.0 / 318.0,
-        1.0 / 281.0,
-        1.0 / 21.0,
-        1.0 / 25.0,
-        1.0 / 25.0,
-        1.0 / 18.0,
-    ]
-    delta_t = np.array(delta_t)
-    error_data = {}
     butcher_tableaux = [
         second_order_sdirk,
         second_order_esdirk,
@@ -116,10 +98,21 @@ if __name__ == "__main__":
         fourth_order_sdirk,
         fourth_order_esdirk,
     ]
-    for i, scheme in enumerate(butcher_tableaux):
+    delta_t = [
+        1e-2,
+        2e-2,
+        4e-2,
+        5e-2,
+        1e-1,
+    ] # Commits the step sizes for all schemes
+    delta_t = np.array(delta_t)
+    error_data = {}
+
+    for scheme in butcher_tableaux:
         error_data[f"{scheme.name}"] = []
-        error_data[f"{scheme.name}"].append(
-            component_integration(
-                KapsGroup, delta_t[i], scheme, ["y_1", "y_2"], parsed_args
+        for step_size in delta_t:
+            error_data[f"{scheme.name}"].append(
+                component_integration(
+                    KapsGroup, step_size, scheme, ["y_1", "y_2"]
+                )
             )
-        )
