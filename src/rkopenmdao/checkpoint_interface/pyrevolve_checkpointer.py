@@ -1,15 +1,16 @@
 # pylint: disable=missing-module-docstring
+from copy import deepcopy
 from dataclasses import dataclass, field
 import warnings
 
 import pyrevolve as pr
 import numpy as np
 from rkopenmdao.integration_control import StepTerminationIntegrationControl
+from rkopenmdao.time_integration_state import TimeIntegrationState
 
 from .checkpoint_interface import CheckpointInterface
 from .runge_kutta_integrator_pyrevolve_classes import (
     RungeKuttaCheckpoint,
-    RungeKuttaIntegratorSymbol,
     RungeKuttaForwardOperator,
     RungeKuttaReverseOperator,
 )
@@ -23,18 +24,12 @@ class PyrevolveCheckpointer(CheckpointInterface):
 
     revolver_type: str = "Memory"
     revolver_options: dict = field(default_factory=dict)
+    _first_complete_step: TimeIntegrationState = field(default=None, init=False)
 
     def __post_init__(self):
         """Sets up all permanent data derived from initialization arguments."""
-        self._serialized_old_state_symbol = RungeKuttaIntegratorSymbol(self.array_size)
-        self._serialized_new_state_symbol = RungeKuttaIntegratorSymbol(self.array_size)
-
-        checkpoint = RungeKuttaCheckpoint(
-            {
-                "serialized_old_state": self._serialized_old_state_symbol,
-                "serialized_new_state": self._serialized_new_state_symbol,
-            }
-        )
+        self._first_complete_state = deepcopy(self.state)
+        checkpoint = RungeKuttaCheckpoint(self.state)
 
         self.revolver_class_type = self._setup_revolver_class_type(self.revolver_type)
         if isinstance(self.integration_control, StepTerminationIntegrationControl):
@@ -60,21 +55,20 @@ class PyrevolveCheckpointer(CheckpointInterface):
             else:
                 self.revolver_options[key] = value
         self.revolver_options["checkpoint"] = checkpoint
-        self.revolver_options["n_timesteps"] = num_steps
+        self.revolver_options["n_timesteps"] = num_steps - 1
 
         if "n_checkpoints" not in self.revolver_options:
             if self.revolver_type not in ["MultiLevel", "Base"]:
                 self.revolver_options["n_checkpoints"] = 1 if num_steps == 1 else None
 
         self.revolver_options["fwd_operator"] = RungeKuttaForwardOperator(
-            self._serialized_old_state_symbol,
-            self._serialized_new_state_symbol,
+            self.state,
             self.run_step_func,
             self.integration_control,
         )
         self.revolver_options["rev_operator"] = RungeKuttaReverseOperator(
-            self._serialized_old_state_symbol,
-            self.array_size,
+            self.state,
+            self.state_perturbation,
             self.run_step_jacvec_rev_func,
             self.integration_control,
         )
@@ -109,15 +103,21 @@ class PyrevolveCheckpointer(CheckpointInterface):
 
     def iterate_forward(self, initial_state):
         """Runs forward iteration of internal Pyrevolve-Revolver"""
-        temp_storage = np.zeros(initial_state.size + 1)
-        temp_storage[:-1] = initial_state
-        temp_storage[-1] = self.integration_control.step_time
-        self._serialized_new_state_symbol.data = temp_storage
+        self._revolver.fwd_operator.time_integration_state.set(initial_state)
+        self._revolver.fwd_operator.apply(t_start=-1, t_end=0)
+        self._first_complete_state.set(
+            self._revolver.fwd_operator.time_integration_state
+        )
+        self.state.set(self._revolver.fwd_operator.time_integration_state)
         self._revolver.apply_forward()
+        return self._revolver.fwd_operator.time_integration_state
 
     def iterate_reverse(self, final_state_perturbation):
         """Runs reverse iteration of internal Pyrevolve-Revolver"""
-        self.revolver_options["rev_operator"].serialized_state_perturbations = (
-            final_state_perturbation.copy()
-        )
+        self.state_perturbation.set(final_state_perturbation)
         self._revolver.apply_reverse()
+        self._revolver.rev_operator.time_integration_state.set(
+            self._first_complete_state
+        )
+        self._revolver.rev_operator.apply(t_start=-1, t_end=0)
+        return self._revolver.rev_operator.time_integration_state_perturbations

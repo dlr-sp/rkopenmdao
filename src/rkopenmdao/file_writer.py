@@ -29,7 +29,6 @@ class FileWriterInterface(ABC):
         step: int,
         time: float,
         time_integration_data: np.ndarray,
-        postprocessing_data: np.ndarray,
     ) -> None:
         """Writes out step to file"""
 
@@ -42,7 +41,6 @@ class Hdf5FileWriter(FileWriterInterface):
         if self.comm.rank == 0:
             written_out_quantities = chain(
                 self.time_integration_metadata.time_integration_quantity_list,
-                self.time_integration_metadata.postprocessing_quantity_list,
             )
             with h5py.File(self.file_name, mode="w") as f:
                 for quantity in written_out_quantities:
@@ -54,17 +52,11 @@ class Hdf5FileWriter(FileWriterInterface):
         step: int,
         time: float,
         time_integration_data: np.ndarray,
-        postprocessing_data: np.ndarray,
         norm: float = None,
     ) -> None:
-        data_map = {
-            "time_integration": time_integration_data,
-            "postprocessing": postprocessing_data,
-        }
         with h5py.File(self.file_name, mode="r+", driver="mpio", comm=self.comm) as f:
             for quantity in chain(
                 self.time_integration_metadata.time_integration_quantity_list,
-                self.time_integration_metadata.postprocessing_quantity_list,
             ):
                 dataset = f[quantity.name].create_dataset(
                     str(step),
@@ -76,9 +68,9 @@ class Hdf5FileWriter(FileWriterInterface):
                     write_indices = self.get_write_indices(quantity)
                     start_array = quantity.array_metadata.start_index
                     end_array = quantity.array_metadata.end_index
-                    f[quantity.name][str(step)][write_indices] = data_map[
-                        quantity.type
-                    ][start_array:end_array].reshape(quantity.array_metadata.shape)
+                    f[quantity.name][str(step)][write_indices] = time_integration_data[
+                        start_array:end_array
+                    ].reshape(quantity.array_metadata.shape)
             if norm:
                 norm_data = f["Norm"].create_dataset(
                     str(step),
@@ -117,17 +109,12 @@ class TXTFileWriter(FileWriterInterface):
         step: int,
         time: float,
         time_integration_data: np.ndarray,
-        postprocessing_data: np.ndarray,
         norm: float = None,
     ) -> None:
         if self.comm.rank == 0:
             mode = "a"
             if step == 0:
                 mode = "w"
-            data_map = {
-                "time_integration": time_integration_data,
-                "postprocessing": postprocessing_data,
-            }
             if norm:
                 data_dict = {"step": step, "time": time, "norm": norm}
             else:
@@ -136,13 +123,12 @@ class TXTFileWriter(FileWriterInterface):
             with open(self.file_name, mode, encoding="utf-8") as file_out:
                 for quantity in chain(
                     self.time_integration_metadata.time_integration_quantity_list,
-                    self.time_integration_metadata.postprocessing_quantity_list,
                 ):
                     if quantity.array_metadata.local:
                         start_array = quantity.array_metadata.start_index
                         end_array = quantity.array_metadata.end_index
                         data_dict[quantity.name] = (
-                            data_map[quantity.type][start_array:end_array]
+                            time_integration_data[start_array:end_array]
                             .reshape(quantity.array_metadata.shape)
                             .tolist()
                         )

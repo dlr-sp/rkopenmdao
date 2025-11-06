@@ -8,18 +8,20 @@ from typing import Callable
 
 import numpy as np
 from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.time_integration_state import TimeIntegrationState
 
 
 @dataclass
 class CheckpointInterface(ABC):
     """Abstract interface for checkpointing implementations."""
 
-    array_size: int
     integration_control: IntegrationControl
-    run_step_func: Callable[[np.ndarray], Tuple[np.ndarray, List, List]]
-    run_step_jacvec_rev_func: Callable[[np.ndarray, np.ndarray, list, list], np.ndarray]
-    _state: np.ndarray = field(init=False)
-    _serialized_state_perturbation: np.ndarray = field(init=False)
+    run_step_func: Callable[[TimeIntegrationState], TimeIntegrationState]
+    run_step_jacvec_rev_func: Callable[
+        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+    ]
+    state: TimeIntegrationState
+    state_perturbation: TimeIntegrationState
 
     @abstractmethod
     def create_checkpointer(self):
@@ -27,9 +29,13 @@ class CheckpointInterface(ABC):
         necessary."""
 
     @abstractmethod
-    def iterate_forward(self, initial_state):
+    def iterate_forward(
+        self, initial_state: TimeIntegrationState
+    ) -> TimeIntegrationState:
         """Routine for the forward iteration from start to finish."""
 
     @abstractmethod
-    def iterate_reverse(self, final_state_perturbation):
+    def iterate_reverse(
+        self, final_state_perturbation: TimeIntegrationState
+    ) -> TimeIntegrationState:
         """Routine for the reverse iteration, from finish to start."""

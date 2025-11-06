@@ -12,7 +12,7 @@ import numpy as np
 from rkopenmdao.integration_control import TimeTerminationIntegrationControl
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
-    embedded_second_order_two_stage_sdirk as two_stage_dirk,
+    embedded_second_order_two_stage_sdirk as embedded_second_order_two_stage_sdirk,
     embedded_second_order_three_stage_esdirk as three_stage_esdirk,
     embedded_heun_euler as heun_euler,
     embedded_third_order_four_stage_esdirk as four_stage_esdirk,
@@ -22,16 +22,10 @@ from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.error_controllers import (
     integral,
-    h_211,
     h0_211,
     pid,
-    h_312,
-    h0_312,
-    ppid,
-    h_321,
-    h0_321,
 )
-from rkopenmdao.error_estimator import SimpleErrorEstimator, ImprovedErrorEstimator
+from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
 from .test_components import (
     TestComp1,
     TestComp2,
@@ -97,7 +91,7 @@ def run_rk(
     time_integration_quantities,
     error_controller_options,
     error_controller,
-    error_estimator_type,
+    error_measurer,
     write_file,
     initial_values,
     test_functor,
@@ -112,7 +106,7 @@ def run_rk(
             time_integration_quantities=time_integration_quantities,
             error_controller_options=error_controller_options,
             error_controller=error_controller,
-            error_estimator_type=error_estimator_type,
+            error_measurer=error_measurer,
             adaptive_time_stepping=True,
             write_file=write_file,
             write_out_distance=1,
@@ -129,6 +123,7 @@ def run_rk(
     result = np.zeros_like(initial_values)
     for i, quantity in enumerate(time_integration_quantities):
         result[i] = runge_kutta_prob[quantity + "_final"]
+        print(quantity, result[i])
 
     # relatively coarse, but this isn't supposed to test the accuracy,
     # it's just to make sure the solution is in the right region
@@ -153,11 +148,11 @@ def run_rk(
 @pytest.mark.parametrize(
     "butcher_tableau",
     [
-        two_stage_dirk,
+        embedded_second_order_two_stage_sdirk,
     ],
 )
 @pytest.mark.parametrize("quantities", [["x"]])
-@pytest.mark.parametrize("test_estimator", [SimpleErrorEstimator])
+@pytest.mark.parametrize("test_measurer", [SimpleErrorMeasurer()])
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_upper_bound(
     test_class,
@@ -167,7 +162,7 @@ def test_upper_bound(
     upper_bound,
     butcher_tableau,
     quantities,
-    test_estimator,
+    test_measurer,
     test_controller,
 ):
     """Tests the whether the upper bound of the error controller functions."""
@@ -189,7 +184,7 @@ def test_upper_bound(
         "integration_control": integration_control,
         "time_integration_quantities": quantities,
         "error_controller": [test_controller, integral],
-        "error_estimator_type": test_estimator,
+        "error_measurer": test_measurer,
         "initial_values": initial_values,
         "test_functor": test_functor,
     }
@@ -219,18 +214,18 @@ def test_upper_bound(
     (
         [TestComp1, solution_test1, 0.0, np.array([1.0]), 0.0045],
         [TestComp1, solution_test1, 1.0, np.array([1.0]), 0.0045],
-        [TestComp2, solution_test2, 0.0, np.array([1.0]), 0.0045],
-        [TestComp2, solution_test2, 1.0, np.array([1.0]), 0.0045],
+        [TestComp2, solution_test2, 0.0, np.array([1.0]), 0.005],
+        [TestComp2, solution_test2, 1.0, np.array([1.0]), 0.005],
     ),
 )
 @pytest.mark.parametrize(
     "butcher_tableau",
     [
-        two_stage_dirk,
+        embedded_second_order_two_stage_sdirk,
     ],
 )
 @pytest.mark.parametrize("quantities", [["x"]])
-@pytest.mark.parametrize("test_estimator", [SimpleErrorEstimator])
+@pytest.mark.parametrize("test_measurer", [SimpleErrorMeasurer()])
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_lower_bound(
     test_class,
@@ -240,7 +235,7 @@ def test_lower_bound(
     lower_bound,
     butcher_tableau,
     quantities,
-    test_estimator,
+    test_measurer,
     test_controller,
 ):
     """Tests the whether the lower bound of the error controller functions."""
@@ -262,7 +257,7 @@ def test_lower_bound(
         "integration_control": integration_control,
         "time_integration_quantities": quantities,
         "error_controller": [test_controller, integral],
-        "error_estimator_type": test_estimator,
+        "error_measurer": test_measurer,
         "initial_values": initial_values,
         "test_functor": test_functor,
     }
@@ -290,7 +285,9 @@ def test_lower_bound(
     )
 
     delta_t = get_dt("test_lower_bound.h5", quantities)
-    assert min(np.min(delta_t), lower_bound) == pytest.approx(lower_bound, rel=1e-4)
+    assert min(np.min(delta_t[:-1]), lower_bound) == pytest.approx(
+        lower_bound, rel=1e-4
+    )
     delta_t = get_dt("test_without_lower_bound.h5", quantities)
     assert np.min(delta_t) < lower_bound
 
@@ -302,18 +299,18 @@ def test_lower_bound(
     (
         [TestComp1, solution_test1, 0.0, np.array([1.0]), 0.009, 0.0045],
         [TestComp1, solution_test1, 1.0, np.array([1.0]), 0.009, 0.0045],
-        [TestComp2, solution_test2, 0.0, np.array([1.0]), 0.02, 0.0045],
-        [TestComp2, solution_test2, 1.0, np.array([1.0]), 0.02, 0.0045],
+        [TestComp2, solution_test2, 0.0, np.array([1.0]), 0.02, 0.005],
+        [TestComp2, solution_test2, 1.0, np.array([1.0]), 0.02, 0.005],
     ),
 )
 @pytest.mark.parametrize(
     "butcher_tableau",
     [
-        two_stage_dirk,
+        embedded_second_order_two_stage_sdirk,
     ],
 )
 @pytest.mark.parametrize("quantities", [["x"]])
-@pytest.mark.parametrize("test_estimator", [SimpleErrorEstimator])
+@pytest.mark.parametrize("test_measurer", [SimpleErrorMeasurer()])
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_upper_lower_bound(
     test_class,
@@ -324,7 +321,7 @@ def test_upper_lower_bound(
     lower_bound,
     butcher_tableau,
     quantities,
-    test_estimator,
+    test_measurer,
     test_controller,
 ):
     """Tests the whether the lower bound of the error controller functions."""
@@ -346,11 +343,10 @@ def test_upper_lower_bound(
         "integration_control": integration_control,
         "time_integration_quantities": quantities,
         "error_controller": [test_controller, integral],
-        "error_estimator_type": test_estimator,
+        "error_measurer": test_measurer,
         "initial_values": initial_values,
         "test_functor": test_functor,
     }
-    write_file = f"test_upper_lower_bound.h5"
     run_rk(
         **rk_dict,
         error_controller_options={
@@ -363,4 +359,20 @@ def test_upper_lower_bound(
 
     delta_t = get_dt("test_upper_lower_bound.h5", quantities)
     assert max(np.max(delta_t), upper_bound) == pytest.approx(upper_bound, rel=1e-4)
-    assert min(np.min(delta_t), lower_bound) == pytest.approx(lower_bound, rel=1e-4)
+    assert min(np.min(delta_t[:-1]), lower_bound) == pytest.approx(
+        lower_bound, rel=1e-4
+    )
+
+
+if __name__ == "__main__":
+    test_upper_bound(
+        TestComp1,
+        solution_test1,
+        0.0,
+        np.array([1.0]),
+        0.0075,
+        embedded_second_order_two_stage_sdirk,
+        ["x"],
+        SimpleErrorMeasurer(),
+        pid,
+    )

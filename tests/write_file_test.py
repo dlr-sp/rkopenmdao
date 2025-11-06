@@ -13,7 +13,6 @@ from rkopenmdao.butcher_tableaux import (
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from .test_components import TestComp1, Testcomp51, Testcomp52
-from .test_postprocessing_problems import SquaringComponent
 
 
 @pytest.mark.rk
@@ -142,60 +141,6 @@ def test_multidisciplinary(write_out_distance, write_file):
         assert str(100) in f["y"].keys()
         assert time_int_prob["rk_integration.x_final"] == f["x"][str(100)]
         assert time_int_prob["rk_integration.y_final"] == f["y"][str(100)]
-
-
-@pytest.mark.rk
-@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
-@pytest.mark.parametrize("write_file", ["file.h5", "other_file.h5"])
-def test_postprocessing(write_out_distance, write_file):
-    """Tests write out when postprocessing is involved."""
-    test_prob = om.Problem()
-    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
-
-    butcher_tableau = embedded_third_order_four_stage_esdirk
-
-    test_prob.model.add_subsystem(
-        "test_comp", TestComp1(integration_control=integration_control)
-    )
-
-    postproc_problem = om.Problem()
-    postproc_problem.model.add_subsystem(
-        "squarer", SquaringComponent(quantity_list=[("x", 1)])
-    )
-
-    time_int_prob = om.Problem()
-    time_int_prob.model.add_subsystem(
-        "rk_integration",
-        RungeKuttaIntegrator(
-            time_stage_problem=test_prob,
-            postprocessing_problem=postproc_problem,
-            butcher_tableau=butcher_tableau,
-            integration_control=integration_control,
-            write_out_distance=write_out_distance,
-            write_file=write_file,
-            time_integration_quantities=["x"],
-            postprocessing_quantities=["squared_x"],
-        ),
-    )
-
-    time_int_prob.setup()
-    time_int_prob.run_model()
-
-    with h5py.File(write_file) as f:
-        assert "x" in f.keys()
-        assert "squared_x" in f.keys()
-        for i in range(0, 100, write_out_distance):
-            assert str(i) in f["x"].keys()
-            assert str(i) in f["squared_x"].keys()
-        for i in range(1, write_out_distance):
-            assert str(i) not in f["x"].keys()
-            assert str(i) not in f["squared_x"].keys()
-        assert str(100) in f["x"].keys()
-        assert str(100) in f["squared_x"].keys()
-        assert time_int_prob["rk_integration.x_final"] == f["x"][str(100)]
-        assert (
-            time_int_prob["rk_integration.squared_x_final"] == f["squared_x"][str(100)]
-        )
 
 
 @pytest.mark.rk

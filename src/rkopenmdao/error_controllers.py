@@ -8,12 +8,10 @@ Mark H. Carpenter.
 import numpy as np
 
 from rkopenmdao.error_controller import ErrorController, ErrorControllerDecorator
-from rkopenmdao.error_estimator import ErrorEstimator
 
 
 def pseudo(
     p,
-    error_estimator: ErrorEstimator,
     tol=np.inf,
     safety_factor=1.0,
     name="pseudo-Controller",
@@ -33,14 +31,12 @@ def pseudo(
         tol=tol,
         safety_factor=safety_factor,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def integral(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -63,14 +59,12 @@ def integral(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h0_110(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -87,7 +81,6 @@ def h0_110(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         base=base,
         max_iter=max_iter,
     )
@@ -95,7 +88,6 @@ def h0_110(
 
 def h_211(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -124,14 +116,12 @@ def h_211(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h0_211(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -160,14 +150,12 @@ def h0_211(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def pc(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -196,14 +184,12 @@ def pc(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h0_220(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -219,7 +205,6 @@ def h0_220(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         base=base,
         max_iter=max_iter,
     )
@@ -227,7 +212,6 @@ def h0_220(
 
 def pid(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -256,14 +240,12 @@ def pid(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h_312(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -298,14 +280,12 @@ def h_312(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h0_312(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -340,7 +320,6 @@ def h0_312(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
@@ -350,7 +329,6 @@ def h_312_general(
     var_alpha,
     a,
     b,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -383,14 +361,12 @@ def h_312_general(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def ppid(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -422,14 +398,12 @@ def ppid(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h_321(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -464,14 +438,12 @@ def h_321(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h0_321(
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -506,7 +478,6 @@ def h0_321(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
@@ -516,7 +487,6 @@ def h_321_general(
     var_alpha,
     var_beta,
     a,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -550,14 +520,12 @@ def h_321_general(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
 
 def h0_330(  # delivers very small suggestions
     p,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -592,7 +560,6 @@ def h0_330(  # delivers very small suggestions
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
 
@@ -602,7 +569,6 @@ def h_330_general(
     var_alpha,
     var_beta,
     var_gamma,
-    error_estimator: ErrorEstimator,
     tol=1e-6,
     safety_factor=0.95,
     lower_bound=0,
@@ -637,6 +603,5 @@ def h_330_general(
         lower_bound=lower_bound,
         upper_bound=upper_bound,
         name=name,
-        error_estimator=error_estimator,
         max_iter=max_iter,
     )
