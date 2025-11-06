@@ -4,6 +4,7 @@ variables."""
 import openmdao.api as om
 
 from openmdao.utils.assert_utils import assert_check_totals
+from mpi4py import MPI
 import numpy as np
 import pytest
 
@@ -16,7 +17,6 @@ from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 from rkopenmdao.error_controllers import integral
 from rkopenmdao.error_estimator import (
-    SimpleErrorEstimator,
     _non_mpi_partial_norm,
     _mpi_partial_norm,
 )
@@ -25,7 +25,6 @@ from rkopenmdao.integration_control import (
     StepTerminationIntegrationControl,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from mpi4py import MPI
 
 
 class Test1Component1(om.ImplicitComponent):
