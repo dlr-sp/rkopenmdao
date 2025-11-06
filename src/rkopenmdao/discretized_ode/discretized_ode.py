@@ -1,31 +1,10 @@
 """Interface for representing ODEs in RKOpenMDAO."""
 
+from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TypeVar
 
 import numpy as np
-
-
-class DiscretizedODELinearizationPoint(ABC):
-    """
-    Abstract base class for the representation of a linearization point for the
-    DiscretizedODE class.
-    """
-
-    @abstractmethod
-    def to_numpy_array(self) -> np.ndarray:
-        """
-        Method to serialize the linearization point to a numpy array for use with
-        checkpointing.
-        """
-
-    @abstractmethod
-    def from_numpy_array(self, array: np.ndarray) -> None:
-        """
-        Method to deserialize the linearization point from a numpy array back to its
-        original form.
-        """
 
 
 @dataclass
@@ -55,6 +34,7 @@ class DiscretizedODEInputState:
     stage_input: np.ndarray
     independent_input: np.ndarray
     time: float
+    linearization_point: np.ndarray | None = None
 
 
 @dataclass
@@ -82,6 +62,7 @@ class DiscretizedODEResultState:
     stage_update: np.ndarray
     stage_state: np.ndarray
     independent_output: np.ndarray
+    linearization_point: np.ndarray | None = None
 
 
 class DiscretizedODE(ABC):
@@ -89,8 +70,6 @@ class DiscretizedODE(ABC):
     Base class for the representation of ordinary differential equations (ODEs) in
     RKOpenMDAO.
     """
-
-    CacheType = TypeVar("CacheType")
 
     @abstractmethod
     def compute_update(
@@ -120,36 +99,6 @@ class DiscretizedODE(ABC):
         -------
         ode_result: DiscretizedODEResultState
             Result for the calculation of the time stage.
-        """
-
-    @abstractmethod
-    def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
-        """
-        Exports the data of the ODE necessary for linearization. Must to implemented in
-        child class.
-
-        Returns
-        -------
-        linearization_state: DiscretizedODELinearizationPoint
-            An object containing all the information necessary to linearize the class
-            instance.
-        """
-
-    @abstractmethod
-    def set_linearization_point(
-        self, linearization_state: DiscretizedODELinearizationPoint
-    ) -> None:
-        """
-        Imports the data of the ODE necessary for linearization. After a call, the class
-        instance is in a state where the functions compute_update_derivative and
-        compute_update_adjoint_derivative can be called. Must to implemented in
-        child class.
-
-        Parameters
-        ----------
-        linearization_state: DiscretizedODELinearizationPoint
-            An object containing all the information necessary to linearize the class
-            instance.
         """
 
     @abstractmethod
@@ -211,3 +160,23 @@ class DiscretizedODE(ABC):
             Input perturbation for the calculation of the adjoint derivative of time
             stage.
         """
+
+    @abstractmethod
+    def compute_state_norm(self, state: DiscretizedODEResultState):
+        """"""
+
+    @abstractmethod
+    def get_state_size(self) -> int:
+        """"""
+
+    @abstractmethod
+    def get_independent_input_size(self) -> int:
+        """"""
+
+    @abstractmethod
+    def get_independent_output_size(self) -> int:
+        """"""
+
+    @abstractmethod
+    def get_linearization_point_size(self) -> int:
+        """"""

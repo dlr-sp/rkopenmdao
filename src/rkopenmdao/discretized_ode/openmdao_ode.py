@@ -1,10 +1,13 @@
 # pylint: disable=missing-module-docstring, unused-argument
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 import functools
 import inspect
-from typing import Union, Callable
+from typing import Callable
 
+from mpi4py import MPI
 import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector
@@ -12,6 +15,7 @@ from openmdao.vectors.vector import Vector
 
 from rkopenmdao.metadata_extractor import (
     TimeIntegrationMetadata,
+    TimeIntegrationQuantity,
     extract_time_integration_metadata,
     add_time_independent_input_metadata,
     add_distributivity_information,
@@ -19,14 +23,13 @@ from rkopenmdao.metadata_extractor import (
 from rkopenmdao.integration_control import IntegrationControl
 from .discretized_ode import (
     DiscretizedODE,
-    DiscretizedODELinearizationPoint,
     DiscretizedODEInputState,
     DiscretizedODEResultState,
 )
 
 
 @dataclass
-class OpenMDAOODELinearizationPoint(DiscretizedODELinearizationPoint):
+class OpenMDAOODELinearizationPoint:
     """Linearization point class for OpenMDAOODE."""
 
     stage_time: float
@@ -78,13 +81,17 @@ class OpenMDAOODE(DiscretizedODE):
     _time_stage_problem: om.Problem
     _integration_control: IntegrationControl
     _om_run_solve_linear: Callable[[str], None]
+    _norm_exclusions: list
+    _norm_order: float | str
 
     def __init__(
         self,
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         time_integration_quantities: list,
-        independent_input_quantities: Union[list, None] = None,
+        independent_input_quantities: list | None = None,
+        norm_exclusions: list | None = None,
+        norm_order: float | str = 2.0,
     ):
         self._time_stage_problem = time_stage_problem
         self._integration_control = integration_control
@@ -115,6 +122,11 @@ class OpenMDAOODE(DiscretizedODE):
             self._om_run_solve_linear = functools.partial(
                 self._time_stage_problem.model.run_solve_linear, vec_name=["linear"]
             )
+        if norm_exclusions is None:
+            self._norm_exclusions = []
+        else:
+            self._norm_exclusions = norm_exclusions
+        self._norm_order = norm_order
 
     def compute_update(
         self,
@@ -131,13 +143,14 @@ class OpenMDAOODE(DiscretizedODE):
             outputs,
         )
         self._integration_control.stage_time = ode_input.time
+        print(self._integration_control.stage_time, ode_input.time)
         self._integration_control.delta_t = step_size
         self._integration_control.butcher_diagonal_element = stage_factor
         self._time_stage_problem.model.run_solve_nonlinear()
 
         stage_update = np.zeros_like(ode_input.step_input)
         stage_state = np.zeros_like(
-            0
+            stage_update
         )  # Currently not used, needs update in metadata_extractor
         independent_output = np.zeros(
             0
@@ -146,24 +159,10 @@ class OpenMDAOODE(DiscretizedODE):
         self._om_vector_to_output_state(
             outputs, stage_update, stage_state, independent_output
         )
-
-        return DiscretizedODEResultState(stage_update, stage_state, independent_output)
-
-    def get_linearization_point(self) -> OpenMDAOODELinearizationPoint:
-        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
-        return OpenMDAOODELinearizationPoint(
-            self._integration_control.stage_time,
-            inputs.asarray(copy=True),
-            outputs.asarray(copy=True),
+        linearization_point = self._get_linearization_point()
+        return DiscretizedODEResultState(
+            stage_update, stage_state, independent_output, linearization_point
         )
-
-    def set_linearization_point(
-        self, linearization_state: OpenMDAOODELinearizationPoint
-    ) -> None:
-        self._integration_control.stage_time = linearization_state.stage_time
-        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
-        inputs.asarray()[:] = linearization_state.inputs_copy
-        outputs.asarray()[:] = linearization_state.outputs_copy
 
     def compute_update_derivative(
         self,
@@ -171,6 +170,7 @@ class OpenMDAOODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEResultState:
+        self._set_linearization_point(ode_input_perturbation.linearization_point)
         self._integration_control.delta_t = step_size
         self._integration_control.butcher_diagonal_element = stage_factor
         self._time_stage_problem.model.run_linearize()
@@ -189,8 +189,8 @@ class OpenMDAOODE(DiscretizedODE):
         self._om_run_solve_linear("fwd")
 
         stage_update_pert = np.zeros_like(ode_input_perturbation.step_input)
-        stage_state_pert = np.zeros(
-            0
+        stage_state_pert = np.zeros_like(
+            stage_update_pert
         )  # Currently not used, needs update in metadata_extractor
         independent_output_pert = np.zeros(
             0
@@ -209,6 +209,7 @@ class OpenMDAOODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEInputState:
+        self._set_linearization_point(ode_result_perturbation.linearization_point)
         self._integration_control.delta_t = step_size
         self._integration_control.butcher_diagonal_element = stage_factor
         self._time_stage_problem.model.run_linearize()
@@ -239,6 +240,36 @@ class OpenMDAOODE(DiscretizedODE):
         return DiscretizedODEInputState(
             step_input_pert, stage_input_pert, independent_input_pert, 0.0
         )
+
+    def get_state_size(self) -> int:
+        return self.time_integration_metadata.time_integration_array_size
+
+    def get_independent_input_size(self) -> int:
+        return self.time_integration_metadata.time_independent_input_size
+
+    def get_independent_output_size(self) -> int:
+        return 0  # Not implemented yet
+
+    def get_linearization_point_size(self) -> int:
+        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
+        return 1 + inputs.asarray().size + outputs.asarray().size
+
+    def _get_linearization_point(self) -> np.ndarray:
+        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
+        serialized_array = np.zeros(1 + inputs.asarray().size + outputs.asarray().size)
+        serialized_array[0] = self._integration_control.stage_time
+        serialized_array[1 : 1 + inputs.asarray().size] = inputs.asarray(copy=True)
+        serialized_array[1 + inputs.asarray().size :] = outputs.asarray(copy=True)
+        return serialized_array
+
+    def _set_linearization_point(
+        self,
+        linearization_state: np.ndarray,
+    ) -> None:
+        self._integration_control.stage_time = linearization_state[0]
+        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
+        inputs.asarray()[:] = linearization_state[1 : 1 + inputs.asarray().size]
+        outputs.asarray()[:] = linearization_state[1 + inputs.asarray().size :]
 
     def _input_state_to_om_vector(
         self,
@@ -345,3 +376,60 @@ class OpenMDAOODE(DiscretizedODE):
                 stage_update[start:end] = om_vector[
                     quantity.translation_metadata.stage_output_var
                 ].flatten()
+
+    def compute_state_norm(self, state: DiscretizedODEResultState) -> float:
+        stage_state = state.stage_state
+        non_distributed_intermediate = 0.0
+        distributed_intermediate = 0.0
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.name not in self._norm_exclusions:
+                norm_intermediate = self._partial_norm_intermediate(
+                    stage_state, quantity, self._norm_order
+                )
+                if quantity.array_metadata.distributed:
+                    distributed_intermediate = self._add_to_intermediate(
+                        distributed_intermediate, norm_intermediate, self._norm_order
+                    )
+                else:
+                    non_distributed_intermediate = self._add_to_intermediate(
+                        non_distributed_intermediate,
+                        norm_intermediate,
+                        self._norm_order,
+                    )
+        global_intermediate = self._allreduce_own_intermediate(
+            distributed_intermediate, self._norm_order
+        )
+        global_intermediate = self._add_to_intermediate(
+            global_intermediate, non_distributed_intermediate, self._norm_order
+        )
+        return self._normalize(global_intermediate, self._norm_order)
+
+    def _partial_norm_intermediate(
+        self, state: np.ndarray, quantity: TimeIntegrationQuantity, order: float
+    ) -> float:
+        start = quantity.array_metadata.start_index
+        end = quantity.array_metadata.end_index
+        exponent = 1.0 if order in [np.inf, -np.inf, 0.0] else order
+        return np.linalg.norm(state[start:end], order) ** exponent
+
+    def _add_to_intermediate(
+        self, intermediate_value: float, added_value: float, order: float
+    ) -> float:
+        if order == np.inf:
+            return max(intermediate_value, added_value)
+        elif order == -np.inf:
+            return min(intermediate_value, added_value)
+        else:
+            return intermediate_value + added_value
+
+    def _allreduce_own_intermediate(
+        self, intermediate_value: float, order: float
+    ) -> float:
+        mpi_op = (
+            MPI.MAX if order == np.inf else MPI.MIN if order == -np.inf else MPI.SUM
+        )
+        return self._time_stage_problem.comm.allreduce(intermediate_value, mpi_op)
+
+    def _normalize(self, norm_intermediate: float, order: float) -> float:
+        exponent = 1.0 if order in [np.inf, -np.inf, 0.0] else 1.0 / order
+        return norm_intermediate**exponent

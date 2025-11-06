@@ -12,7 +12,7 @@ from rkopenmdao.butcher_tableaux import (
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
 from rkopenmdao.error_controllers import ppid, integral
-from rkopenmdao.error_estimator import ImprovedErrorEstimator
+from rkopenmdao.error_measurer import ImprovedErrorEstimator
 from rkopenmdao.file_writer import TXTFileWriter
 from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,

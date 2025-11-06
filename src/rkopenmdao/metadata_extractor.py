@@ -28,7 +28,6 @@ class TimeIntegrationTranslationMetadata(TranslationMetadata):
     step_input_var: str | None = None
     accumulated_stage_var: str | None = None
     stage_output_var: str | None = None
-    postproc_input_var: str | None = None
 
 
 @dataclass
@@ -36,13 +35,6 @@ class TimeIndependentInputTranslationMetadata(TranslationMetadata):
     """Translation metadata for time independent input quantities"""
 
     time_independent_input_var: str | None = None
-
-
-@dataclass
-class PostprocessingTranslationMetadata(TranslationMetadata):
-    """Translation metadata for postprocessing quantities."""
-
-    postproc_output_var: str | None = None
 
 
 @dataclass
@@ -55,9 +47,6 @@ class ArrayMetadata:
     distributed: bool = False
     start_index: int = 0
     end_index: int = 0
-    functionally_integrated: bool = False
-    functional_start_index: int = 0
-    functional_end_index: int = 0
     global_start_index: int = 0
     global_end_index: int = 0
 
@@ -81,13 +70,6 @@ class TimeIntegrationQuantity(Quantity):
 
 
 @dataclass
-class PostprocessingQuantity(Quantity):
-    """Class for postprocessing quantities."""
-
-    translation_metadata: PostprocessingTranslationMetadata
-
-
-@dataclass
 class TimeIndependentQuantity(Quantity):
     """Class for time independent input quantities."""
 
@@ -100,12 +82,7 @@ class TimeIntegrationMetadata:
 
     time_integration_array_size: int = 0
     time_independent_input_size: int = 0
-    postprocessing_array_size: int = 0
-    functional_array_size: int = 0
     time_integration_quantity_list: list[TimeIntegrationQuantity] = field(
-        default_factory=list
-    )
-    postprocessing_quantity_list: list[PostprocessingQuantity] = field(
         default_factory=list
     )
     time_independent_input_quantity_list: list[TimeIndependentQuantity] = field(
@@ -379,190 +356,6 @@ def _extract_time_independent_quantity(
     return array_size, quantity
 
 
-def add_postprocessing_metadata(
-    postproc_problem: om.Problem,
-    time_integration_quantity_list: list,
-    postprocessing_quantity_list: list,
-    runge_kutta_metadata: TimeIntegrationMetadata,
-):
-    """Extracts metadata from the postprocessing problem and adds it to the passed
-    TimeIntegrationMetadata object."""
-    postproc_input_vars = postproc_problem.model.get_io_metadata(
-        iotypes="input",
-        metadata_keys=["tags"],
-        tags=["postproc_input_var"],
-        get_remote=False,
-    )
-    time_integration_set = set(time_integration_quantity_list)
-    postprocessing_set = set(postprocessing_quantity_list)
-    if not time_integration_set.isdisjoint(postprocessing_set):
-        raise SetupError(
-            "Time integration and postprocessing quantities have to be disjoint"
-        )
-
-    translation_metadata = {}
-
-    for var, data in postproc_input_vars.items():
-        tags = data["tags"] & time_integration_set
-        if len(tags) != 1:
-            raise SetupError(
-                f"Variable {var} either has two time integration quantity tags, or "
-                f"'postproc_input_var' was used as quantity tag. Both are forbidden. "
-                f"Tags of {var} intersected with time integration quantities: {tags}."
-            )
-
-        _extract_detailed_postprocessing_input_info(
-            tags.pop(), postproc_problem, translation_metadata
-        )
-    for quantity in runge_kutta_metadata.time_integration_quantity_list:
-        if quantity.name in translation_metadata:
-            quantity.translation_metadata.postproc_input_var = translation_metadata[
-                quantity.name
-            ]["postproc_input_var"]
-
-    local_postproc_quantities = postproc_problem.model.get_io_metadata(
-        iotypes="output",
-        metadata_keys=["tags"],
-        tags=postprocessing_quantity_list,
-        get_remote=False,
-    )
-    global_postproc_quantities = postproc_problem.model.get_io_metadata(
-        iotypes="output",
-        metadata_keys=["tags", "global_shape"],
-        tags=postprocessing_quantity_list,
-        get_remote=True,
-    )
-
-    for var, data in global_postproc_quantities.items():
-        tags = postprocessing_set & set(data["tags"])
-        if len(tags) != 1:
-            raise SetupError(
-                f"Variable {var} either has two postprocessing quantity tags, or "
-                f"'postproc_output_var' was used as quantity tag. Both are "
-                f"forbidden. Tags of {var} intersected with time integration "
-                f"quantities: {tags}."
-            )
-        quantity_name = tags.pop()
-        if var in local_postproc_quantities:
-            runge_kutta_metadata.postprocessing_array_size, quantity = (
-                _extract_postprocessing_quantity(
-                    quantity_name,
-                    postproc_problem,
-                    runge_kutta_metadata.postprocessing_array_size,
-                )
-            )
-        else:
-            quantity = PostprocessingQuantity(
-                type="postprocessing",
-                name=quantity_name,
-                array_metadata=ArrayMetadata(global_shape=data["global_shape"]),
-                translation_metadata=PostprocessingTranslationMetadata(),
-            )
-        runge_kutta_metadata.postprocessing_quantity_list.append(quantity)
-
-
-def _extract_detailed_postprocessing_input_info(
-    quantity_name: str, postproc_problem: om.Problem, translation_metadata
-):
-    detailed_local_quantity = postproc_problem.model.get_io_metadata(
-        metadata_keys=["tags"],
-        tags=[quantity_name],
-        get_remote=False,
-    )
-    found_postproc_input_var = 0
-    # At least one variable will be found in here, so found_postproc_input_var will
-    # be greater than zero
-    for detailed_var, detailed_data in detailed_local_quantity.items():
-        if "postproc_input_var" in detailed_data["tags"]:
-            found_postproc_input_var += 1
-            translation_metadata[quantity_name] = {"postproc_input_var": detailed_var}
-    if found_postproc_input_var != 1:
-        raise SetupError(
-            f"More than one variable with quantity tag {quantity_name} for "
-            f"'postproc_input_var' in postprocessing_problem."
-        )
-
-
-def _extract_postprocessing_quantity(
-    quantity_name: str,
-    postproc_problem: om.Problem,
-    array_size: int,
-) -> tuple[int, PostprocessingQuantity]:
-    detailed_local_quantity = postproc_problem.model.get_io_metadata(
-        metadata_keys=["tags", "shape", "global_shape"],
-        tags=[quantity_name],
-        get_remote=False,
-    )
-    found_postproc_output_var = 0
-    translation_metadata = PostprocessingTranslationMetadata()
-    for detailed_var, detailed_data in detailed_local_quantity.items():
-        if "postproc_output_var" in detailed_data["tags"]:
-            found_postproc_output_var += 1
-            translation_metadata.postproc_output_var = detailed_var
-            start_index = array_size
-            array_size += np.prod(detailed_data["shape"])
-            end_index = array_size
-            array_metadata = _create_local_array_metadata(
-                stage_problem=postproc_problem,
-                start_index=start_index,
-                end_index=end_index,
-                detailed_var=detailed_var,
-                detailed_data=detailed_data,
-            )
-
-    if found_postproc_output_var > 1:
-        raise SetupError(
-            f"For quantity {quantity_name}, there is more than one inner variable "
-            f"tagged with 'postproc_output_var'."
-        )
-    if found_postproc_output_var < 1:
-        raise SetupError(
-            f"For quantity {quantity_name}, there is no inner variable tagged with "
-            f"'postproc_output_vars'."
-        )
-    # We check that there is a postproc_output_var, so array_metadata must exist
-    # pylint: disable=possibly-used-before-assignment
-    quantity = PostprocessingQuantity(
-        name=quantity_name,
-        type="postprocessing",
-        array_metadata=array_metadata,
-        translation_metadata=translation_metadata,
-    )
-    return array_size, quantity
-
-
-def add_functional_metadata(
-    functional_quantities: list, runge_kutta_metadata: TimeIntegrationMetadata
-) -> None:
-    """Adds metadata to the passed TimeIntegrationMetadata object based on which
-    functionals are part of a functional."""
-
-    functional_quantities_set = set(functional_quantities)
-
-    array_size = 0
-
-    quantities_with_functional = 0
-    for quantity in chain(
-        runge_kutta_metadata.time_integration_quantity_list,
-        runge_kutta_metadata.postprocessing_quantity_list,
-    ):
-        if quantity.name in functional_quantities_set:
-            quantities_with_functional += 1
-            quantity.array_metadata.functionally_integrated = True
-            if quantity.array_metadata.local:
-                quantity.array_metadata.functional_start_index = array_size
-                array_size += np.prod(quantity.array_metadata.shape)
-                quantity.array_metadata.functional_end_index = array_size
-
-    if quantities_with_functional < len(functional_quantities):
-        raise SetupError(
-            "Some functional requires a quantity that is part of neither the time "
-            "integration nor postprocessing."
-        )
-
-    runge_kutta_metadata.functional_array_size = array_size
-
-
 def add_distributivity_information(
     stage_problem: om.Problem, runge_kutta_metadata: TimeIntegrationMetadata
 ) -> None:
@@ -570,7 +363,6 @@ def add_distributivity_information(
     TimeIntegrationMetadata object."""
     for quantity in chain(
         runge_kutta_metadata.time_integration_quantity_list,
-        runge_kutta_metadata.postprocessing_quantity_list,
         runge_kutta_metadata.time_independent_input_quantity_list,
     ):
         local = np.array(quantity.array_metadata.local)

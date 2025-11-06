@@ -10,11 +10,6 @@ class SetupError(RungeKuttaError, ValueError):
     RungeKuttaIntegrator"""
 
 
-class PostprocessingError(RungeKuttaError, AssertionError):
-    """Exception for the case when something goes wrong in the postprocessing of the
-    RungeKuttaIntegrator"""
-
-
 class TimeStageError(RungeKuttaError, AssertionError):
     """Exception for the case when something goes wrong in the time stage computation
     of the RungeKuttaIntegrator"""
