@@ -19,7 +19,6 @@ from rkopenmdao.metadata_extractor import (
     TimeIntegrationMetadata,
     TimeIntegrationTranslationMetadata,
     TimeIntegrationQuantity,
-    PostprocessingQuantity,
     TimeIndependentQuantity,
     ArrayMetadata,
 )
@@ -36,12 +35,6 @@ time_int_quantity = TimeIntegrationQuantity(
     array_metadata=array_metadata,
     translation_metadata=translations_metadata,
 )
-post_proc_quantity = PostprocessingQuantity(
-    name="x",
-    type="time_integration",
-    array_metadata=array_metadata,
-    translation_metadata=translations_metadata,
-)
 time_ind_quantity = TimeIndependentQuantity(
     name="x",
     type="time_integration",
@@ -50,7 +43,6 @@ time_ind_quantity = TimeIndependentQuantity(
 )
 metadata = TimeIntegrationMetadata(
     time_integration_quantity_list=[time_int_quantity],
-    postprocessing_quantity_list=[post_proc_quantity],
     time_independent_input_quantity_list=[time_ind_quantity],
 )
 
