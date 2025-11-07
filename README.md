@@ -68,7 +68,7 @@ If you want a more guided explanation, you can look at
 which is a small Jupyter file that shows the main ways of using this extension.
 ## License
 
-This work is licensed under the conditions of the BSD license, see LICENSE.txt.
+This work is licensed under the conditions of the BSD-3-Clause license, see LICENSE.txt.
 
 The software is provided as is.
 We sincerely welcome your feedback on issues, bugs and possible improvements.
