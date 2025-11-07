@@ -4,6 +4,7 @@ variables."""
 import openmdao.api as om
 
 from openmdao.utils.assert_utils import assert_check_totals
+from mpi4py import MPI
 import numpy as np
 import pytest
 
@@ -16,7 +17,6 @@ from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 from rkopenmdao.error_controllers import integral
 from rkopenmdao.error_estimator import (
-    SimpleErrorEstimator,
     _non_mpi_partial_norm,
     _mpi_partial_norm,
 )
@@ -25,7 +25,6 @@ from rkopenmdao.integration_control import (
     StepTerminationIntegrationControl,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from mpi4py import MPI
 
 
 class Test1Component1(om.ImplicitComponent):
@@ -298,57 +297,6 @@ def ode_2_analytical_solution(time, initial_values):
     )
 
 
-class AccumulatingComponent(om.ExplicitComponent):
-    """A component that accumulates its inputs. To be used as postprocessing."""
-
-    def setup(self):
-        self.add_input(
-            "x12", distributed=True, shape=1, tags=["x12", "postproc_input_var"]
-        )
-        self.add_input(
-            "x43", distributed=True, shape=1, tags=["x43", "postproc_input_var"]
-        )
-        self.add_output("x_sum", shape=1, tags=["x_sum", "postproc_output_var"])
-
-    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        send_data = np.zeros(1)
-        send_data[0] = inputs["x12"] + inputs["x43"]
-        recv_data = self._exchange_data(send_data)
-        outputs["x_sum"] = recv_data[0] + inputs["x12"] + inputs["x43"]
-
-    def compute_jacvec_product(
-        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
-    ):
-        if mode == "fwd":
-            send_data = np.zeros(1)
-            if "x12" in d_inputs:
-                send_data[0] += d_inputs["x12"]
-            if "x43" in d_inputs:
-                send_data[0] += d_inputs["x43"]
-            recv_data = self._exchange_data(send_data)
-            d_outputs["x_sum"] += recv_data[0]
-            if "x12" in d_inputs:
-                d_outputs["x_sum"] += d_inputs["x12"]
-            if "x43" in d_inputs:
-                d_outputs["x_sum"] += d_inputs["x43"]
-
-        elif mode == "rev":
-            if "x12" in d_inputs:
-                d_inputs["x12"] += d_outputs["x_sum"]
-            if "x43" in d_inputs:
-                d_inputs["x43"] += d_outputs["x_sum"]
-
-    def _exchange_data(self, send_data):
-        recv_data = np.zeros(1)
-        if self.comm.rank == 0:
-            self.comm.Send(send_data, dest=1, tag=0)
-            self.comm.Recv(recv_data, source=1, tag=1)
-        else:
-            self.comm.Recv(recv_data, source=0, tag=0)
-            self.comm.Send(send_data, dest=0, tag=1)
-        return recv_data
-
-
 def setup_time_integration_problem(
     stage_prob,
     butcher_tableau,
@@ -356,21 +304,15 @@ def setup_time_integration_problem(
     time_integration_quantities,
     initial_values=None,
     setup_mode="auto",
-    postprocessing_problem=None,
-    postprocessing_quantities=None,
     checkpointing_implementation=NoCheckpointer,
     adaptive_time_stepping=False,
 ):
     """Sets up the time integration problem for the following test."""
-    if postprocessing_quantities is None:
-        postprocessing_quantities = []
     rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=stage_prob,
-        postprocessing_problem=postprocessing_problem,
         butcher_tableau=butcher_tableau,
         integration_control=integration_control,
         time_integration_quantities=time_integration_quantities,
-        postprocessing_quantities=postprocessing_quantities,
         checkpointing_type=checkpointing_implementation,
         adaptive_time_stepping=adaptive_time_stepping,
         error_controller=[integral],
@@ -596,54 +538,6 @@ def test_parallel_two_distributed_time_integration(
 @pytest.mark.parametrize(
     "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
-@pytest.mark.parametrize(
-    "initial_values", [{"x12": [1, 1], "x43": [1, 1]}, {"x12": [0, 0], "x43": [0, 0]}]
-)
-def test_parallel_two_distributed_time_integration_with_postprocessing(
-    num_steps, butcher_tableau, initial_values
-):
-    """Tests postprocessing after time integration with distributed variables."""
-    delta_t = 0.0001
-    test_prob, integration_control = (
-        setup_parallel_two_distributed_problem_and_integration_control(
-            delta_t, num_steps, butcher_tableau
-        )
-    )
-
-    postproc_prob = om.Problem()
-    postproc_prob.model.add_subsystem(
-        "postproc", AccumulatingComponent(), promotes=["*"]
-    )
-    ivc = om.IndepVarComp()
-    ivc.add_output("x12", shape=1, distributed=True)
-    ivc.add_output("x43", shape=1, distributed=True)
-    postproc_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
-
-    time_test_prob = setup_time_integration_problem(
-        test_prob,
-        butcher_tableau,
-        integration_control,
-        ["x12", "x43"],
-        initial_values,
-        postprocessing_problem=postproc_prob,
-        postprocessing_quantities=["x_sum"],
-    )
-    time_test_prob.run_model()
-
-    analytical_solution = ode_2_analytical_solution(
-        num_steps * delta_t, initial_values["x12"] + initial_values["x43"]
-    )
-
-    postproc_solution = np.sum(analytical_solution)
-    time_test_prob.model.list_outputs()
-    assert time_test_prob.get_val("x_sum_final") == pytest.approx(postproc_solution)
-
-
-@pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1, 10])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
-)
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
     "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
@@ -699,68 +593,6 @@ def test_parallel_two_distributed_totals(
     else:
         data = time_test_prob.check_totals(
             of=["x12_final", "x43_final"],
-            wrt=["x12_initial", "x43_initial"],
-            abs_err_tol=1e-4,
-            rel_err_tol=1e-4,
-        )
-    assert_check_totals(data, atol=1e-4, rtol=1e-4)
-
-
-@pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1, 10])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
-)
-@pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-@pytest.mark.parametrize(
-    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
-)
-def test_parallel_two_distributed_totals_with_postprocessing(
-    num_steps, butcher_tableau, test_direction, checkpointing_implementation
-):
-    """Tests totals of postprocessing after time integration with distributed
-    variables."""
-    delta_t = 0.1
-    test_prob, integration_control = (
-        setup_parallel_two_distributed_problem_and_integration_control(
-            delta_t, num_steps, butcher_tableau, test_direction
-        )
-    )
-
-    postproc_prob = om.Problem()
-    postproc_prob.model.add_subsystem(
-        "postproc", AccumulatingComponent(), promotes=["*"]
-    )
-    ivc = om.IndepVarComp()
-    ivc.add_output("x12", shape=1, distributed=True)
-    ivc.add_output("x43", shape=1, distributed=True)
-    postproc_prob.model.add_subsystem("ivc", ivc, promotes=["*"])
-    postproc_prob.model.nonlinear_solver = om.NonlinearBlockJac()
-    postproc_prob.model.linear_solver = om.LinearBlockJac()
-    time_test_prob = setup_time_integration_problem(
-        test_prob,
-        butcher_tableau,
-        integration_control,
-        ["x12", "x43"],
-        setup_mode=test_direction,
-        postprocessing_problem=postproc_prob,
-        postprocessing_quantities=["x_sum"],
-        checkpointing_implementation=checkpointing_implementation,
-    )
-
-    time_test_prob.run_model()
-
-    if test_prob.comm.rank > 0:
-        data = time_test_prob.check_totals(
-            of=["x_sum_final"],
-            wrt=["x12_initial", "x43_initial"],
-            abs_err_tol=1e-4,
-            rel_err_tol=1e-4,
-            out_stream=None,
-        )
-    else:
-        data = time_test_prob.check_totals(
-            of=["x_sum_final"],
             wrt=["x12_initial", "x43_initial"],
             abs_err_tol=1e-4,
             rel_err_tol=1e-4,

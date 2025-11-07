@@ -406,66 +406,6 @@ def ode_system_solution(time: float, initial_values: np.ndarray):
     )
 
 
-class CosPostprocComp(om.ExplicitComponent):
-    """To be used in postprocessing. Applies cosine on input quantity."""
-
-    def initialize(self):
-        self.options.declare("quantity_name", types=str)
-
-    def setup(self):
-        self.add_input(
-            self.options["quantity_name"],
-            tags=["postproc_input_var", self.options["quantity_name"]],
-        )
-        self.add_output("cos_" + self.options["quantity_name"])
-
-    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        outputs["cos_" + self.options["quantity_name"]] = np.cos(
-            inputs[self.options["quantity_name"]]
-        )
-
-    def compute_jacvec_product(
-        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
-    ):
-        if mode == "fwd":
-            d_outputs["cos_" + self.options["quantity_name"]] -= (
-                np.sin(inputs[self.options["quantity_name"]])
-                * d_inputs[self.options["quantity_name"]]
-            )
-
-        elif mode == "rev":
-            d_inputs[self.options["quantity_name"]] -= (
-                np.sin(inputs[self.options["quantity_name"]])
-                * d_outputs["cos_" + self.options["quantity_name"]]
-            )
-
-
-class PostprocSumComp(om.ExplicitComponent):
-    """To be used in postprocessing. Sums it's to inputs up."""
-
-    def setup(self):
-        self.add_input("cos_b")
-        self.add_input("cos_c")
-        self.add_output("sum", tags=["postproc_output_var", "sum"])
-
-    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        outputs["sum"] = inputs["cos_b"] + inputs["cos_c"]
-
-    def compute_jacvec_product(
-        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
-    ):
-        if mode == "fwd":
-            if "cos_b" in d_inputs:
-                d_outputs["sum"] += d_inputs["cos_b"]
-            if "cos_c" in d_inputs:
-                d_outputs["sum"] += d_inputs["cos_c"]
-        elif mode == "rev":
-            if "cos_b" in d_inputs:
-                d_inputs["cos_b"] += d_outputs["sum"]
-            if "cos_c" in d_inputs:
-                d_inputs["cos_c"] += d_outputs["sum"]
-
-
 def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tableau):
     """Setup for the stage problem in the following test cases."""
     prob = om.Problem()
@@ -514,46 +454,14 @@ def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tabl
     return prob, integration_control
 
 
-def setup_postprocessing_problem():
-    """Setup for the postprocessing problems in the following test cases that use it."""
-    postproc_prob = om.Problem()
-
-    c_group = om.Group()
-    c_group.add_subsystem(
-        "ivc_c",
-        om.IndepVarComp("c"),
-        promotes=["*"],
-    )
-    c_group.add_subsystem("cos_c", CosPostprocComp(quantity_name="c"), promotes=["*"])
-    b_group = om.Group()
-    b_group.add_subsystem(
-        "ivc_b",
-        om.IndepVarComp("b"),
-        promotes=["*"],
-    )
-    b_group.add_subsystem("cos_b", CosPostprocComp(quantity_name="b"), promotes=["*"])
-    par_group = om.ParallelGroup()
-    par_group.add_subsystem("c_group", c_group, promotes=["*"])
-    par_group.add_subsystem("b_group", b_group, promotes=["*"])
-    postproc_prob.model.add_subsystem("par", par_group, promotes=["*"])
-
-    postproc_prob.model.add_subsystem("sum", PostprocSumComp(), promotes=["*"])
-
-    return postproc_prob
-
-
 def setup_time_integration_problem(
     stage_prob,
     integration_control,
     butcher_tableau,
     test_direction="auto",
-    postproc_problem=None,
-    postprocessing_quantities=None,
     checkpointing_implementation=NoCheckpointer,
 ):
     """Setup for the time integrator in the following test cases."""
-    if postprocessing_quantities is None:
-        postprocessing_quantities = []
     time_integration_prob = om.Problem()
     time_integration_indep = om.IndepVarComp()
     time_integration_indep.add_output("b_initial", shape_by_conn=True, distributed=True)
@@ -565,9 +473,7 @@ def setup_time_integration_problem(
         "rk_integrator",
         RungeKuttaIntegrator(
             time_stage_problem=stage_prob,
-            postprocessing_problem=postproc_problem,
             time_integration_quantities=["a", "b", "c", "d"],
-            postprocessing_quantities=postprocessing_quantities,
             integration_control=integration_control,
             butcher_tableau=butcher_tableau,
             checkpointing_type=checkpointing_implementation,
@@ -635,46 +541,6 @@ def test_parallel_group_time_integration(
 
 
 @pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, embedded_second_order_three_stage_esdirk]
-)
-@pytest.mark.parametrize("initial_values", [[1, 1, 1, 1], [0, 0, 0, 0]])
-def test_parallel_group_time_integration_with_postprocessing(
-    num_steps: int, butcher_tableau: ButcherTableau, initial_values: list
-):
-    """Tests the postprocessing of the time integration for a problem with parallel
-    groups."""
-    delta_t = 0.0001
-    prob, integration_control = setup_stage_problem_and_integration_control(
-        num_steps, delta_t, butcher_tableau
-    )
-    prob.run_model()
-
-    postproc_prob = setup_postprocessing_problem()
-
-    time_integration_prob = setup_time_integration_problem(
-        prob,
-        integration_control,
-        butcher_tableau,
-        postproc_problem=postproc_prob,
-        postprocessing_quantities=["sum"],
-    )
-    set_time_integration_initial_values(time_integration_prob, initial_values)
-    time_integration_prob.run_model()
-
-    analytical_result = ode_system_solution(
-        num_steps * delta_t, np.array(initial_values)
-    )
-    postprocessed_analytical_result = np.cos(analytical_result[1]) + np.cos(
-        analytical_result[2]
-    )
-    assert time_integration_prob["sum_final"] == pytest.approx(
-        postprocessed_analytical_result
-    )
-
-
-@pytest.mark.mpi
 @pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
     "butcher_tableau", [implicit_euler, embedded_second_order_three_stage_esdirk]
@@ -728,64 +594,3 @@ def test_parallel_group_time_integration_totals(
             out_stream=None,
         )
     assert_check_totals(data)
-
-
-@pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1, 10])
-@pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, embedded_second_order_three_stage_esdirk]
-)
-@pytest.mark.parametrize("test_direction", ["fwd", "rev"])
-@pytest.mark.parametrize(
-    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
-)
-def test_parallel_group_time_integration_totals_with_postprocessing(
-    num_steps: int,
-    butcher_tableau: ButcherTableau,
-    test_direction: str,
-    checkpointing_implementation,
-):
-    """Tests the totals of the postprocessing after the time integration for a problem
-    with parallel groups."""
-    delta_t = 0.1
-    prob, integration_control = setup_stage_problem_and_integration_control(
-        num_steps, delta_t, butcher_tableau
-    )
-    prob.run_model()
-    data = prob.check_partials()
-    assert_check_partials(data)
-
-    postproc_prob = setup_postprocessing_problem()
-
-    time_integration_prob = setup_time_integration_problem(
-        prob,
-        integration_control,
-        butcher_tableau,
-        test_direction,
-        postproc_prob,
-        ["sum"],
-        checkpointing_implementation,
-    )
-    time_integration_prob.run_model()
-
-    # we omit b and c, since they can't be tested one by one (at least not with
-    # functionality already provided by OpenMDAO, and testing them together gives
-    # (expectedly) wrong results
-    if prob.comm.rank == 0:
-        data = time_integration_prob.check_totals(
-            ["sum_final"],
-            [
-                "a_initial",
-                "d_initial",
-            ],
-        )
-    else:
-        data = time_integration_prob.check_totals(
-            ["sum_final"],
-            [
-                "a_initial",
-                "d_initial",
-            ],
-            out_stream=None,
-        )
-    assert_check_totals(data, rtol=1e-4, atol=1e-4)
