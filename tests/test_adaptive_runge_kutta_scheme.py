@@ -53,7 +53,8 @@ error_controller = pid(embedded_heun_euler.min_p_order())
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "ode, embedded_tableau, delta_t, old_state, stage_field, error_measurer, expected_new_state, expected_error_measure",
+    """ode, embedded_tableau, delta_t, old_state, stage_field, error_measurer,
+    expected_new_state, expected_error_measure""",
     (
         [
             RootODE(),
@@ -100,7 +101,7 @@ def test_compute_step(
         old_state,
         stage_field,
         delta_t,
-        np.full(2, error_controller.tol),
+        np.full(2, error_controller.config.tol),
         np.zeros(2),
     ) == pytest.approx(
         (np.array([expected_new_state]), 0.1, True, expected_error_measure)

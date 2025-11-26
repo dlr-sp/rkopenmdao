@@ -10,6 +10,7 @@ from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
+from rkopenmdao.error_controller import ErrorControllerConfig
 from rkopenmdao.error_controllers import ppid, integral
 from rkopenmdao.error_measurer import ImprovedErrorMeasurer
 from rkopenmdao.integration_control import (
@@ -53,7 +54,7 @@ for butcher_tableau in butcher_tableaux:
             integration_control=integration_control,
             time_integration_quantities=quantities,
             error_controller=test_controller,
-            error_controller_options={"tol": 1e-12},
+            error_controller_options={"config": ErrorControllerConfig(tol=1e-12)},
             error_measurer=test_measurer,
             adaptive_time_stepping=True,
             write_file=f"{file_name}.h5",

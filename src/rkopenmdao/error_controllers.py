@@ -7,18 +7,18 @@ Mark H. Carpenter.
 # pylint: disable=missing-function-docstring
 import numpy as np
 
-from rkopenmdao.error_controller import ErrorController, ErrorControllerDecorator
+from rkopenmdao.error_controller import (
+    ErrorController,
+    ErrorControllerDecorator,
+    ErrorControllerConfig,
+)
 
 
 def pseudo(
-    p,
-    tol=np.inf,
-    safety_factor=1.0,
+    p,  # pylint: disable=unused-argument
+    config=ErrorControllerConfig(np.inf, 0, np.inf, 1.0, 1000),
     name="pseudo-Controller",
-    lower_bound=0,
-    upper_bound=np.inf,
     base: ErrorController = None,
-    max_iter=1000,
 ):
     if base:
         return ErrorControllerDecorator(
@@ -26,24 +26,14 @@ def pseudo(
             base,
             name=name,
         )
-    return ErrorController(
-        0,
-        tol=tol,
-        safety_factor=safety_factor,
-        name=name,
-        max_iter=max_iter,
-    )
+    return ErrorController(0, config=config)
 
 
 def integral(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="I-Controller",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (1 + p)
     if base:
@@ -54,47 +44,30 @@ def integral(
         )
     return ErrorController(
         alpha,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h0_110(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H0_110",
     base: ErrorController = None,
-    max_iter=5,
 ):
-
     return integral(
         p,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
         base=base,
-        max_iter=max_iter,
     )
 
 
 def h_211(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H_211",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (4 * p)
     beta = -1 / (4 * p)
@@ -111,24 +84,16 @@ def h_211(
         alpha,
         beta=beta,
         a=a,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h0_211(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H0_211",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (2 * p)
     beta = -1 / (2 * p)
@@ -145,24 +110,16 @@ def h0_211(
         alpha,
         beta=beta,
         a=a,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def pc(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="PC",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 2 / p
     beta = 1 / p
@@ -179,46 +136,30 @@ def pc(
         alpha,
         beta=beta,
         a=a,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h0_220(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H0_220",
     base: ErrorController = None,
-    max_iter=5,
 ):
     return pc(
         p,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
         base=base,
-        max_iter=max_iter,
     )
 
 
 def pid(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="PID",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (18 * p)
     beta = -1 / (9 * p)
@@ -235,24 +176,16 @@ def pid(
         alpha,
         beta=beta,
         gamma=gamma,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h_312(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H_312",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (8 * p)
     beta = -1 / (4 * p)
@@ -275,24 +208,16 @@ def h_312(
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h0_312(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H0_312",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (4 * p)
     beta = -1 / (2 * p)
@@ -315,12 +240,8 @@ def h0_312(
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
@@ -329,13 +250,9 @@ def h_312_general(
     var_alpha,
     a,
     b,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H_312_general",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = var_alpha / p
     beta = -2 * var_alpha / p
@@ -356,24 +273,16 @@ def h_312_general(
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def ppid(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="PPID",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 6 / (20 * p)
     beta = -1 / (20 * p)
@@ -393,24 +302,16 @@ def ppid(
         beta=beta,
         gamma=gamma,
         a=a,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h_321(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H_321",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (3 * p)
     beta = -1 / (18 * p)
@@ -433,24 +334,16 @@ def h_321(
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h0_321(
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H0_321",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 1 / (3 * p)
     beta = -1 / (2 * p)
@@ -473,12 +366,8 @@ def h0_321(
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
@@ -487,13 +376,9 @@ def h_321_general(
     var_alpha,
     var_beta,
     a,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H_321_general",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = var_alpha / p
     beta = var_beta / p
@@ -515,24 +400,16 @@ def h_321_general(
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
 def h0_330(  # delivers very small suggestions
     p,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H0_330",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = 3 / p
     beta = 3 / p
@@ -555,12 +432,8 @@ def h0_330(  # delivers very small suggestions
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )
 
 
@@ -569,13 +442,9 @@ def h_330_general(
     var_alpha,
     var_beta,
     var_gamma,
-    tol=1e-6,
-    safety_factor=0.95,
-    lower_bound=0,
-    upper_bound=np.inf,
+    config=ErrorControllerConfig(),
     name="H_330_general",
     base: ErrorController = None,
-    max_iter=5,
 ):
     alpha = var_alpha / p
     beta = var_beta / p
@@ -598,10 +467,6 @@ def h_330_general(
         gamma=gamma,
         a=a,
         b=b,
-        tol=tol,
-        safety_factor=safety_factor,
-        lower_bound=lower_bound,
-        upper_bound=upper_bound,
+        config=config,
         name=name,
-        max_iter=max_iter,
     )

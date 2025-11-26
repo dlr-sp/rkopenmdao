@@ -17,6 +17,19 @@ class ErrorControllerStatus:
     acceptance: bool
 
 
+@dataclass
+class ErrorControllerConfig:
+    """
+    Contains general configuration options for the ErrorController class.
+    """
+
+    tol: float = 1e-6
+    lower_bound: float = 0
+    upper_bound: float = np.inf
+    safety_factor: float = 0.95
+    max_iter: int = 5
+
+
 class ErrorController:
     r"""
     Error controller that estimates the next time-difference jumps of a Runge-Kutta
@@ -74,19 +87,13 @@ class ErrorController:
         gamma: float = 0,
         a: float = 0,
         b: float = 0,
-        tol: float = 1e-6,
-        lower_bound: float = 0,
-        upper_bound: float = np.inf,
-        safety_factor: float = 0.95,
-        max_iter=5,
+        config: ErrorControllerConfig = ErrorControllerConfig(),
         name: str = "ErrorController",
     ):
         # Constant parameters for the error controller equation
         # -----------
         # 1. General parameters
-        self.safety_factor = safety_factor
-        self.tol = tol
-        self.max_iter = max_iter
+        self.config = config
         # 2. Exponents for norm sensitivities
         self.alpha = alpha
         self.beta = beta
@@ -95,8 +102,6 @@ class ErrorController:
         self.a = a
         self.b = b
         # -----------
-        self.lower_bound = lower_bound
-        self.upper_bound = upper_bound
         self.inner_most = True  # Indicator if it is not associated with a decorator
         self.name = "Outermost " + name
         self.width = 0
@@ -153,9 +158,9 @@ class ErrorController:
         """
         success = False
         if (
-            np.abs(delta_t - self.lower_bound) < 1e-10
+            np.abs(delta_t - self.config.lower_bound) < 1e-10
             or np.abs(delta_t - remaining_time) < 1e-10
-            or error_measure <= self.tol
+            or error_measure <= self.config.tol
         ):
             success = True
 
@@ -170,8 +175,10 @@ class ErrorController:
                 and using old one."""
             )
 
-        new_delta_t = max(self.lower_bound, min(self.upper_bound, new_delta_t))
-        if remaining_time - (delta_t + new_delta_t) < self.lower_bound:
+        new_delta_t = max(
+            self.config.lower_bound, min(self.config.upper_bound, new_delta_t)
+        )
+        if remaining_time - (delta_t + new_delta_t) < self.config.lower_bound:
             new_delta_t = remaining_time
         return ErrorControllerStatus(new_delta_t, success)
 
@@ -185,10 +192,10 @@ class ErrorController:
         """
         Estimates the delta time of the current or next time step.
         """
-        delta_t_new = self.safety_factor * delta_t
-        delta_t_new *= (self.tol / error_measure) ** self.alpha
-        delta_t_new *= (error_history[0] / self.tol) ** self.beta
-        delta_t_new *= (self.tol / error_history[1]) ** self.gamma
+        delta_t_new = self.config.safety_factor * delta_t
+        delta_t_new *= (self.config.tol / error_measure) ** self.alpha
+        delta_t_new *= (error_history[0] / self.config.tol) ** self.beta
+        delta_t_new *= (self.config.tol / error_history[1]) ** self.gamma
         if step_size_history[0] != 0.0:
             delta_t_new *= (delta_t / step_size_history[0]) ** self.a
             if step_size_history[1] != 0.0:
@@ -242,7 +249,6 @@ class ErrorControllerDecorator(ErrorController):
         a: float = 0,
         b: float = 0,
         name: str = "ErrorController",
-        max_iter=5,
     ):
         self.error_controller = error_controller
         self.error_controller.inner_most = False
@@ -256,11 +262,7 @@ class ErrorControllerDecorator(ErrorController):
             a=a,
             b=b,
         )
-        self.tol = error_controller.tol
-        self.lower_bound = error_controller.lower_bound
-        self.upper_bound = error_controller.upper_bound
-        self.safety_factor = error_controller.safety_factor
-        self.max_iter = error_controller.max_iter
+        self.config = error_controller.config
         self.is_not_inner = True
         self.name = "Innermost " + name
         self.outer_counter = 0
@@ -290,11 +292,11 @@ class ErrorControllerDecorator(ErrorController):
                     self.outer_counter += 1
                     if not (
                         status.step_size_suggestion < delta_t
-                        and self.outer_counter <= self.max_iter
+                        and self.outer_counter <= self.config.max_iter
                     ):
                         raise OuterErrorControllerError(
-                            f"""Suggested delta T {status.step_size_suggestion} is larger than 
-                            delta t {delta_t} on failure."""
+                            f"""Suggested delta T {status.step_size_suggestion} is 
+                            larger than delta t {delta_t} on failure."""
                         )
                 self.outer_counter = 0
                 return status

@@ -1,3 +1,7 @@
+"""
+Test the ErrorMeasurer class.
+"""
+
 import numpy as np
 import pytest
 
@@ -38,5 +42,8 @@ def test_error_measurer(
     ode: DiscretizedODE,
     expected_measure: float,
 ):
+    """
+    Tests the correct calculation of the error measure based on an estimate and ODE.
+    """
     result = measurer.get_measure(estimate, state, ode)
     assert result == pytest.approx(expected_measure)

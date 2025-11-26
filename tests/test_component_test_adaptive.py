@@ -10,6 +10,7 @@ from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 import numpy as np
 
+from rkopenmdao.error_controller import ErrorControllerConfig
 from rkopenmdao.integration_control import TimeTerminationIntegrationControl
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
@@ -241,7 +242,7 @@ def test_time_integration_partials(
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
             error_controller=[test_controller, integral],
-            error_controller_options={"tol": 1e-6},
+            error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
             error_measurer=test_measurer,
             adaptive_time_stepping=True,
         ),

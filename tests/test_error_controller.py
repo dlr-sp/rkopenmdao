@@ -1,12 +1,15 @@
-"""Tests the adaptive time integration with the various components of
-test_components.py"""
-
-# pylint: disable=duplicate-code
+"""
+Tests the ErrorControllerClass.
+"""
 
 import pytest
 import numpy as np
 
-from rkopenmdao.error_controller import ErrorController, ErrorControllerStatus
+from rkopenmdao.error_controller import (
+    ErrorController,
+    ErrorControllerStatus,
+    ErrorControllerConfig,
+)
 from rkopenmdao.error_controllers import (
     integral,
     h0_211,
@@ -76,7 +79,7 @@ from rkopenmdao.error_controllers import (
         ),
         # Tests lower bound being upheld
         (
-            integral(2, lower_bound=0.01),
+            integral(2, ErrorControllerConfig(lower_bound=0.01)),
             0.5,
             0.1,
             1.0,
@@ -86,7 +89,7 @@ from rkopenmdao.error_controllers import (
         ),
         # Tests upper bound being upheld
         (
-            integral(2, upper_bound=0.5),
+            integral(2, ErrorControllerConfig(upper_bound=0.5)),
             1.0e-9,
             0.1,
             1.0,
@@ -115,6 +118,9 @@ def test_error_controller_step_size_estimation(
     step_size_history: np.ndarray,
     expected_status: ErrorControllerStatus,
 ):
+    """
+    Tests correct estimation of next step by the error controller.
+    """
     status = controller(
         error_measure, delta_t, remaining_time, error_history, step_size_history
     )

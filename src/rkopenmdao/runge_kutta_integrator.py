@@ -289,7 +289,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _reset_error_control_history(self):
         self.step_size_history.fill(0.0)
-        self.error_history.fill(self._error_controller.tol)
+        self.error_history.fill(self._error_controller.config.tol)
 
     def _setup_inner_problems(self):
         self.options["time_stage_problem"].setup()
@@ -604,7 +604,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self.step_size_history[0] = self.options["integration_control"].delta_t
             self.error_history = np.roll(self.error_history, 1)
             self.error_history[0] = error_measure
-            pass
             return temp_serialized_state, delta_t_suggestion
         else:
             return self._iterate_on_step(

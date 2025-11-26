@@ -111,6 +111,9 @@ def test_reimport():
 
 
 def test_compute_state_norm():
+    """
+    Tests serial norm computation.
+    """
     state = DiscretizedODEResultState(np.zeros(0), np.full(1, 2.0), np.zeros(0))
     norm = ODE.compute_state_norm(state)
     assert norm == 2.0
@@ -118,6 +121,9 @@ def test_compute_state_norm():
 
 @pytest.mark.mpi
 def test_compute_state_norm_parallel():
+    """
+    Tests parallel norm computation.
+    """
     parallel_problem = om.Problem()
     parallel_problem.model.add_subsystem(
         "comp",
