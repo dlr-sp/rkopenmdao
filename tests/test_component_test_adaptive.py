@@ -32,7 +32,7 @@ from rkopenmdao.error_controllers import (
     h_321,
     h0_321,
 )
-from rkopenmdao.error_estimator import SimpleErrorEstimator, ImprovedErrorEstimator
+from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
 from .test_components import (
     TestComp1,
     TestComp2,
@@ -84,27 +84,6 @@ butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 
 @pytest.mark.rk
 @pytest.mark.rk_openmdao
-@pytest.mark.parametrize("test_class", test_comp_class_list)
-@pytest.mark.parametrize("time", times)
-@pytest.mark.parametrize("butcher_diagonal_element", butcher_diagonal_elements)
-def test_component_partials(test_class, time, butcher_diagonal_element):
-    """Tests whether the components itself produce the right partials"""
-    integration_control = TimeTerminationIntegrationControl(0.1, 0.1, 0.0)
-    integration_control.stage_time = time
-    integration_control.butcher_diagonal_element = butcher_diagonal_element
-    test_prob = om.Problem()
-    test_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
-
-    test_prob.setup()
-    test_prob.run_model()
-    data = test_prob.check_partials()
-    assert_check_partials(data)
-
-
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, test_functor, initial_time, initial_values",
     (
@@ -136,7 +115,7 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
 )
 @pytest.mark.parametrize("quantities", [["x"]])
 @pytest.mark.parametrize(
-    "test_estimator", [SimpleErrorEstimator, ImprovedErrorEstimator]
+    "test_measurer", [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
 )
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_component_integration(
@@ -146,7 +125,7 @@ def test_component_integration(
     initial_values,
     butcher_tableau,
     quantities,
-    test_estimator,
+    test_measurer,
     test_controller,
 ):
     """Tests the time integration of the different components."""
@@ -171,7 +150,7 @@ def test_component_integration(
             integration_control=integration_control,
             time_integration_quantities=quantities,
             error_controller=[test_controller, integral],
-            error_estimator_type=test_estimator,
+            error_measurer=test_measurer,
             adaptive_time_stepping=True,
         ),
         promotes=["*"],
@@ -227,7 +206,7 @@ def test_component_integration(
     ],
 )
 @pytest.mark.parametrize(
-    "test_estimator", [SimpleErrorEstimator, ImprovedErrorEstimator]
+    "test_measurer", [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
 )
 @pytest.mark.parametrize("test_controller", error_controller_list)
 def test_time_integration_partials(
@@ -235,7 +214,7 @@ def test_time_integration_partials(
     initial_time,
     butcher_tableau,
     checkpointing_implementation,
-    test_estimator,
+    test_measurer,
     test_controller,
 ):
     """Tests the partials of the time integration of the different components."""
@@ -263,7 +242,7 @@ def test_time_integration_partials(
             checkpointing_type=checkpointing_implementation,
             error_controller=[test_controller, integral],
             error_controller_options={"tol": 1e-6},
-            error_estimator_type=test_estimator,
+            error_measurer=test_measurer,
             adaptive_time_stepping=True,
         ),
         promotes=["*"],
@@ -285,8 +264,8 @@ def check_partials_wo_fd(jac_data, tol=1e-6):
     """
     Since FD by the Openmdao and fwd/rev are not comparable for adaptive schemes, a
     function excluding fd is necessary. The fd of OpenMDAO perturbs the inputs/initial
-    values, which lead the error estimator to also be differentiated.
-    The implementation of fwd and rev mode explicitely excludes the error estimator
+    values, which lead the error estimation to also be differentiated.
+    The implementation of fwd and rev mode explicitely excludes the error estimation
     from the derivatives, because else that would introduce errors
     (see 1. https://doi.org/10.1016/j.cam.2009.08.109 and
     2. http://dx.doi.org/10.1090/S0025-5718-99-01027-3

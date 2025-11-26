@@ -5,6 +5,7 @@ import functools
 import inspect
 from typing import Union, Callable
 
+from mpi4py import MPI
 import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector
@@ -12,6 +13,7 @@ from openmdao.vectors.vector import Vector
 
 from rkopenmdao.metadata_extractor import (
     TimeIntegrationMetadata,
+    TimeIntegrationQuantity,
     extract_time_integration_metadata,
     add_time_independent_input_metadata,
     add_distributivity_information,
@@ -78,6 +80,8 @@ class OpenMDAOODE(DiscretizedODE):
     _time_stage_problem: om.Problem
     _integration_control: IntegrationControl
     _om_run_solve_linear: Callable[[str], None]
+    _norm_exclusions: list
+    _norm_order: float | str
 
     def __init__(
         self,
@@ -85,6 +89,8 @@ class OpenMDAOODE(DiscretizedODE):
         integration_control: IntegrationControl,
         time_integration_quantities: list,
         independent_input_quantities: Union[list, None] = None,
+        norm_exclusions: list | None = None,
+        norm_order: float | str = 2.0,
     ):
         self._time_stage_problem = time_stage_problem
         self._integration_control = integration_control
@@ -115,6 +121,11 @@ class OpenMDAOODE(DiscretizedODE):
             self._om_run_solve_linear = functools.partial(
                 self._time_stage_problem.model.run_solve_linear, vec_name=["linear"]
             )
+        if norm_exclusions is None:
+            self._norm_exclusions = []
+        else:
+            self._norm_exclusions = norm_exclusions
+        self._norm_order = norm_order
 
     def compute_update(
         self,
@@ -345,3 +356,60 @@ class OpenMDAOODE(DiscretizedODE):
                 stage_update[start:end] = om_vector[
                     quantity.translation_metadata.stage_output_var
                 ].flatten()
+
+    def compute_state_norm(self, state: DiscretizedODEResultState) -> float:
+        stage_state = state.stage_state
+        non_distributed_intermediate = 0.0
+        distributed_intermediate = 0.0
+        for quantity in self.time_integration_metadata.time_integration_quantity_list:
+            if quantity.name not in self._norm_exclusions:
+                norm_intermediate = self._partial_norm_intermediate(
+                    stage_state, quantity, self._norm_order
+                )
+                if quantity.array_metadata.distributed:
+                    distributed_intermediate = self._add_to_intermediate(
+                        distributed_intermediate, norm_intermediate, self._norm_order
+                    )
+                else:
+                    non_distributed_intermediate = self._add_to_intermediate(
+                        non_distributed_intermediate,
+                        norm_intermediate,
+                        self._norm_order,
+                    )
+        global_intermediate = self._allreduce_own_intermediate(
+            distributed_intermediate, self._norm_order
+        )
+        global_intermediate = self._add_to_intermediate(
+            global_intermediate, non_distributed_intermediate, self._norm_order
+        )
+        return self._normalize(global_intermediate, self._norm_order)
+
+    def _partial_norm_intermediate(
+        self, state: np.ndarray, quantity: TimeIntegrationQuantity, order: float
+    ) -> float:
+        start = quantity.array_metadata.start_index
+        end = quantity.array_metadata.end_index
+        exponent = 1.0 if order in [np.inf, -np.inf, 0.0] else order
+        return np.linalg.norm(state[start:end], order) ** exponent
+
+    def _add_to_intermediate(
+        self, intermediate_value: float, added_value: float, order: float
+    ) -> float:
+        if order == np.inf:
+            return max(intermediate_value, added_value)
+        elif order == -np.inf:
+            return min(intermediate_value, added_value)
+        else:
+            return intermediate_value + added_value
+
+    def _allreduce_own_intermediate(
+        self, intermediate_value: float, order: float
+    ) -> float:
+        mpi_op = (
+            MPI.MAX if order == np.inf else MPI.MIN if order == -np.inf else MPI.SUM
+        )
+        return self._time_stage_problem.comm.allreduce(intermediate_value, mpi_op)
+
+    def _normalize(self, norm_intermediate: float, order: float) -> float:
+        exponent = 1.0 if order in [np.inf, -np.inf, 0.0] else 1.0 / order
+        return norm_intermediate**exponent

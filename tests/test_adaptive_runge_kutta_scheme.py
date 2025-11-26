@@ -11,9 +11,10 @@ from rkopenmdao.butcher_tableaux import (
     embedded_heun_euler,
 )
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
-from rkopenmdao.error_estimator import (
-    SimpleErrorEstimator,
-    ImprovedErrorEstimator,
+from rkopenmdao.error_measurer import (
+    ErrorMeasurer,
+    SimpleErrorMeasurer,
+    ImprovedErrorMeasurer,
 )
 from rkopenmdao.metadata_extractor import (
     TimeIntegrationMetadata,
@@ -46,27 +47,33 @@ metadata = TimeIntegrationMetadata(
     time_independent_input_quantity_list=[time_ind_quantity],
 )
 
-simple_error_estimator = SimpleErrorEstimator(2, comm=comm, quantity_metadata=metadata)
-improved_error_estimator = ImprovedErrorEstimator(
-    2, comm=comm, quantity_metadata=metadata
-)
-error_controller = pid(
-    embedded_heun_euler.min_p_order(), error_estimator=simple_error_estimator
-)
+error_controller = pid(embedded_heun_euler.min_p_order())
 
 
 @pytest.mark.rk
 @pytest.mark.rk_scheme
 @pytest.mark.parametrize(
-    "ode, embedded_tableau, delta_t, old_state, stage_field, expected_new_state",
+    "ode, embedded_tableau, delta_t, old_state, stage_field, error_measurer, expected_new_state, expected_error_measure",
     (
         [
-            RootODE,
+            RootODE(),
             embedded_heun_euler,
             0.1,
             np.array([1.0]),
             np.array([[1.0], [21 / 20]]),
+            SimpleErrorMeasurer(),
             np.array([1.1025]),
+            0.0025,
+        ],
+        [
+            RootODE(),
+            embedded_heun_euler,
+            0.1,
+            np.array([1.0]),
+            np.array([[1.0], [21 / 20]]),
+            ImprovedErrorMeasurer(),
+            np.array([1.1025]),
+            0.0025 / (1.1025 + 1),
         ],
     ),
 )
@@ -76,7 +83,9 @@ def test_compute_step(
     delta_t: float,
     old_state: np.ndarray,
     stage_field: np.ndarray,
+    error_measurer: ErrorMeasurer,
     expected_new_state: np.ndarray,
+    expected_error_measure: float,
 ):
     """Tests the compute_step function."""
     rk_scheme = RungeKuttaScheme(
@@ -84,7 +93,15 @@ def test_compute_step(
         ode,
         True,
         error_controller,
+        error_measurer,
     )
     assert rk_scheme.compute_step(
-        delta_t, old_state, stage_field, remaining_time=delta_t
-    ) == pytest.approx((np.array([expected_new_state]), 0.1, True))
+        delta_t,
+        old_state,
+        stage_field,
+        delta_t,
+        np.full(2, error_controller.tol),
+        np.zeros(2),
+    ) == pytest.approx(
+        (np.array([expected_new_state]), 0.1, True, expected_error_measure)
+    )

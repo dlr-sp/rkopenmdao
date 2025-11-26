@@ -102,6 +102,9 @@ class IdentityODE(DiscretizedODE):
             step_input_pert, stage_output_pert, np.zeros(0), 0.0
         )
 
+    def compute_state_norm(self, state: DiscretizedODEResultState):
+        return np.abs(state.stage_state)
+
 
 class TimeODE(DiscretizedODE):
     """
@@ -157,6 +160,9 @@ class TimeODE(DiscretizedODE):
         return DiscretizedODEInputState(
             step_input_pert, stage_input_pert, np.zeros(0), time_pert
         )
+
+    def compute_state_norm(self, state: DiscretizedODEResultState):
+        return np.abs(state.stage_state)
 
 
 @dataclass
@@ -256,6 +262,9 @@ class TimeScaledIdentityODE(DiscretizedODE):
             step_input_pert, stage_input_pert, np.zeros(0), time_pert
         )
 
+    def compute_state_norm(self, state: DiscretizedODEResultState):
+        return np.abs(state.stage_state)
+
 
 class ParameterODE(DiscretizedODE):
     """
@@ -314,6 +323,9 @@ class ParameterODE(DiscretizedODE):
         return DiscretizedODEInputState(
             step_input_pert, stage_input_pert, independent_input_pert, 0.0
         )
+
+    def compute_state_norm(self, state: DiscretizedODEResultState):
+        return np.abs(state.stage_state)
 
 
 @dataclass
@@ -404,6 +416,9 @@ class RootODE(DiscretizedODE):
         return DiscretizedODEInputState(
             step_input_pert, stage_input_pert, np.zeros(0), 0.0
         )
+
+    def compute_state_norm(self, state: DiscretizedODEResultState):
+        return np.abs(state.stage_state)
 
 
 @pytest.mark.parametrize(
@@ -567,9 +582,13 @@ def test_compute_step(
 ):
     """Tests the compute_step function."""
     rk_scheme = RungeKuttaScheme(butcher_tableau, ode())
-    assert rk_scheme.compute_step(
+    result = rk_scheme.compute_step(
         delta_t, old_state, stage_field, remaining_time=delta_t
-    )[0] == pytest.approx(expected_new_state)
+    )
+    assert result[0] == pytest.approx(expected_new_state)
+    assert result[1] == delta_t
+    assert result[2]
+    assert np.isnan(result[3])
 
 
 @pytest.mark.parametrize(

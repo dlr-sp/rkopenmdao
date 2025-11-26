@@ -16,7 +16,7 @@ class CheckpointInterface(ABC):
 
     array_size: int
     integration_control: IntegrationControl
-    run_step_func: Callable[[np.ndarray], Tuple[np.ndarray, List, List]]
+    run_step_func: Callable[[np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]
     run_step_jacvec_rev_func: Callable[[np.ndarray, np.ndarray, list, list], np.ndarray]
     _state: np.ndarray = field(init=False)
     _serialized_state_perturbation: np.ndarray = field(init=False)

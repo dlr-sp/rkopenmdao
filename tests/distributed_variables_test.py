@@ -4,7 +4,6 @@ variables."""
 import openmdao.api as om
 
 from openmdao.utils.assert_utils import assert_check_totals
-from mpi4py import MPI
 import numpy as np
 import pytest
 
@@ -16,10 +15,6 @@ from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
 from rkopenmdao.error_controllers import integral
-from rkopenmdao.error_estimator import (
-    _non_mpi_partial_norm,
-    _mpi_partial_norm,
-)
 from rkopenmdao.integration_control import (
     IntegrationControl,
     StepTerminationIntegrationControl,
@@ -619,32 +614,3 @@ def test_distributed_adaptive_step(steps):
         adaptive_time_stepping=True,
     )
     time_test_prob.run_model()
-
-
-@pytest.mark.mpi
-@pytest.mark.parametrize(
-    "delta_t",
-    [
-        np.array([0.5, 0.1]),
-        np.array([0, 0.3]),
-        np.array([0.1, 0.2, 0.1]),
-        np.array([1, 2, 3, 4, 5, 6, 7]),
-    ],
-)
-@pytest.mark.parametrize("order", [-np.inf, 0, 1, 2, np.inf])
-def test_parallel_norm(delta_t, order):
-    """Test for ErrorEstimator's partial normalization"""
-
-    # Create MPI:
-    comm = MPI.COMM_WORLD
-    size = comm.size
-    rank = comm.rank
-    if rank == 0:
-        data = np.array_split(delta_t, size, axis=0)
-    else:
-        data = None
-    data = comm.scatter(data, root=0)
-
-    part_mpi_norms = _mpi_partial_norm(data, order, comm)
-    part_norm = _non_mpi_partial_norm(delta_t, order)
-    assert part_mpi_norms == pytest.approx(part_norm)

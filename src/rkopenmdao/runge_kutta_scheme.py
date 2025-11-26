@@ -11,7 +11,7 @@ from rkopenmdao.discretized_ode.discretized_ode import (
     DiscretizedODEResultState,
 )
 from rkopenmdao.error_controller import ErrorController
-
+from rkopenmdao.error_measurer import ErrorMeasurer
 from rkopenmdao.errors import RungeKuttaError
 
 
@@ -39,6 +39,7 @@ class RungeKuttaScheme:
         ode: DiscretizedODE,
         use_adaptive_time_stepping: bool = False,
         error_controller: ErrorController = None,
+        error_measurer: ErrorMeasurer = None,
     ):
         self.butcher_tableau = butcher_tableau
         self.ode = ode
@@ -48,7 +49,8 @@ class RungeKuttaScheme:
                 "An error controller must be passed if Butcher Tableau is embedded"
             )
         else:
-            self.error_controller = error_controller
+            self.error_controller: ErrorController = error_controller
+            self.error_measurer: ErrorMeasurer = error_measurer
 
     def compute_stage(
         self,
@@ -89,7 +91,9 @@ class RungeKuttaScheme:
         old_state: np.ndarray,
         stage_field: np.ndarray,
         remaining_time: float,
-    ) -> (np.ndarray, float, bool):
+        error_history: np.ndarray = None,
+        step_size_history: np.ndarray = None,
+    ) -> (np.ndarray, float, bool, float):
         """Computes the next state and"""
         new_state = old_state.copy()
         new_state += np.tensordot(
@@ -104,15 +108,29 @@ class RungeKuttaScheme:
                 delta_t * self.butcher_tableau.butcher_adaptive_weights,
                 ((0,), (0,)),
             )
-            delta_t_new, accepted = self.error_controller(
-                new_state, new_state_embedded, delta_t, remaining_time
+            error_measure = self.error_measurer.get_measure(
+                new_state - new_state_embedded,
+                new_state,
+                self.ode,
             )
-            return new_state, delta_t_new, accepted
+            error_controller_status = self.error_controller(
+                error_measure=error_measure,
+                delta_t=delta_t,
+                remaining_time=remaining_time,
+                error_history=error_history,
+                step_size_history=step_size_history,
+            )
+            return (
+                new_state,
+                error_controller_status.step_size_suggestion,
+                error_controller_status.acceptance,
+                error_measure,
+            )
         elif not self.butcher_tableau.is_embedded and self.use_adaptive_time_stepping:
             raise RungeKuttaError(
                 "Impossible to run adaptive scheme on non-embedded butcher tableau."
             )
-        return new_state, delta_t, True
+        return new_state, delta_t, True, np.nan
 
     def compute_stage_jacvec(
         self,
