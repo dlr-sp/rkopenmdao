@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import functools
 import inspect
-from typing import Union, Callable
+from typing import Union, Callable, Optional
 
 from mpi4py import MPI
 import numpy as np
@@ -81,16 +81,16 @@ class OpenMDAOODE(DiscretizedODE):
     _integration_control: IntegrationControl
     _om_run_solve_linear: Callable[[str], None]
     _norm_exclusions: list
-    _norm_order: float | str
+    _norm_order: Union[float, str]
 
     def __init__(
         self,
         time_stage_problem: om.Problem,
         integration_control: IntegrationControl,
         time_integration_quantities: list,
-        independent_input_quantities: Union[list, None] = None,
-        norm_exclusions: list | None = None,
-        norm_order: float | str = 2.0,
+        independent_input_quantities: Optional[list] = None,
+        norm_exclusions: Optional[list] = None,
+        norm_order: Union[float, str] = 2.0,
     ):
         self._time_stage_problem = time_stage_problem
         self._integration_control = integration_control
