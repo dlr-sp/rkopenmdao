@@ -653,7 +653,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             step % self.options["write_out_distance"] == 0
             or self.options["integration_control"].is_last_time_step()
         ):
-            self._write_out(step, time, self._serialized_state, self.error_history[0])
+            self._write_out(
+                step,
+                time,
+                self._serialized_state,
+                (
+                    self.error_history[0]
+                    if self.options["adaptive_time_stepping"]
+                    else None
+                ),
+            )
 
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
