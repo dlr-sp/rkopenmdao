@@ -44,7 +44,7 @@ class Hdf5FileWriter(FileWriterInterface):
                     quantity
                 ) in self.time_integration_metadata.time_integration_quantity_list:
                     f.create_group(quantity.name)
-                f.create_group("Norm")
+                f.create_group("error_measure")
 
     def write_step(
         self,
@@ -71,13 +71,13 @@ class Hdf5FileWriter(FileWriterInterface):
                         start_array:end_array
                     ].reshape(quantity.array_metadata.shape)
             if error_measure:
-                norm_data = f["Error measure"].create_dataset(
+                norm_data = f["error_measure"].create_dataset(
                     str(step),
                     shape=(1,),
                     dtype=np.float64,
                 )
                 norm_data.attrs["time"] = time
-                f["Error measure"][str(step)][0] = error_measure
+                f["error_measure"][str(step)][0] = error_measure
 
     @staticmethod
     def get_write_indices(quantity: Quantity) -> tuple:
