@@ -2,10 +2,14 @@
 Usable odes for plotting.
 """
 
+from functools import cached_property
+
 import numpy as np
 import openmdao.api as om
 
 from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.utils.decorators import indexed_static
+
 
 class ProtheroRobinson(om.ExplicitComponent):
     """
@@ -59,3 +63,7 @@ class ProtheroRobinson(om.ExplicitComponent):
     def solution(time):
         """Analytical solution of the ODE"""
         return (np.sin(time) + np.cos(time)) * 2 ** (-1 / 2)
+
+    @indexed_static
+    def get_initial_values():
+        return np.array([np.sin(np.pi / 4)])
