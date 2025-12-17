@@ -14,6 +14,7 @@ from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
 from rkopenmdao.integration_control import StepTerminationIntegrationControl
 
 from .test_components import TestComp1
+from .distributed_variables_test import Test1Component1
 
 DELTA_T = 0.1
 test_integration_control = StepTerminationIntegrationControl(DELTA_T, 1, 0.0)
@@ -82,6 +83,7 @@ def test_compute_update_adjoint_derivative():
         )
     )
 
+
 def test_reimport():
     """
     Tests that exporting and reimporting a cached linearization state provides the
@@ -106,3 +108,46 @@ def test_reimport():
         DiscretizedODEInputState(np.ones(1), np.ones(1), np.ones(1), 0.0), DELTA_T, 0.0
     ).stage_update
     assert update_pert_new == update_pert
+
+
+def test_compute_state_norm():
+    """
+    Tests serial norm computation.
+    """
+    state = DiscretizedODEResultState(np.zeros(0), np.full(1, 2.0), np.zeros(0))
+    norm = ODE.compute_state_norm(state)
+    assert norm == 2.0
+
+
+@pytest.mark.mpi
+def test_compute_state_norm_parallel():
+    """
+    Tests parallel norm computation.
+    """
+    parallel_problem = om.Problem()
+    parallel_problem.model.add_subsystem(
+        "comp",
+        Test1Component1(integration_control=test_integration_control),
+        promotes=["*"],
+    )
+    par_ivc = om.IndepVarComp()
+    par_ivc.add_output("x_old", shape=1, distributed=True)
+    par_ivc.add_output("s_i", shape=1, distributed=True)
+    parallel_problem.model.add_subsystem("ivc", par_ivc, promotes=["*"])
+    parallel_problem.setup()
+    parallel_problem.final_setup()
+    parallel_problem.run_model()
+    parallel_test_time_integration_quantities = ["x"]
+    parallel_ode = OpenMDAOODE(
+        parallel_problem,
+        test_integration_control,
+        parallel_test_time_integration_quantities,
+    )
+    result = parallel_ode.compute_state_norm(
+        DiscretizedODEResultState(
+            np.zeros(0),
+            np.full(1, 2.0) if parallel_problem.comm.rank == 0 else np.full(1, 3.0),
+            np.zeros(0),
+        )
+    )
+    assert result == pytest.approx(13**0.5)

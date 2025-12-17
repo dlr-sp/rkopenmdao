@@ -63,7 +63,7 @@ if __name__ == "__main__":
             ) as f:
                 last_step = int(1.0 / dt)
                 error_data[butcher_tableau.name][f"{dt}"].append(
-                    f["Norm"][str(last_step)][0]
+                    f["error_measure"][str(last_step)][0]
                 )
     print(error_data[butcher_tableau.name].values())
     if rank == 0:
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         plt.xlabel("Step size t [s] (log scale)")
         plt.xscale("log")
         # y axis
-        plt.ylabel("Norm Error E [-] (log scale)")
+        plt.ylabel("Error measure E [-] (log scale)")
         plt.yscale("log")
         plt.grid(True)
         for scheme in butcher_tableaux:
@@ -94,4 +94,4 @@ if __name__ == "__main__":
         plt.xlim(delta_t_list[0], delta_t_list[-1])
         plt.legend()
         plt.show()
-        fig.savefig("norm_error_time_plot.pdf")
+        fig.savefig("error_time_plot.pdf")

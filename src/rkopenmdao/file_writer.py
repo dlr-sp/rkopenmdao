@@ -28,6 +28,7 @@ class FileWriterInterface(ABC):
         step: int,
         time: float,
         time_integration_data: np.ndarray,
+        error_measure: float = None,
     ) -> None:
         """Writes out step to file"""
 
@@ -43,14 +44,14 @@ class Hdf5FileWriter(FileWriterInterface):
                     quantity
                 ) in self.time_integration_metadata.time_integration_quantity_list:
                     f.create_group(quantity.name)
-                f.create_group("Norm")
+                f.create_group("error_measure")
 
     def write_step(
         self,
         step: int,
         time: float,
         time_integration_data: np.ndarray,
-        norm: float = None,
+        error_measure: float = None,
     ) -> None:
         with h5py.File(self.file_name, mode="r+", driver="mpio", comm=self.comm) as f:
             for (
@@ -69,14 +70,14 @@ class Hdf5FileWriter(FileWriterInterface):
                     f[quantity.name][str(step)][write_indices] = time_integration_data[
                         start_array:end_array
                     ].reshape(quantity.array_metadata.shape)
-            if norm:
-                norm_data = f["Norm"].create_dataset(
+            if error_measure:
+                norm_data = f["error_measure"].create_dataset(
                     str(step),
                     shape=(1,),
                     dtype=np.float64,
                 )
                 norm_data.attrs["time"] = time
-                f["Norm"][str(step)][0] = norm
+                f["error_measure"][str(step)][0] = error_measure
 
     @staticmethod
     def get_write_indices(quantity: Quantity) -> tuple:
@@ -107,14 +108,14 @@ class TXTFileWriter(FileWriterInterface):
         step: int,
         time: float,
         time_integration_data: np.ndarray,
-        norm: float = None,
+        error_measure: float = None,
     ) -> None:
         if self.comm.rank == 0:
             mode = "a"
             if step == 0:
                 mode = "w"
-            if norm:
-                data_dict = {"step": step, "time": time, "norm": norm}
+            if error_measure:
+                data_dict = {"step": step, "time": time, "error_measure": error_measure}
             else:
                 data_dict = {"step": step, "time": time}
 

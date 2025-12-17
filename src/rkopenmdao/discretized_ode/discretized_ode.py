@@ -211,3 +211,19 @@ class DiscretizedODE(ABC):
             Input perturbation for the calculation of the adjoint derivative of time
             stage.
         """
+
+    @abstractmethod
+    def compute_state_norm(self, state: DiscretizedODEResultState) -> float:
+        """
+        Computes a norm of the provided state for the given ODE.
+
+        Parameters
+        ----------
+        state: DiscretizedODEResultState
+            State of which the norm is to be calculated
+
+        Returns
+        -------
+        norm: float
+            Norm of provided state
+        """

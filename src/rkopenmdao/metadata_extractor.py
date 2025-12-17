@@ -28,7 +28,6 @@ class TimeIntegrationTranslationMetadata(TranslationMetadata):
     step_input_var: str | None = None
     accumulated_stage_var: str | None = None
     stage_output_var: str | None = None
-    postproc_input_var: str | None = None
 
 
 @dataclass

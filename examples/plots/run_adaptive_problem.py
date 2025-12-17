@@ -3,7 +3,6 @@ Generates a graph of the delta time over time of different adaptive Runge-Kutta 
 """
 
 from mpi4py import MPI
-import numpy as np
 import openmdao.api as om
 
 from rkopenmdao.butcher_tableaux import (
@@ -11,9 +10,9 @@ from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
+from rkopenmdao.error_controller import ErrorControllerConfig
 from rkopenmdao.error_controllers import ppid, integral
-from rkopenmdao.error_estimator import ImprovedErrorEstimator
-from rkopenmdao.file_writer import TXTFileWriter
+from rkopenmdao.error_measurer import ImprovedErrorMeasurer
 from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
 )
@@ -33,7 +32,7 @@ butcher_tableaux = [
     five_stage_esdirk,
 ]
 test_controller = [ppid, integral]
-test_estimator = ImprovedErrorEstimator
+test_measurer = ImprovedErrorMeasurer()
 
 for butcher_tableau in butcher_tableaux:
     file_name = f"{WRITE_FILE}_{butcher_tableau.name}"
@@ -55,8 +54,8 @@ for butcher_tableau in butcher_tableaux:
             integration_control=integration_control,
             time_integration_quantities=quantities,
             error_controller=test_controller,
-            error_controller_options={"tol": 1e-12},
-            error_estimator_type=test_estimator,
+            error_controller_options={"config": ErrorControllerConfig(tol=1e-12)},
+            error_measurer=test_measurer,
             adaptive_time_stepping=True,
             write_file=f"{file_name}.h5",
             write_out_distance=1,

@@ -1,7 +1,6 @@
 # pylint: disable=missing-module-docstring, protected-access
 
 from __future__ import annotations
-from itertools import chain
 
 import numpy as np
 import openmdao.api as om
@@ -13,10 +12,10 @@ from .integration_control import IntegrationControl
 from .runge_kutta_scheme import RungeKuttaScheme
 from .error_controller import ErrorController
 from .error_controllers import integral
-from .error_estimator import ErrorEstimator, SimpleErrorEstimator
+from .error_measurer import ErrorMeasurer, SimpleErrorMeasurer
 from .checkpoint_interface.checkpoint_interface import CheckpointInterface
 from .checkpoint_interface.no_checkpointer import NoCheckpointer
-from .metadata_extractor import Quantity, TimeIntegrationMetadata
+from .metadata_extractor import TimeIntegrationMetadata
 
 from .file_writer import FileWriterInterface, Hdf5FileWriter
 
@@ -32,8 +31,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     _of_vars: list
     _wrt_vars: list
-    _of_vars_postproc: list
-    _wrt_vars_postproc: list
 
     _ode: OpenMDAOODE
 
@@ -45,7 +42,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _accumulated_stage_perturbations: np.ndarray | None
     _stage_perturbations_cache: np.ndarray | None
 
-    _error_estimator: ErrorEstimator | None
+    _error_measurer: ErrorMeasurer | None
     _error_controller: ErrorController | None
 
     _independent_input_array: np.ndarray | None
@@ -86,6 +83,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._file_writer = None
 
         self._checkpointer = None
+
+        self.error_history: np.ndarray = np.zeros(2)
+        self.step_size_history: np.ndarray = np.zeros(2)
 
     def initialize(self):
         self.options.declare(
@@ -197,22 +197,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
 
         self.options.declare(
-            "error_estimator_type",
-            check_valid=self.check_error_estimator_type,
-            default=SimpleErrorEstimator,
-            desc="""Type of ErrorEstimator used. Must be a subclass of
-            ErrorEstimator""",
-        )
-
-        self.options.declare(
-            "error_estimator_options",
-            types=dict,
-            default={},
-            desc="""Additional options passed to the ErrorController.
-            Valid options depend on the error_estimator_type""",
-        )
-
-        self.options.declare(
             "error_controller",
             default=[integral],
             check_valid=self.check_error_controller,
@@ -227,6 +211,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             default={},
             desc="""Options for the error controller class. Valid options depend of
             the error controller type.""",
+        )
+
+        self.options.declare(
+            "error_measurer",
+            default=SimpleErrorMeasurer(),
+            types=ErrorMeasurer,
+            desc="""ErrorMeasurer used for error control.""",
         )
 
         self.options.declare(
@@ -255,15 +246,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             raise TypeError(f"{value} is not a subclass of FileWriterInterface")
 
     @staticmethod
-    def check_error_estimator_type(name, value):
-        """Checks whether the passed checkpointing type for the options is an actual
-        subclass of CheckpointInterface"""
-        # pylint: disable=unused-argument
-        # OpenMDAO needs that specific interface, even if we don't need it fully.
-        if not issubclass(value, ErrorEstimator):
-            raise TypeError(f"{value} is not a subclass of CheckpointInterface")
-
-    @staticmethod
     def check_error_controller(name, value):
         """Checks whether the passed error_controller type for the options is an actual
         a callable and has the right parameters"""
@@ -272,7 +254,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for method in value:
             if not callable(method):
                 raise TypeError(f"{method} is not a callable.")
-            temp = method(p=1, error_estimator=SimpleErrorEstimator)
+            temp = method(p=1)
             if not isinstance(temp, ErrorController):
                 raise TypeError(
                     f"{method} does not instantiate an instance of ErrorController"
@@ -284,7 +266,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_inner_problems()
         self._setup_variables()
         self._setup_arrays()
-        self._setup_error_estimator()
         self._setup_error_controller()
         self._setup_runge_kutta_scheme()
         self._configure_write_out()
@@ -293,6 +274,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print("\n" + "=" * 34 + " setup ends " + "=" * 34 + "\n")
 
     def _setup_error_controller(self):
+        self._error_measurer = self.options["error_measurer"]
         p = self.options["butcher_tableau"].min_p_order()
         self._error_controller = None
         # Sets initial delta_t to be at boundary if given wrongly by mistake
@@ -300,11 +282,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._error_controller = controller(
                 p=p,
                 **self.options["error_controller_options"],
-                error_estimator=self._error_estimator,
                 base=self._error_controller,
             )
         if self.comm.rank == 0:
             print(f"\n{self._error_controller}")
+
+    def _reset_error_control_history(self):
+        self.step_size_history.fill(0.0)
+        self.error_history.fill(self._error_controller.config.tol)
 
     def _setup_inner_problems(self):
         self.options["time_stage_problem"].setup()
@@ -379,10 +364,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._wrt_vars.append(
                     quantity.translation_metadata.accumulated_stage_var
                 )
-            if quantity.translation_metadata.postproc_input_var is not None:
-                self._wrt_vars_postproc.append(
-                    quantity.translation_metadata.postproc_input_var
-                )
 
     def _add_time_independent_variable_derivative_info(self):
         for (
@@ -432,6 +413,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._ode,
             self.options["adaptive_time_stepping"],
             self._error_controller,
+            self._error_measurer,
         )
         if self.comm.rank == 0:
             print(f"\n{self._runge_kutta_scheme.butcher_tableau}\n")
@@ -450,13 +432,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             run_step_func=self._run_step,
             run_step_jacvec_rev_func=self._run_step_jacvec_rev,
             **self.options["checkpoint_options"],
-        )
-
-    def _setup_error_estimator(self):
-        self._error_estimator = self.options["error_estimator_type"](
-            **self.options["error_estimator_options"],
-            comm=self.comm,
-            quantity_metadata=self._time_integration_metadata,
         )
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
@@ -478,7 +453,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._independent_input_array.copy(),
         )
         self.options["integration_control"].reset()
-        self._update_error_estimator()
+        self._reset_error_control_history()
 
     def _to_numpy_array_time_integration(
         self, om_vector: OMVector, np_array: np.ndarray
@@ -521,21 +496,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         step: int,
         time: float,
         serialized_state: np.ndarray,
+        error_measure: float = None,
     ):
         if self._file_writer is not None:
-            if self.options["adaptive_time_stepping"]:
-                self._file_writer.write_step(
-                    step,
-                    time,
-                    serialized_state,
-                    self._error_controller.get_last_step_norm(),
-                )
-            else:
-                self._file_writer.write_step(
-                    step,
-                    time,
-                    serialized_state,
-                )
+            self._file_writer.write_step(
+                step,
+                time,
+                serialized_state,
+                error_measure,
+            )
 
     def _compute_checkpointing_setup_phase(self):
         self._checkpointer.create_checkpointer()
@@ -587,23 +556,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print(f"\nFinishing step <{step}> of compute.\n")
         return (
             self._serialized_state,
-            self._error_controller.local_data.delta_time_steps,
-            self._error_controller.local_data.local_error_norms,
+            self.step_size_history,
+            self.error_history,
         )
 
     def _update_integration_control_step(self):
         self.options["integration_control"].step_time += self.options[
             "integration_control"
         ].delta_t
-
-    def _update_error_estimator(self):
-        if (
-            self.options["integration_control"].step
-            == self.options["integration_control"].initial_step
-        ):
-            self._error_controller.reset()
-        if self.comm.rank == 0:
-            print("" * 29 + "\n| Resetting error estimator |\n" + "-" * 29 + "\n")
 
     def _iterate_on_step(self, delta_t_suggestion, stage_computation_func, i=0):
         """Iterates on the a step until a time step that
@@ -616,12 +576,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         for stage in range(self.options["butcher_tableau"].number_of_stages()):
             stage_computation_func(stage)
 
-        temp_serialized_state, delta_t_suggestion, accepted = (
+        temp_serialized_state, delta_t_suggestion, accepted, error_measure = (
             self._runge_kutta_scheme.compute_step(
                 self.options["integration_control"].delta_t,
                 self._serialized_state,
                 self._stage_cache,
                 self.options["integration_control"].remaining_time(),
+                self.error_history,
+                self.step_size_history,
             )
         )
         if self.options["adaptive_time_stepping"]:
@@ -637,11 +599,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     """
                 )
 
-        if not accepted:
+        if accepted:
+            self.step_size_history = np.roll(self.step_size_history, 1)
+            self.step_size_history[0] = self.options["integration_control"].delta_t
+            self.error_history = np.roll(self.error_history, 1)
+            self.error_history[0] = error_measure
+            return temp_serialized_state, delta_t_suggestion
+        else:
             return self._iterate_on_step(
                 delta_t_suggestion, stage_computation_func, i + 1
             )
-        return temp_serialized_state, delta_t_suggestion
 
     def _run_step_time_integration_phase(self):
         delta_t_suggestion = self.options["integration_control"].delta_t_suggestion
@@ -690,6 +657,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 step,
                 time,
                 self._serialized_state,
+                (
+                    self.error_history[0]
+                    if self.options["adaptive_time_stepping"]
+                    else None
+                ),
             )
 
     def compute_jacvec_product(
@@ -723,7 +695,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             d_inputs, self._independent_input_perturbations
         )
         self.options["integration_control"].reset()
-        self._update_error_estimator()
+        self._reset_error_control_history()
 
     def _compute_jacvec_fwd_run_steps(self):
         while self.options["integration_control"].termination_condition_status():
