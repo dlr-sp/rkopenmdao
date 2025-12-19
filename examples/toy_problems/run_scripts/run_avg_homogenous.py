@@ -6,8 +6,8 @@ from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
 from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
 )
-from rkopenmdao.examples.toy_problems.utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from rkopenmdao.examples.toy_problems.utils.rk_setup import IntegrationConfig, rk_setup
+from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
+from ..utils.rk_setup import IntegrationConfig, rk_setup
 
 
 def count_keys(path):
@@ -19,13 +19,16 @@ def count_keys(path):
 integration_config = IntegrationConfig(
     TimeTerminationIntegrationControl(0, PROBLEM.time_objective, 0.0),
     [pseudo],
-    SimpleErrorMeasurer,
+    SimpleErrorMeasurer(),
+    "",
     {},
 )
 
 if __name__ == "__main__":
     for butcher_tableau in BUTCHER_TABLEAUX:
-        steps = count_keys(PROBLEM.get_file_path(butcher_tableau.name, "adaptive")[1])
+        steps = count_keys(
+            str(PROBLEM.get_file_path(butcher_tableau.name, "adaptive")[1])
+        )
         step_size = PROBLEM.time_objective / steps
         print(f"{butcher_tableau.name}: {step_size}")
         integration_config.integration_control = TimeTerminationIntegrationControl(

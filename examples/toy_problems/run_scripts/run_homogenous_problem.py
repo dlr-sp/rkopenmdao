@@ -5,13 +5,13 @@ from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.examples.toy_problems.utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from rkopenmdao.examples.toy_problems.utils.rk_setup import IntegrationConfig, rk_setup
+from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
+from ..utils.rk_setup import IntegrationConfig, rk_setup
 
 integration_config = IntegrationConfig(
     TimeTerminationIntegrationControl(0, PROBLEM.time_objective, 0.0),
     [pseudo],
-    SimpleErrorMeasurer,
+    SimpleErrorMeasurer(),
     "",
     {},
 )

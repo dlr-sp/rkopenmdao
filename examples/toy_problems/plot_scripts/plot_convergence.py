@@ -1,14 +1,14 @@
 import h5py
 import matplotlib.pyplot as plt
 
-from rkopenmdao.examples.toy_problems.utils.constants import (
+from ..utils.constants import (
     PROBLEM,
     BUTCHER_TABLEAUX,
     MARKER,
     COLORS,
     BUTCHER_NAMES,
 )
-
+from ..utils.rk_setup import generate_path
 
 if __name__ == "__main__":
     local_error_data = {}
@@ -29,7 +29,7 @@ if __name__ == "__main__":
             ) as f:
                 last_step = int(PROBLEM.time_objective / dt)
                 local_error_data[butcher_tableau.name][str(dt)].append(
-                    f["Norm"][str(last_step)][0]
+                    f["error_measure"][str(last_step)][0]
                 )
 
     # PLOT LOCAL ERROR DATA
@@ -49,16 +49,10 @@ if __name__ == "__main__":
             color=COLORS[i],
             label=f"{BUTCHER_NAMES[i]}",
         )
-    # Asymptote set local_error_data[scheme.name][j][%SET_HERE%] a string of the smallest time step size
-    # plt.loglog(
-    #     DELTA_T_LIST,
-    #     (local_error_data[scheme.name]["0.01"] / DELTA_T_LIST[0] ** p)
-    #     * (DELTA_T_LIST) ** p,
-    #    "k--",
-    #     lw=1,
-    # )
     ax.set_xlim(PROBLEM.delta_t[0], PROBLEM.delta_t[-1])
     ax.legend()
 
-    save_file = PROBLEM.folder_path / "local_error_time_plot.png"
-    fig.savefig(save_file)
+    save_file = generate_path(
+        str(PROBLEM.folder_path / "plots" / "local_error_time_plot.png")
+    )
+    fig.savefig(str(save_file))

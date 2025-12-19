@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from rkopenmdao.src.rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk as second_order_sdirk,
     embedded_second_order_three_stage_esdirk as second_order_esdirk,
