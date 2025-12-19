@@ -4,14 +4,14 @@ from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
 from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
 )
-from rkopenmdao.examples.toy_problems.utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from rkopenmdao.examples.toy_problems.utils.rk_setup import IntegrationConfig, rk_setup
+from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
+from ..utils.rk_setup import IntegrationConfig, rk_setup
 
 if __name__ == "__main__":
     integration_config = IntegrationConfig(
         TimeTerminationIntegrationControl(0.1, PROBLEM.time_objective, 0.0),
         [integral],
-        SimpleErrorMeasurer,
+        SimpleErrorMeasurer(),
         "",
         {"config": ErrorControllerConfig(tol=1e-6)},
     )

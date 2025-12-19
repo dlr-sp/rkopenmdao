@@ -10,15 +10,9 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 from matplotlib import ticker
-from rkopenmdao.butcher_tableaux import (
-    embedded_second_order_two_stage_sdirk as second_order_sdirk,
-    embedded_second_order_three_stage_esdirk as second_order_esdirk,
-    embedded_third_order_three_stage_sdirk as third_order_sdirk,
-    embedded_third_order_four_stage_esdirk as third_order_esdirk,
-    embedded_fourth_order_four_stage_sdirk as fourth_order_sdirk,
-    embedded_fourth_order_five_stage_esdirk as fourth_order_esdirk,
-)
-from rkopenmdao.examples.toy_problems.utils.constants import PROBLEM, BUTCHER_TABLEAUX
+
+from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
+from ..utils.rk_setup import generate_path
 
 
 def h5py_read(file, quantities, solution):
@@ -43,16 +37,20 @@ def h5py_read(file, quantities, solution):
             result[quan] = {}
             for key in group.keys():
                 result[quan][int(key)] = group[key][0]
-                error_data[quan][int(key)] = np.abs(
-                    solution(time[int(key)])[i] - result[quan][int(key)]
-                )
+                if len(quantities) > 1:
+                    error_data[quan][int(key)] = np.abs(
+                        solution(time[int(key)])[i] - result[quan][int(key)]
+                    )
+                else:
+                    error_data[quan][int(key)] = np.abs(
+                        solution(time[int(key)]) - result[quan][int(key)]
+                    )
     return time, error_data, result
 
 
 def sort_dicts(time, error, result, quantities):
-    time = (
-        dict(sorted(time.items())),
-    )  # Takes the time dictionary, sorts its items (by key),
+    time = dict(sorted(time.items()))
+    # Takes the time dictionary, sorts its items (by key),
     # and converts the result back into a dictionary
     dt = [0] * len(time)
     for i in range(
@@ -65,9 +63,9 @@ def sort_dicts(time, error, result, quantities):
         error[q] = dict(sorted(error[q].items()))
     return (
         time,
-        dt,
-        result,
         error,
+        result,
+        dt,
     )
 
 
@@ -107,7 +105,9 @@ if __name__ == "__main__":
         for index, quantity in enumerate(PROBLEM.quantity):
             axs[index].set(ylabel=f"${quantity}$")
             axs[index].grid(True)
-            axs[index].plot(time_adaptive.values(), results_adaptive.values(), "-")
+            axs[index].plot(
+                time_adaptive.values(), results_adaptive[quantity].values(), "-"
+            )
             axs[index].set_xlim(0, PROBLEM.time_objective)
 
         axs[-1].set(xlabel=f"$t$", ylabel=f"$\Delta t$")
@@ -125,8 +125,11 @@ if __name__ == "__main__":
             r"$\Delta \bar{t}$",
         )
         axs[-1].set_xlim(0, PROBLEM.time_objective)
-        save_file = PROBLEM.folder_path / f"analytical_solution_{data_name}.png"
-        fig.savefig(save_file)
+        save_file = generate_path(
+            str(PROBLEM.folder_path / "plots" / f"analytical_solution_{data_name}.png")
+        )
+
+        fig.savefig(str(save_file))
 
         # ----------------------------------------------
 
@@ -138,7 +141,10 @@ if __name__ == "__main__":
         formatter.set_scientific(True)
         formatter.set_powerlimits((-1, 1))
         for index, quantity in enumerate(PROBLEM.quantity):
-            axs[index].set(ylabel=f"Global error $\epsilon^g_{quantity}$")
+            print(error_data_adaptive[quantity].values())
+            axs[index].set(
+                ylabel=f"Global error $\epsilon^g_{quantity.replace('_','')}$"
+            )
             axs[index].grid(True)
             axs[index].plot(
                 time_adaptive.values(),
@@ -170,7 +176,16 @@ if __name__ == "__main__":
         )
 
         axs[-1].set_xlim(0, PROBLEM.time_objective)
-
-        fig.legend(loc="upper center", ncol=2, bbox_to_anchor=(0.5, 0.96))
-        save_file = PROBLEM.folder_path / f"global_error_{data_name}.png"
-        fig.savefig(save_file)
+        handles, labels = axs[0].get_legend_handles_labels()
+        by_label = dict(zip(labels, handles))
+        fig.legend(
+            by_label.values(),
+            by_label.keys(),
+            loc="upper center",
+            ncol=2,
+            bbox_to_anchor=(0.5, 0.96),
+        )
+        save_file = generate_path(
+            str(PROBLEM.folder_path / "plots" / f"global_error_{data_name}.png")
+        )
+        fig.savefig((save_file))

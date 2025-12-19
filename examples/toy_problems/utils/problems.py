@@ -6,7 +6,7 @@ import pathlib
 
 from rkopenmdao.utils.convergence_test_components import kaps_solution, KapsGroup
 
-from rkopenmdao.examples.toy_problems.utils.ode import ProtheroRobinson
+from ..utils.ode import ProtheroRobinson
 
 
 def parse_problem():
@@ -43,7 +43,7 @@ class Problem:
     delta_t: np.ndarray
     quantity: list[str]
     time_objective: float  # in seconds
-    stiffness_coef: float
+    stiffness_coef: dict
     folder_path: pathlib.Path
     problem: Callable
     solution: Callable[[float], float | np.ndarray[float]]
@@ -66,8 +66,8 @@ def prothero_robinson_problem(_lambda=-1e2):
     )
     quantity = ["x"]
     time_objective = 10.0  # in seconds
-    stiffness_coef = _lambda
-    folder_path = pathlib.Path(__file__).parent / "data" / "prothero_robinson"
+    stiffness_coef = {"lambda_": _lambda}
+    folder_path = pathlib.Path(__file__).parent.parent / "data" / "prothero_robinson"
     # "data/prothero_robinson" should contain the "adaptive" folder for the data of adaptive .h5 runs
     # (run_adaptive_problem.py), and the "homogeneous" folder for the homogeneous for the data .h5 runs wrt. the adaptive's
     # average delta_t (run_non_adaptive_wrt_adaptive.py)
@@ -94,9 +94,9 @@ def kaps_problem(epsilon=1.0):
         ]
     )
     quantity = ["y_1", "y_2"]
-    stiffness_coef = epsilon
+    stiffness_coef = {"epsilon": epsilon}
     time_objective = 1.0  # in seconds
-    folder_path = pathlib.Path(__file__).parent / "data" / "kaps"
+    folder_path = pathlib.Path(__file__).parent.parent / "data" / "kaps"
     return Problem(
         delta_t_list,
         quantity,
