@@ -33,7 +33,7 @@ def generate_path(path):
     return path
 
 
-def rk_setup(
+def run_rk_problem(
     problem,
     butcher_tableau,
     integration_config: IntegrationConfig,
@@ -53,7 +53,7 @@ def rk_setup(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
             integration_control=integration_config.integration_control,
-            time_integration_quantities=problem.quantity,
+            time_integration_quantities=problem.quantities,
             adaptive_time_stepping=True,
             error_controller=integration_config.error_controller,
             error_controller_options=integration_config.config,
@@ -64,7 +64,7 @@ def rk_setup(
         promotes=["*"],
     )
     runge_kutta_prob.setup()
-    for index, quantity in enumerate(problem.quantity):
+    for index, quantity in enumerate(problem.quantities):
         runge_kutta_prob[quantity + "_initial"].fill(
             problem.problem.get_initial_values[index]
         )

@@ -45,7 +45,7 @@ class ProtheroRobinson(om.ExplicitComponent):
         return np.cos(time + np.pi / 4)
 
     def compute(self, inputs, outputs):
-        _delta_t = self.options["integration_control"].delta_t
+        _delta_t = self.options["integration_control"].step_sizes
         stage_time = self.options["integration_control"].stage_time
         lambda_ = self.options["lambda_"]
         outputs["x_stage"] = (
