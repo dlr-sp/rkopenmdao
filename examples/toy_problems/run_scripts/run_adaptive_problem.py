@@ -5,7 +5,7 @@ from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
 )
 from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from ..utils.rk_setup import IntegrationConfig, rk_setup
+from ..utils.run_rk_problem import IntegrationConfig, run_rk_problem
 
 if __name__ == "__main__":
     integration_config = IntegrationConfig(
@@ -19,4 +19,4 @@ if __name__ == "__main__":
         integration_config.write_file = PROBLEM.get_file_path(
             butcher_tableau.name, "adaptive"
         )[1]
-        rk_setup(PROBLEM, butcher_tableau, integration_config)
+        run_rk_problem(PROBLEM, butcher_tableau, integration_config)

@@ -6,7 +6,7 @@ import pathlib
 
 from rkopenmdao.utils.convergence_test_components import kaps_solution, KapsGroup
 
-from ..utils.ode import ProtheroRobinson
+from ..utils.prothero_robinson_ode import ProtheroRobinson
 
 
 def parse_problem():
@@ -40,8 +40,8 @@ def parse_problem():
 
 @dataclass
 class Problem:
-    delta_t: np.ndarray
-    quantity: list[str]
+    step_sizes: np.ndarray
+    quantities: list[str]
     time_objective: float  # in seconds
     stiffness_coef: dict
     folder_path: pathlib.Path
@@ -64,7 +64,7 @@ def prothero_robinson_problem(_lambda=-1e2):
             1e-2,
         ]
     )
-    quantity = ["x"]
+    quantities = ["x"]
     time_objective = 10.0  # in seconds
     stiffness_coef = {"lambda_": _lambda}
     folder_path = pathlib.Path(__file__).parent.parent / "data" / "prothero_robinson"
@@ -74,7 +74,7 @@ def prothero_robinson_problem(_lambda=-1e2):
     solution = ProtheroRobinson.solution
     return Problem(
         delta_t_list,
-        quantity,
+        quantities,
         time_objective,
         stiffness_coef,
         folder_path,
@@ -93,13 +93,13 @@ def kaps_problem(epsilon=1.0):
             1e-1,
         ]
     )
-    quantity = ["y_1", "y_2"]
+    quantities = ["y_1", "y_2"]
     stiffness_coef = {"epsilon": epsilon}
     time_objective = 1.0  # in seconds
     folder_path = pathlib.Path(__file__).parent.parent / "data" / "kaps"
     return Problem(
         delta_t_list,
-        quantity,
+        quantities,
         time_objective,
         stiffness_coef,
         folder_path,

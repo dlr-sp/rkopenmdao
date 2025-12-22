@@ -2,7 +2,7 @@
 1. Plots the local error wrt. to analytical solution over delta time,
 2. Plots the solution graphs for each scheme.
 
-This requires running each of the "run_*" files and store the .h5 files as stated in "File locations" below."
+This requires running each of the "run_*" files."
 """
 
 import numpy as np
@@ -12,10 +12,10 @@ import matplotlib.pyplot as plt
 from matplotlib import ticker
 
 from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from ..utils.rk_setup import generate_path
+from ..utils.run_rk_problem import generate_path
 
 
-def h5py_read(file, quantities, solution):
+def read_h5py_file(file, quantities, solution):
     # Initialize dictionaries
     time = {}
     error_data = {}
@@ -31,19 +31,19 @@ def h5py_read(file, quantities, solution):
         for key in group.keys():
             time[int(key)] = group[key].attrs["time"]
         # Extract solution and compute Error wrt. analytical solution
-        for i, quan in enumerate(quantities):
-            group = f[quan]
-            error_data[quan] = {}  # initialize error data for each quantity
-            result[quan] = {}
+        for i, quantity in enumerate(quantities):
+            group = f[quantity]
+            error_data[quantity] = {}  # initialize error data for each quantity
+            result[quantity] = {}
             for key in group.keys():
-                result[quan][int(key)] = group[key][0]
+                result[quantity][int(key)] = group[key][0]
                 if len(quantities) > 1:
-                    error_data[quan][int(key)] = np.abs(
-                        solution(time[int(key)])[i] - result[quan][int(key)]
+                    error_data[quantity][int(key)] = np.abs(
+                        solution(time[int(key)])[i] - result[quantity][int(key)]
                     )
                 else:
-                    error_data[quan][int(key)] = np.abs(
-                        solution(time[int(key)]) - result[quan][int(key)]
+                    error_data[quantity][int(key)] = np.abs(
+                        solution(time[int(key)]) - result[quantity][int(key)]
                     )
     return time, error_data, result
 
@@ -74,19 +74,19 @@ if __name__ == "__main__":
         # ------------------
         # Adaptive
         data_name, file_path = PROBLEM.get_file_path(butcher_tableau.name, "adaptive")
-        time_adaptive, error_data_adaptive, results_adaptive = h5py_read(
-            file_path, PROBLEM.quantity, PROBLEM.solution
+        time_adaptive, error_data_adaptive, results_adaptive = read_h5py_file(
+            file_path, PROBLEM.quantities, PROBLEM.solution
         )
         time_adaptive, error_data_adaptive, results_adaptive, delta_t = sort_dicts(
-            time_adaptive, error_data_adaptive, results_adaptive, PROBLEM.quantity
+            time_adaptive, error_data_adaptive, results_adaptive, PROBLEM.quantities
         )
 
         # -----------------
         # Homogeneous
 
         _, file_path = PROBLEM.get_file_path(butcher_tableau.name, "homogeneous")
-        time_homogeneous, error_data_homogeneous, results_homogenous = h5py_read(
-            file_path, PROBLEM.quantity, PROBLEM.solution
+        time_homogeneous, error_data_homogeneous, results_homogenous = read_h5py_file(
+            file_path, PROBLEM.quantities, PROBLEM.solution
         )
 
         # Sort
@@ -94,15 +94,15 @@ if __name__ == "__main__":
             time_homogeneous,
             error_data_homogeneous,
             results_homogenous,
-            PROBLEM.quantity,
+            PROBLEM.quantities,
         )
 
         # ----------------------------------------------
         # Generate Solution Figure
-        fig, axs = plt.subplots(len(PROBLEM.quantity) + 1)
+        fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
         plt.suptitle(f"{butcher_tableau.name} analytical solution")
 
-        for index, quantity in enumerate(PROBLEM.quantity):
+        for index, quantity in enumerate(PROBLEM.quantities):
             axs[index].set(ylabel=f"${quantity}$")
             axs[index].grid(True)
             axs[index].plot(
@@ -134,13 +134,13 @@ if __name__ == "__main__":
         # ----------------------------------------------
 
         # Generate Global Error Figure
-        fig, axs = plt.subplots(len(PROBLEM.quantity) + 1)
+        fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
         plt.suptitle(f"{butcher_tableau.name} global error")
 
         formatter = ticker.ScalarFormatter(useMathText=False)
         formatter.set_scientific(True)
         formatter.set_powerlimits((-1, 1))
-        for index, quantity in enumerate(PROBLEM.quantity):
+        for index, quantity in enumerate(PROBLEM.quantities):
             print(error_data_adaptive[quantity].values())
             axs[index].set(
                 ylabel=f"Global error $\epsilon^g_{quantity.replace('_','')}$"

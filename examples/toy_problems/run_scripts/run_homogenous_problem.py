@@ -6,7 +6,7 @@ from rkopenmdao.integration_control import (
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from ..utils.rk_setup import IntegrationConfig, rk_setup
+from ..utils.run_rk_problem import IntegrationConfig, run_rk_problem
 
 integration_config = IntegrationConfig(
     TimeTerminationIntegrationControl(0, PROBLEM.time_objective, 0.0),
@@ -18,7 +18,7 @@ integration_config = IntegrationConfig(
 
 if __name__ == "__main__":
     for butcher_tableau in BUTCHER_TABLEAUX:
-        for step_size in PROBLEM.delta_t:
+        for step_size in PROBLEM.step_sizes:
             integration_config.integration_control = TimeTerminationIntegrationControl(
                 step_size, PROBLEM.time_objective, 0.0
             )
@@ -28,4 +28,4 @@ if __name__ == "__main__":
                 .replace(",", "")
                 .lower()
             )
-            rk_setup(PROBLEM, butcher_tableau, integration_config)
+            run_rk_problem(PROBLEM, butcher_tableau, integration_config)
