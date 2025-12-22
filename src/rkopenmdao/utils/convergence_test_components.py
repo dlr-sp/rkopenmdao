@@ -4,6 +4,7 @@ import numpy as np
 import openmdao.api as om
 
 from rkopenmdao.integration_control import IntegrationControl
+from .decorators import indexed_static
 
 # pylint: disable=arguments-differ, unused-argument, too-many-branches
 
@@ -354,6 +355,10 @@ class KapsGroup(om.Group):
             iprint=-1, restart=10, atol=1e-15, rtol=1e-15
         )
         self.linear_solver.precon = om.LinearBlockJac(iprint=-1, maxiter=1)
+
+    @indexed_static
+    def get_initial_values():
+        return np.array([1.0, 1.0])
 
 
 # y' = -y
