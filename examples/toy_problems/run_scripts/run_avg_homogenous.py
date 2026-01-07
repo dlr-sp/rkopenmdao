@@ -16,16 +16,15 @@ def count_keys(path):
         return len(f[group_name].keys())
 
 
-integration_config = IntegrationConfig(
-    TimeTerminationIntegrationControl(0, PROBLEM.time_objective, 0.0),
-    [pseudo],
-    SimpleErrorMeasurer(),
-    "",
-    {},
-)
-
 if __name__ == "__main__":
-    for butcher_tableau in BUTCHER_TABLEAUX:
+    integration_config = IntegrationConfig(
+        TimeTerminationIntegrationControl(0, PROBLEM.time_objective, 0.0),
+        [pseudo],
+        SimpleErrorMeasurer(),
+        "",
+        {},
+    )
+    for butcher_tableau in BUTCHER_TABLEAUX.values():
         steps = count_keys(
             str(PROBLEM.get_file_path(butcher_tableau.name, "adaptive")[1])
         )

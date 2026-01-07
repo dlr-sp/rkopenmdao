@@ -22,19 +22,12 @@ COLORS: list[str] = [
     "orange",
     "lightskyblue",
 ]
-BUTCHER_NAMES: list[str] = [
-    "SDIRK2",
-    "ESDIRK2",
-    "SDIRK3",
-    "ESDIRK3",
-    "SDIRK4",
-    "ESDIRK4",
-]
-BUTCHER_TABLEAUX: list[Callable[[], ButcherTableau]] = [
-    second_order_sdirk,
-    second_order_esdirk,
-    third_order_sdirk,
-    third_order_esdirk,
-    fourth_order_sdirk,
-    fourth_order_esdirk,
-]
+
+BUTCHER_TABLEAUX: dict[str, Callable[[], ButcherTableau]] = {
+    "SDIRK2": second_order_sdirk,
+    "ESDIRK2": second_order_esdirk,
+    "SDIRK3": third_order_sdirk,
+    "ESDIRK3": third_order_esdirk,
+    "SDIRK4": fourth_order_sdirk,
+    "ESDIRK4": fourth_order_esdirk,
+}

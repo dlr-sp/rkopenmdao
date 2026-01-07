@@ -12,12 +12,11 @@ from ..utils.constants import (
     BUTCHER_TABLEAUX,
     MARKER,
     COLORS,
-    BUTCHER_NAMES,
 )
 from ..utils.run_rk_problem import generate_path
 
 local_error_data = {}
-for butcher_tableau in BUTCHER_TABLEAUX:
+for butcher_tableau in BUTCHER_TABLEAUX.values():
     local_error_data[f"{butcher_tableau.name}"] = {}
     for dt in PROBLEM.step_sizes:
 
@@ -42,7 +41,7 @@ fig, ax = plt.subplots()
 ax.set_xlabel(r"$\Delta t$")
 ax.set_ylabel(r"Local error measure $\epsilon^l$")
 plt.grid(True)
-for i, scheme in enumerate(BUTCHER_TABLEAUX):
+for i, scheme in enumerate(BUTCHER_TABLEAUX.values()):
     p = scheme.p
     ax.loglog(
         PROBLEM.step_sizes,
@@ -51,7 +50,7 @@ for i, scheme in enumerate(BUTCHER_TABLEAUX):
         fillstyle="full",
         lw=2,
         color=COLORS[i],
-        label=f"{BUTCHER_NAMES[i]}",
+        label=f"{BUTCHER_TABLEAUX.keys()[i]}",
     )
 ax.set_xlim(PROBLEM.step_sizes[0], PROBLEM.step_sizes[-1])
 ax.legend()
