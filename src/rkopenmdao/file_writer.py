@@ -132,3 +132,36 @@ class TXTFileWriter(FileWriterInterface):
                             .tolist()
                         )
                 file_out.write(json.dumps(data_dict) + "\n")
+
+
+def read_hdf5_file(file: str, quantities: list[str], solution: callable):
+    # Initialize dictionaries
+    time = {}
+    error_data = {}
+    result = {}
+    # Open the HDF5 file in read-only mode
+    with h5py.File(
+        file,
+        mode="r",
+    ) as f:
+        # coefficient values
+        group = f[quantities[0]]
+        # Extract time metadata
+        for key in group.keys():
+            time[int(key)] = group[key].attrs["time"]
+        # Extract solution and compute Error wrt. analytical solution
+        for i, quantity in enumerate(quantities):
+            group = f[quantity]
+            error_data[quantity] = {}  # initialize error data for each quantity
+            result[quantity] = {}
+            for key in group.keys():
+                result[quantity][int(key)] = group[key][0]
+                if len(quantities) > 1:
+                    error_data[quantity][int(key)] = np.abs(
+                        solution(time[int(key)])[i] - result[quantity][int(key)]
+                    )
+                else:
+                    error_data[quantity][int(key)] = np.abs(
+                        solution(time[int(key)]) - result[quantity][int(key)]
+                    )
+    return time, error_data, result
