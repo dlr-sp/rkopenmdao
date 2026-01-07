@@ -66,6 +66,6 @@ def run_rk_problem(
     runge_kutta_prob.setup()
     for index, quantity in enumerate(problem.quantities):
         runge_kutta_prob[quantity + "_initial"].fill(
-            problem.problem.get_initial_values[index]
+            problem.problem.get_initial_values()[index]
         )
     runge_kutta_prob.run_model()

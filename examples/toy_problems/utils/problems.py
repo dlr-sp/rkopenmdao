@@ -46,7 +46,7 @@ class Problem:
     stiffness_coef: dict
     folder_path: pathlib.Path
     problem: Callable
-    solution: Callable[[float], float | np.ndarray[float]]
+    solution: Callable[[float], float | np.ndarray]
 
     def get_file_path(self, butcher_name, _type):
         """Get the file's path"""
