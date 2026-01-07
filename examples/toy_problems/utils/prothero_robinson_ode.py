@@ -45,7 +45,7 @@ class ProtheroRobinson(om.ExplicitComponent):
         return np.cos(time + np.pi / 4)
 
     def compute(self, inputs, outputs):
-        _delta_t = self.options["integration_control"].step_sizes
+        _delta_t = self.options["integration_control"].delta_t
         stage_time = self.options["integration_control"].stage_time
         lambda_ = self.options["lambda_"]
         outputs["x_stage"] = (
@@ -64,6 +64,6 @@ class ProtheroRobinson(om.ExplicitComponent):
         """Analytical solution of the ODE"""
         return (np.sin(time) + np.cos(time)) * 2 ** (-1 / 2)
 
-    @indexed_static
+    @staticmethod
     def get_initial_values():
         return np.array([np.sin(np.pi / 4)])

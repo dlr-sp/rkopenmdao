@@ -15,6 +15,7 @@ from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
 from ..utils.run_rk_problem import generate_path
 from rkopenmdao.file_writer import read_hdf5_file
 
+
 @dataclass
 class ResultData:
     error: dict
@@ -77,13 +78,31 @@ def extract_solution_per_butcher_table(butcher_tableau):
         error_data_adaptive, results_adaptive, time_adaptive, delta_t
     )
     homogeneous_data = ResultData(
-        time_homogeneous, error_data_homogeneous, results_homogenous
+        error_data_homogeneous, results_homogenous, time_homogeneous
     )
-    return adaptive_data, homogeneous_data
+    return data_name, adaptive_data, homogeneous_data
+
+
+def decorate_last_time_box(axs, adaptive_data):
+    axs[-1].set(xlabel=f"$t$", ylabel=f"$\Delta t$")
+    axs[-1].grid(True)
+    axs[-1].plot(adaptive_data.time.values(), adaptive_data.delta_t, "-")
+    axs[-1].plot(
+        [0, PROBLEM.time_objective],
+        [np.average(adaptive_data.delta_t), np.average(adaptive_data.delta_t)],
+        "k--",
+        lw=1,
+    )
+    axs[-1].text(
+        PROBLEM.time_objective * 0.95,
+        np.average(adaptive_data.delta_t) * 1.01,
+        r"$\Delta \bar{t}$",
+    )
+    axs[-1].set_xlim(0, PROBLEM.time_objective)
 
 
 def generate_solution_figure(
-    butcher_tableau, adaptive_data: ResultData, homogeneous_data: ResultData
+    butcher_tableau, adaptive_data: ResultData, data_name="sol_data"
 ):
     """Generate solution figure for a given scheme."""
     fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
@@ -99,7 +118,7 @@ def generate_solution_figure(
         axs[index].set_xlim(0, PROBLEM.time_objective)
 
     # Plot in the last box the development of time step size over time
-    decorate_last_time_box(axs, adaptive_data, PROBLEM)
+    decorate_last_time_box(axs, adaptive_data)
 
     # Save figure
     save_file = generate_path(
@@ -110,7 +129,10 @@ def generate_solution_figure(
 
 
 def generate_global_error_figure(
-    butcher_tableau, adaptive_data, homogeneous_data
+    butcher_tableau,
+    adaptive_data: ResultData,
+    homogeneous_data: ResultData,
+    data_name="err_data",
 ):
     fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
     plt.suptitle(f"{butcher_tableau.name} global error")
@@ -138,7 +160,7 @@ def generate_global_error_figure(
         axs[index].set_xticklabels([])
 
         # Plot in the last box the development of time step size over time
-        decorate_last_time_box(axs, adaptive_data, PROBLEM)
+        decorate_last_time_box(axs, adaptive_data)
 
         handles, labels = axs[0].get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
@@ -155,29 +177,16 @@ def generate_global_error_figure(
         fig.savefig(str(save_file))
 
 
-def decorate_last_time_box(axs, adaptive_data):
-    axs[-1].set(xlabel=f"$t$", ylabel=f"$\Delta t$")
-    axs[-1].grid(True)
-    axs[-1].plot(adaptive_data.time.values(), adaptive_data.delta_t, "-")
-    axs[-1].plot(
-        [0, PROBLEM.time_objective],
-        [np.average(adaptive_data.delta_t), np.average(adaptive_data.delta_t)],
-        "k--",
-        lw=1,
-    )
-    axs[-1].text(
-        PROBLEM.time_objective * 0.95,
-        np.average(adaptive_data.delta_t) * 1.01,
-        r"$\Delta \bar{t}$",
-    )
-    axs[-1].set_xlim(0, PROBLEM.time_objective)
-
-
 if __name__ == "__main__":
     for butcher_tableau in BUTCHER_TABLEAUX.values():
-
+        data_name, adaptive_data, homogeneous_data = extract_solution_per_butcher_table(
+            butcher_tableau
+        )
         # ----------------------------------------------
         # Generate Solution Figure
-
+        generate_solution_figure(butcher_tableau, adaptive_data, data_name)
         # ----------------------------------------------
         # Generate Global Error Figure
+        generate_global_error_figure(
+            butcher_tableau, adaptive_data, homogeneous_data, data_name
+        )

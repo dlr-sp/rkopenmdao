@@ -356,7 +356,7 @@ class KapsGroup(om.Group):
         )
         self.linear_solver.precon = om.LinearBlockJac(iprint=-1, maxiter=1)
 
-    @indexed_static
+    @staticmethod
     def get_initial_values():
         return np.array([1.0, 1.0])
 
