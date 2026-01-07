@@ -15,7 +15,7 @@ if __name__ == "__main__":
         "",
         {"config": ErrorControllerConfig(tol=1e-6)},
     )
-    for butcher_tableau in BUTCHER_TABLEAUX:
+    for butcher_tableau in BUTCHER_TABLEAUX.values():
         integration_config.write_file = PROBLEM.get_file_path(
             butcher_tableau.name, "adaptive"
         )[1]

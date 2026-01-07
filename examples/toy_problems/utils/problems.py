@@ -1,9 +1,9 @@
 import argparse
 from collections.abc import Callable
 from dataclasses import dataclass
-import numpy as np
 import pathlib
 
+import numpy as np
 from rkopenmdao.utils.convergence_test_components import kaps_solution, KapsGroup
 
 from ..utils.prothero_robinson_ode import ProtheroRobinson

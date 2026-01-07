@@ -5,54 +5,29 @@
 This requires running each of the "run_*" files."
 """
 
-import numpy as np
+from dataclasses import dataclass, field
 
-import h5py
 import matplotlib.pyplot as plt
 from matplotlib import ticker
+import numpy as np
 
 from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
 from ..utils.run_rk_problem import generate_path
+from rkopenmdao.file_writer import read_hdf5_file
 
-
-def read_h5py_file(file, quantities, solution):
-    # Initialize dictionaries
-    time = {}
-    error_data = {}
-    result = {}
-    # Open the HDF5 file in read-only mode
-    with h5py.File(
-        file,
-        mode="r",
-    ) as f:
-        # coefficient values
-        group = f[quantities[0]]
-        # Extract time metadata
-        for key in group.keys():
-            time[int(key)] = group[key].attrs["time"]
-        # Extract solution and compute Error wrt. analytical solution
-        for i, quantity in enumerate(quantities):
-            group = f[quantity]
-            error_data[quantity] = {}  # initialize error data for each quantity
-            result[quantity] = {}
-            for key in group.keys():
-                result[quantity][int(key)] = group[key][0]
-                if len(quantities) > 1:
-                    error_data[quantity][int(key)] = np.abs(
-                        solution(time[int(key)])[i] - result[quantity][int(key)]
-                    )
-                else:
-                    error_data[quantity][int(key)] = np.abs(
-                        solution(time[int(key)]) - result[quantity][int(key)]
-                    )
-    return time, error_data, result
+@dataclass
+class ResultData:
+    error: dict
+    result: dict
+    time: dict
+    delta_t: list = field(default_factory=list)
 
 
 def sort_dicts(time, error, result, quantities):
     time = dict(sorted(time.items()))
     # Takes the time dictionary, sorts its items (by key),
     # and converts the result back into a dictionary
-    dt = [0] * len(time)
+    dt = [0.0] * len(time)
     for i in range(
         len(time) - 1
     ):  # Calculates the difference between consecutive time points.
@@ -69,113 +44,102 @@ def sort_dicts(time, error, result, quantities):
     )
 
 
-if __name__ == "__main__":
-    for butcher_tableau in BUTCHER_TABLEAUX:
-        # ------------------
-        # Adaptive
-        data_name, file_path = PROBLEM.get_file_path(butcher_tableau.name, "adaptive")
-        time_adaptive, error_data_adaptive, results_adaptive = read_h5py_file(
-            file_path, PROBLEM.quantities, PROBLEM.solution
+def extract_solution_per_butcher_table(butcher_tableau):
+    # ------------------
+    # Adaptive
+    data_name, file_path = PROBLEM.get_file_path(butcher_tableau.name, "adaptive")
+    time_adaptive, error_data_adaptive, results_adaptive = read_hdf5_file(
+        file_path, PROBLEM.quantities, PROBLEM.solution
+    )
+
+    # -----------------
+    # Homogeneous
+    _, file_path = PROBLEM.get_file_path(butcher_tableau.name, "homogeneous")
+    time_homogeneous, error_data_homogeneous, results_homogenous = read_hdf5_file(
+        file_path, PROBLEM.quantities, PROBLEM.solution
+    )
+
+    # -----------------
+    # Sort
+    time_adaptive, error_data_adaptive, results_adaptive, delta_t = sort_dicts(
+        time_adaptive, error_data_adaptive, results_adaptive, PROBLEM.quantities
+    )
+    time_homogeneous, error_data_homogeneous, results_homogenous, _ = sort_dicts(
+        time_homogeneous,
+        error_data_homogeneous,
+        results_homogenous,
+        PROBLEM.quantities,
+    )
+
+    # -----------------
+    # Create Dicts
+    adaptive_data = ResultData(
+        error_data_adaptive, results_adaptive, time_adaptive, delta_t
+    )
+    homogeneous_data = ResultData(
+        time_homogeneous, error_data_homogeneous, results_homogenous
+    )
+    return adaptive_data, homogeneous_data
+
+
+def generate_solution_figure(
+    butcher_tableau, adaptive_data: ResultData, homogeneous_data: ResultData
+):
+    """Generate solution figure for a given scheme."""
+    fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
+    plt.suptitle(f"{butcher_tableau.name} analytical solution")
+
+    # For each quantity, plot the computed solution
+    for index, quantity in enumerate(PROBLEM.quantities):
+        axs[index].set(ylabel=f"${quantity}$")
+        axs[index].grid(True)
+        axs[index].plot(
+            adaptive_data.time.values(), adaptive_data.result[quantity].values(), "-"
         )
-        time_adaptive, error_data_adaptive, results_adaptive, delta_t = sort_dicts(
-            time_adaptive, error_data_adaptive, results_adaptive, PROBLEM.quantities
+        axs[index].set_xlim(0, PROBLEM.time_objective)
+
+    # Plot in the last box the development of time step size over time
+    decorate_last_time_box(axs, adaptive_data, PROBLEM)
+
+    # Save figure
+    save_file = generate_path(
+        str(PROBLEM.folder_path / "plots" / f"analytical_solution_{data_name}.png")
+    )
+
+    fig.savefig(str(save_file))
+
+
+def generate_global_error_figure(
+    butcher_tableau, adaptive_data, homogeneous_data
+):
+    fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
+    plt.suptitle(f"{butcher_tableau.name} global error")
+
+    formatter = ticker.ScalarFormatter(useMathText=False)
+    formatter.set_scientific(True)
+    formatter.set_powerlimits((-1, 1))
+
+    for index, quantity in enumerate(PROBLEM.quantities):
+        axs[index].set(ylabel=f"Global error $\epsilon^g_{quantity.replace('_','')}$")
+        axs[index].grid(True)
+        axs[index].plot(
+            adaptive_data.time.values(),
+            adaptive_data.error[quantity].values(),
+            "-",
+            label="Adaptive Method",
         )
-
-        # -----------------
-        # Homogeneous
-
-        _, file_path = PROBLEM.get_file_path(butcher_tableau.name, "homogeneous")
-        time_homogeneous, error_data_homogeneous, results_homogenous = read_h5py_file(
-            file_path, PROBLEM.quantities, PROBLEM.solution
-        )
-
-        # Sort
-        time_homogeneous, error_data_homogeneous, results_homogenous, _ = sort_dicts(
-            time_homogeneous,
-            error_data_homogeneous,
-            results_homogenous,
-            PROBLEM.quantities,
-        )
-
-        # ----------------------------------------------
-        # Generate Solution Figure
-        fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
-        plt.suptitle(f"{butcher_tableau.name} analytical solution")
-
-        for index, quantity in enumerate(PROBLEM.quantities):
-            axs[index].set(ylabel=f"${quantity}$")
-            axs[index].grid(True)
-            axs[index].plot(
-                time_adaptive.values(), results_adaptive[quantity].values(), "-"
-            )
-            axs[index].set_xlim(0, PROBLEM.time_objective)
-
-        axs[-1].set(xlabel=f"$t$", ylabel=f"$\Delta t$")
-        axs[-1].grid(True)
-        axs[-1].plot(time_adaptive.values(), delta_t, "-")
-        axs[-1].plot(
-            [0, PROBLEM.time_objective],
-            [np.average(delta_t), np.average(delta_t)],
-            "k--",
-            lw=1,
-        )
-        axs[-1].text(
-            PROBLEM.time_objective * 0.95,
-            np.average(delta_t) * 1.01,
-            r"$\Delta \bar{t}$",
-        )
-        axs[-1].set_xlim(0, PROBLEM.time_objective)
-        save_file = generate_path(
-            str(PROBLEM.folder_path / "plots" / f"analytical_solution_{data_name}.png")
-        )
-
-        fig.savefig(str(save_file))
-
-        # ----------------------------------------------
-
-        # Generate Global Error Figure
-        fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
-        plt.suptitle(f"{butcher_tableau.name} global error")
-
-        formatter = ticker.ScalarFormatter(useMathText=False)
-        formatter.set_scientific(True)
-        formatter.set_powerlimits((-1, 1))
-        for index, quantity in enumerate(PROBLEM.quantities):
-            print(error_data_adaptive[quantity].values())
-            axs[index].set(
-                ylabel=f"Global error $\epsilon^g_{quantity.replace('_','')}$"
-            )
-            axs[index].grid(True)
-            axs[index].plot(
-                time_adaptive.values(),
-                error_data_adaptive[quantity].values(),
-                "-",
-                label="Adaptive Method",
-            )
-            axs[index].plot(
-                time_homogeneous.values(),
-                error_data_homogeneous[quantity].values(),
-                "--",
-                label="Homogeneous Method",
-            )
-            axs[index].set_xlim(0, PROBLEM.time_objective)
-            axs[index].set_xticklabels([])
-
-        axs[-1].set(xlabel=f"$t$", ylabel=f"$\Delta t$")
-        axs[-1].grid(True)
-        axs[-1].plot(time_adaptive.values(), delta_t, "-")
-        axs[-1].plot(
-            [0, PROBLEM.time_objective],
-            [np.average(delta_t), np.average(delta_t)],
+        axs[index].plot(
+            homogeneous_data.time.values(),
+            homogeneous_data.error[quantity].values(),
             "--",
+            label="Homogeneous Method",
         )
-        axs[-1].text(
-            PROBLEM.time_objective * 0.95,
-            np.average(delta_t) * 1.01,
-            r"$\Delta \bar{t}$",
-        )
+        axs[index].set_xlim(0, PROBLEM.time_objective)
+        axs[index].set_xticklabels([])
 
-        axs[-1].set_xlim(0, PROBLEM.time_objective)
+        # Plot in the last box the development of time step size over time
+        decorate_last_time_box(axs, adaptive_data, PROBLEM)
+
         handles, labels = axs[0].get_legend_handles_labels()
         by_label = dict(zip(labels, handles))
         fig.legend(
@@ -188,4 +152,32 @@ if __name__ == "__main__":
         save_file = generate_path(
             str(PROBLEM.folder_path / "plots" / f"global_error_{data_name}.png")
         )
-        fig.savefig((save_file))
+        fig.savefig(str(save_file))
+
+
+def decorate_last_time_box(axs, adaptive_data):
+    axs[-1].set(xlabel=f"$t$", ylabel=f"$\Delta t$")
+    axs[-1].grid(True)
+    axs[-1].plot(adaptive_data.time.values(), adaptive_data.delta_t, "-")
+    axs[-1].plot(
+        [0, PROBLEM.time_objective],
+        [np.average(adaptive_data.delta_t), np.average(adaptive_data.delta_t)],
+        "k--",
+        lw=1,
+    )
+    axs[-1].text(
+        PROBLEM.time_objective * 0.95,
+        np.average(adaptive_data.delta_t) * 1.01,
+        r"$\Delta \bar{t}$",
+    )
+    axs[-1].set_xlim(0, PROBLEM.time_objective)
+
+
+if __name__ == "__main__":
+    for butcher_tableau in BUTCHER_TABLEAUX.values():
+
+        # ----------------------------------------------
+        # Generate Solution Figure
+
+        # ----------------------------------------------
+        # Generate Global Error Figure
