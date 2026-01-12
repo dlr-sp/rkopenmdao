@@ -1,5 +1,5 @@
 from typing import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import openmdao.api as om
 import os
 import pathlib
@@ -18,8 +18,10 @@ class IntegrationConfig:
     integration_control: TimeTerminationIntegrationControl
     error_controller: list[Callable[[], None]]
     error_measurer: Callable
-    write_file: pathlib.Path
-    config: dict
+    write_file: pathlib.Path = field(
+        default_factory=lambda: pathlib.Path.cwd() / "output.h5"
+    )
+    options: dict = field(default_factory=dict)
 
 
 def generate_path(path):

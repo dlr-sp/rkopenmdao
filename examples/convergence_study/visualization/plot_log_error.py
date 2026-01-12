@@ -45,7 +45,7 @@ def sort_dicts(time, error, result, quantities):
     )
 
 
-def extract_solution_per_butcher_table(butcher_tableau):
+def extract_solution_per_butcher_tableau(butcher_tableau):
     # ------------------
     # Adaptive
     data_name, file_path = PROBLEM.get_file_path(butcher_tableau.name, "adaptive")
@@ -179,8 +179,8 @@ def generate_global_error_figure(
 
 if __name__ == "__main__":
     for butcher_tableau in BUTCHER_TABLEAUX.values():
-        data_name, adaptive_data, homogeneous_data = extract_solution_per_butcher_table(
-            butcher_tableau
+        data_name, adaptive_data, homogeneous_data = (
+            extract_solution_per_butcher_tableau(butcher_tableau)
         )
         # ----------------------------------------------
         # Generate Solution Figure

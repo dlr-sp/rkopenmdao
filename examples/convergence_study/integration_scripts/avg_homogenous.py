@@ -16,24 +16,26 @@ def count_keys(path):
         return len(f[group_name].keys())
 
 
-if __name__ == "__main__":
+def avg_homogeneous_simulation(problem, butcher_tableaux):
     integration_config = IntegrationConfig(
         TimeTerminationIntegrationControl(0, PROBLEM.time_objective, 0.0),
         [pseudo],
         SimpleErrorMeasurer(),
-        "",
-        {},
     )
-    for butcher_tableau in BUTCHER_TABLEAUX.values():
+    for butcher_tableau in butcher_tableaux.values():
         steps = count_keys(
-            str(PROBLEM.get_file_path(butcher_tableau.name, "adaptive")[1])
+            str(problem.get_file_path(butcher_tableau.name, "adaptive")[1])
         )
-        step_size = PROBLEM.time_objective / steps
+        step_size = problem.time_objective / steps
         print(f"{butcher_tableau.name}: {step_size}")
         integration_config.integration_control = TimeTerminationIntegrationControl(
-            step_size, PROBLEM.time_objective, 0.0
+            step_size, problem.time_objective, 0.0
         )
-        integration_config.write_file = PROBLEM.get_file_path(
+        integration_config.write_file = problem.get_file_path(
             butcher_tableau.name, "homogeneous"
         )[1]
-        run_rk_problem(PROBLEM, butcher_tableau, integration_config)
+        run_rk_problem(problem, butcher_tableau, integration_config)
+
+
+if __name__ == "__main__":
+    avg_homogeneous_simulation(PROBLEM, BUTCHER_TABLEAUX)
