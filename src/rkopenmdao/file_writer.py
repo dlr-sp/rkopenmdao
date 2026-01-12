@@ -165,3 +165,17 @@ def read_hdf5_file(file: str, quantities: list[str], solution: callable):
                         solution(time[int(key)]) - result[quantity][int(key)]
                     )
     return time, error_data, result
+
+
+def read_last_local_error(
+    file_path,
+    time_objective,
+    step_size,
+):
+    with h5py.File(
+        file_path,
+        mode="r",
+    ) as f:
+        # Extract time metadata
+        last_step = int(time_objective / step_size)
+        return f["error_measure"][str(last_step)][0]

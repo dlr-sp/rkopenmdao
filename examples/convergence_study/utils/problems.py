@@ -5,7 +5,7 @@ import pathlib
 
 import numpy as np
 from rkopenmdao.utils.convergence_test_components import kaps_solution, KapsGroup
-
+from rkopenmdao.file_writer import read_last_local_error
 from ..utils.prothero_robinson_ode import ProtheroRobinson
 
 
@@ -40,7 +40,7 @@ def parse_problem():
 
 @dataclass
 class Problem:
-    step_sizes: np.ndarray
+    step_sizes: np.ndarray[float]
     quantities: list[str]
     time_objective: float  # in seconds
     stiffness_coef: dict
@@ -48,10 +48,32 @@ class Problem:
     problem: Callable
     solution: Callable[[float], float | np.ndarray]
 
-    def get_file_path(self, butcher_name, _type):
+    def get_file_path(self, butcher_name: str, _type: str | float):
         """Get the file's path"""
-        name = f"{_type}_{butcher_name}".replace(" ", "_").replace(",", "").lower()
-        return name, self.folder_path / _type / f"{name}.h5"
+        if isinstance(_type, str):
+            name = f"{_type}_{butcher_name}".replace(" ", "_").replace(",", "").lower()
+            return name, self.folder_path / _type / f"{name}.h5"
+        elif isinstance(_type, float):
+            name = (
+                f"data_{_type:.0E}_{butcher_name}.h5".replace(" ", "_")
+                .replace(",", "")
+                .lower()
+            )
+            return name, self.folder_path / f"{name}.h5"
+        else:
+            raise ValueError("Type must be str or float")
+
+    def compute_tolerance(self, butcher_name: str):
+        try:
+            error = np.zeros(len(self.step_sizes))
+            for idx, step_size in enumerate(self.step_sizes):
+                _, file_path = self.get_file_path(butcher_name, step_size)
+                error[idx] = read_last_local_error(
+                    file_path, self.time_objective, step_size
+                )
+            return np.average(error)
+        except FileNotFoundError:
+            return 1.0e-6
 
 
 def prothero_robinson_problem(_lambda=-1e2):
@@ -69,7 +91,7 @@ def prothero_robinson_problem(_lambda=-1e2):
     stiffness_coef = {"lambda_": _lambda}
     folder_path = pathlib.Path(__file__).parent.parent / "data" / "prothero_robinson"
     # "data/prothero_robinson" should contain the "adaptive" folder for the data of adaptive .h5 runs
-    # (run_adaptive_problem.py), and the "homogeneous" folder for the homogeneous for the data .h5 runs wrt. the adaptive's
+    # (adaptive.py), and the "homogeneous" folder for the homogeneous for the data .h5 runs wrt. the adaptive's
     # average delta_t (run_non_adaptive_wrt_adaptive.py)
     solution = ProtheroRobinson.solution
     return Problem(

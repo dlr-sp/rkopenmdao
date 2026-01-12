@@ -7,16 +7,24 @@ from rkopenmdao.integration_control import (
 from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
 from ..utils.run_rk_problem import IntegrationConfig, run_rk_problem
 
-if __name__ == "__main__":
+
+def adaptive_simulation(problem, butcher_tableaux):
     integration_config = IntegrationConfig(
-        TimeTerminationIntegrationControl(0.1, PROBLEM.time_objective, 0.0),
+        TimeTerminationIntegrationControl(0.1, problem.time_objective, 0.0),
         [integral],
         SimpleErrorMeasurer(),
-        "",
-        {"config": ErrorControllerConfig(tol=1e-6)},
     )
-    for butcher_tableau in BUTCHER_TABLEAUX.values():
-        integration_config.write_file = PROBLEM.get_file_path(
+    for butcher_tableau in butcher_tableaux.values():
+        integration_config.config = {
+            "config": ErrorControllerConfig(
+                problem.compute_tolerance(butcher_tableau.name)
+            )
+        }
+        integration_config.write_file = problem.get_file_path(
             butcher_tableau.name, "adaptive"
         )[1]
-        run_rk_problem(PROBLEM, butcher_tableau, integration_config)
+        run_rk_problem(problem, butcher_tableau, integration_config)
+
+
+if __name__ == "__main__":
+    adaptive_simulation(PROBLEM, BUTCHER_TABLEAUX)
