@@ -1,42 +1,43 @@
 """
 1. Plots the convergence rate of each scheme.
 
-This requires running the "run_homogenous_problem" file."
+This requires running the "./integration_scripts/homogenous.py" file."
 """
 
-import h5py
 import matplotlib.pyplot as plt
-
+from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.file_writer import read_last_local_error
 from ..utils.constants import (
     PROBLEM,
     BUTCHER_TABLEAUX,
     MARKER,
     COLORS,
 )
-from ..utils.run_rk_problem import generate_path
-from rkopenmdao.file_writer import read_last_local_error
+from ..utils.problems import Problem, generate_path
 
 
-def plot_convergence(butcher_tableaux, problem):
-    local_error_data = {}
-    for butcher_tableau in butcher_tableaux.values():
-        local_error_data[f"{butcher_tableau.name}"] = {}
-        for step_size in problem.step_sizes:
-            file_name, file_path = problem.get_file_path(
-                butcher_tableau.name, step_size
-            )
-            local_error_data[f"{butcher_tableau.name}"][str(step_size)] = (
-                read_last_local_error(file_path, problem.time_objective, step_size)
-            )
+def extract_local_error_data(butcher_tableau: ButcherTableau, problem: Problem) -> dict:
+    """Extract the local error data from a hdf5 file."""
+    # initialize dictionary to store local error data
+    butcher_error_data = {}
+    # iterate over the step sizes
+    for step_size in problem.step_sizes:
+        file_name, file_path = problem.get_file_path(butcher_tableau.name, step_size)
+        butcher_error_data[str(step_size)] = read_last_local_error(
+            file_path, problem.time_objective, step_size
+        )
+    return butcher_error_data
 
-    # PLOT LOCAL ERROR DATA
 
+def generate_convergence_graph(
+    local_error_data: dict, butcher_tableaux: dict, problem: Problem
+):
+    """Plot local error data for each scheme."""
     fig, ax = plt.subplots()
     ax.set_xlabel(r"$\Delta t$")
     ax.set_ylabel(r"Local error measure $\epsilon^l$")
     plt.grid(True)
     for i, scheme in enumerate(butcher_tableaux.values()):
-        p = scheme.p
         ax.loglog(
             problem.step_sizes,
             local_error_data[scheme.name].values(),
@@ -56,4 +57,9 @@ def plot_convergence(butcher_tableaux, problem):
 
 
 if __name__ == "__main__":
-    plot_convergence(BUTCHER_TABLEAUX, PROBLEM)
+    local_error_data = {}
+    for butcher_tableau in BUTCHER_TABLEAUX.values():
+        local_error_data[butcher_tableau.name] = extract_local_error_data(
+            butcher_tableau, PROBLEM
+        )
+    generate_convergence_graph(local_error_data, BUTCHER_TABLEAUX, PROBLEM)

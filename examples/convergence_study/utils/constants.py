@@ -1,3 +1,5 @@
+"""Constants for the convergence study."""
+
 from collections.abc import Callable
 
 from rkopenmdao.butcher_tableau import ButcherTableau
@@ -13,8 +15,8 @@ from .problems import parse_problem
 
 PROBLEM = parse_problem()
 
-MARKER: list[str] = ["-o", "-X", "-P", "-D", "-v", "-H"]
-COLORS: list[str] = [
+MARKER: list[str] = ["-o", "-X", "-P", "-D", "-v", "-H"]  # markers for matplotlib
+COLORS: list[str] = [  # colors for matplotlib
     "indigo",
     "indianred",
     "seagreen",

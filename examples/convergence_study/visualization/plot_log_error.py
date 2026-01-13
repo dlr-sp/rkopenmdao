@@ -6,14 +6,15 @@ This requires running each of the "run_*" files."
 """
 
 from dataclasses import dataclass, field
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib import ticker
 import numpy as np
-
-from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from ..utils.run_rk_problem import generate_path
+from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.file_writer import read_hdf5_file
+from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
+from ..utils.problems import generate_path, Problem
 
 
 @dataclass
@@ -21,19 +22,20 @@ class ResultData:
     error: dict
     result: dict
     time: dict
-    delta_t: list = field(default_factory=list)
+    step_sizes: list = field(default_factory=list)
 
 
-def sort_dicts(time, error, result, quantities):
+def sort_dicts(time: dict, error: dict, result: dict, quantities: list[str]):
+    """Sort the dictionaries by time."""
     time = dict(sorted(time.items()))
     # Takes the time dictionary, sorts its items (by key),
     # and converts the result back into a dictionary
-    dt = [0.0] * len(time)
-    for i in range(
-        len(time) - 1
-    ):  # Calculates the difference between consecutive time points.
-        dt[i] = time[i + 1] - time[i]
-    dt[-1] = dt[-2]  # match the second-to-last element to maintain the list length
+    step_sizes = [0.0] * len(time)
+    for i in range(len(time) - 1):
+        # calculate the difference between consecutive time points.
+        step_sizes[i] = time[i + 1] - time[i]
+    # match the second-to-last element to maintain the list length
+    step_sizes[-1] = step_sizes[-2]
     for q in quantities:
         result[q] = dict(sorted(result[q].items()))
         error[q] = dict(sorted(error[q].items()))
@@ -41,11 +43,14 @@ def sort_dicts(time, error, result, quantities):
         time,
         error,
         result,
-        dt,
+        step_sizes,
     )
 
 
-def extract_solution_per_butcher_tableau(butcher_tableau):
+def extract_solution_per_butcher_tableau(
+    butcher_tableau: ButcherTableau,
+) -> Tuple[str, ResultData, ResultData]:
+    """Extract the time, error and solution data from the homogeneous and adaptive hdf5 files."""
     # ------------------
     # Adaptive
     data_name, file_path = PROBLEM.get_file_path(butcher_tableau.name, "adaptive")
@@ -62,7 +67,7 @@ def extract_solution_per_butcher_tableau(butcher_tableau):
 
     # -----------------
     # Sort
-    time_adaptive, error_data_adaptive, results_adaptive, delta_t = sort_dicts(
+    time_adaptive, error_data_adaptive, results_adaptive, step_sizes = sort_dicts(
         time_adaptive, error_data_adaptive, results_adaptive, PROBLEM.quantities
     )
     time_homogeneous, error_data_homogeneous, results_homogenous, _ = sort_dicts(
@@ -75,7 +80,7 @@ def extract_solution_per_butcher_tableau(butcher_tableau):
     # -----------------
     # Create Dicts
     adaptive_data = ResultData(
-        error_data_adaptive, results_adaptive, time_adaptive, delta_t
+        error_data_adaptive, results_adaptive, time_adaptive, step_sizes
     )
     homogeneous_data = ResultData(
         error_data_homogeneous, results_homogenous, time_homogeneous
@@ -84,18 +89,19 @@ def extract_solution_per_butcher_tableau(butcher_tableau):
 
 
 def decorate_last_time_box(axs, adaptive_data):
+    """Plot the last row of the figure with the time step size evolution."""
     axs[-1].set(xlabel=f"$t$", ylabel=f"$\Delta t$")
     axs[-1].grid(True)
-    axs[-1].plot(adaptive_data.time.values(), adaptive_data.delta_t, "-")
+    axs[-1].plot(adaptive_data.time.values(), adaptive_data.step_sizes, "-")
     axs[-1].plot(
         [0, PROBLEM.time_objective],
-        [np.average(adaptive_data.delta_t), np.average(adaptive_data.delta_t)],
+        [np.average(adaptive_data.step_sizes), np.average(adaptive_data.step_sizes)],
         "k--",
         lw=1,
     )
     axs[-1].text(
         PROBLEM.time_objective * 0.95,
-        np.average(adaptive_data.delta_t) * 1.01,
+        np.average(adaptive_data.step_sizes) * 1.01,
         r"$\Delta \bar{t}$",
     )
     axs[-1].set_xlim(0, PROBLEM.time_objective)
@@ -129,11 +135,12 @@ def generate_solution_figure(
 
 
 def generate_global_error_figure(
-    butcher_tableau,
+    butcher_tableau: ButcherTableau,
     adaptive_data: ResultData,
     homogeneous_data: ResultData,
-    data_name="err_data",
+    data_name: str = "error_data",
 ):
+    """Generate global error figure for a given scheme."""
     fig, axs = plt.subplots(len(PROBLEM.quantities) + 1)
     plt.suptitle(f"{butcher_tableau.name} global error")
 

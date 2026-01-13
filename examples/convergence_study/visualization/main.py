@@ -1,3 +1,12 @@
+"""
+Plot all possible graphs for each scheme:
+1. convergence rate,
+2. solution graphs and
+3. global error graphs.
+
+**TIP: run ./integration_scripts/main.py first.
+"""
+
 from ..utils.constants import (
     PROBLEM,
     BUTCHER_TABLEAUX,
@@ -9,9 +18,9 @@ from plot_log_error import (
 )
 from plot_convergence import plot_convergence
 
+
 # Plot convergence figure
 plot_convergence(BUTCHER_TABLEAUX, PROBLEM)
-
 
 # Plot solution and error figures
 for butcher_tableau in BUTCHER_TABLEAUX.values():
