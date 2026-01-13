@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import json
+from typing import Tuple
 
 import h5py
 
@@ -134,7 +135,10 @@ class TXTFileWriter(FileWriterInterface):
                 file_out.write(json.dumps(data_dict) + "\n")
 
 
-def read_hdf5_file(file: str, quantities: list[str], solution: callable):
+def read_hdf5_file(
+    file: str, quantities: list[str], solution: callable
+) -> Tuple[dict, dict, dict]:
+    """extracts the time, error and result data from an HDF5 file"""
     # Initialize dictionaries
     time = {}
     error_data = {}

@@ -38,14 +38,14 @@ homogeneous simulation.
 
 ---
 ## How to run an example
-In order to run an example, you need to navigate to remain in the `convergence_study` 
-run the desired script using a `-m` flag, e.g. `python -m integration_scripts.main 'problem_name'`.
+In order to run an example, you need to navigate and remain in the `convergence_study`, and  
+run the desired script using the `-m` flag, e.g. `python -m integration_scripts.main 'problem_name'`.
 The flag `problem_name` can be one of the following: `prothero_robinson`, `kaps`. The description of each problem 
 can be found in [The equations](#the-equations).
-In addition, the flag `--stiffness` can be used to change the stiffness of the equations, using a float value.
+In addition, the flag `--stiffness` can be utilized to change the stiffness parameter of the equations, using a float value.
 
 TIP: if the homogeneous problem is run first, the adaptive problem will use the average local tolerance of the 
-convergence study for each butcher schema.
+convergence study for each Runge-Kutta scheme.
 
 ---
 ## The equations
