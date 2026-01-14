@@ -1,6 +1,7 @@
 """Tests the correct writing into hdf5-files."""
 
 import pathlib
+from typing import Union
 
 import openmdao.api as om
 import h5py
@@ -263,7 +264,7 @@ def _build_test_h5(
     *,
     quantities: list[tuple[str, np.ndarray]],
     steps: list[int],
-    error_vals: dict[int, float] | None = None,
+    error_vals: Union[dict[int, float], None] = None,
 ) -> pathlib.Path:
     """Create an HDF5 file and return its path.
 
