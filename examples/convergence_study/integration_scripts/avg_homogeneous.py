@@ -38,7 +38,7 @@ def avg_homogeneous_simulation(problem: Problem, butcher_tableaux: dict):
         )
         # update the file path of the output file
         integration_config.write_file = problem.get_file_path(
-            butcher_tableau.name, "homogeneous"
+            butcher_tableau.name, "avg_homogeneous"
         )[1]
         problem.execute(butcher_tableau, integration_config)
 

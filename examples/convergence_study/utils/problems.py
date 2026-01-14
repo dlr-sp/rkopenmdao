@@ -6,6 +6,7 @@ import pathlib
 from typing import Tuple
 
 import numpy as np
+from openmdao.core.system import System
 import openmdao.api as om
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
@@ -27,6 +28,7 @@ def generate_path(path: str):
     return path
 
 
+@dataclass
 class IntegrationConfig:
     """A class to hold the integration configuration parameters."""
 
@@ -48,7 +50,7 @@ class Problem:
     time_objective: float
     stiffness_coef: dict
     folder_path: pathlib.Path
-    problem: om.System
+    problem: System
     solution: Callable[[float], float | np.ndarray]
 
     def get_file_path(
@@ -56,19 +58,19 @@ class Problem:
     ) -> Tuple[str, pathlib.Path]:
         """Get the file's path"""
         if isinstance(_type, str):
-            if _type != "adaptive" or _type != "homogeneous":
+            if _type != "adaptive" and _type != "avg_homogeneous":
                 raise ValueError(
-                    "_type (str) must be either 'adaptive' or 'homogeneous'"
+                    "_type (str) must be either 'adaptive' or 'avg_homogeneous'"
                 )
-            name = f"{_type}_{butcher_name}".replace(" ", "_").replace(",", "").lower()
+            name = butcher_name.replace(" ", "_").replace(",", "").lower()
             return name, self.folder_path / _type / f"{name}.h5"
         elif isinstance(_type, float):
             name = (
-                f"data_{_type:.0E}_{butcher_name}.h5".replace(" ", "_")
+                f"data_{_type:.0E}_{butcher_name}".replace(" ", "_")
                 .replace(",", "")
                 .lower()
             )
-            return name, self.folder_path / f"{name}.h5"
+            return name, self.folder_path / "homogeneous" / f"{name}.h5"
         else:
             raise ValueError("_type must be of type str or float")
 

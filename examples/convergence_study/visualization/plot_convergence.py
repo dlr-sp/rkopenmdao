@@ -45,7 +45,7 @@ def generate_convergence_graph(
             fillstyle="full",
             lw=2,
             color=COLORS[i],
-            label=f"{butcher_tableaux.keys()[i]}",
+            label=f"{list(butcher_tableaux.keys())[i]}",
         )
     ax.set_xlim(problem.step_sizes[0], problem.step_sizes[-1])
     ax.legend()

@@ -4,7 +4,6 @@ import numpy as np
 import openmdao.api as om
 
 from rkopenmdao.integration_control import IntegrationControl
-from .decorators import indexed_static
 
 # pylint: disable=arguments-differ, unused-argument, too-many-branches
 
