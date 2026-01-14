@@ -60,7 +60,7 @@ def extract_solution_per_butcher_tableau(
 
     # -----------------
     # Homogeneous
-    _, file_path = PROBLEM.get_file_path(butcher_tableau.name, "homogeneous")
+    _, file_path = PROBLEM.get_file_path(butcher_tableau.name, "avg_homogeneous")
     time_homogeneous, error_data_homogeneous, results_homogenous = read_hdf5_file(
         file_path, PROBLEM.quantities, PROBLEM.solution
     )
