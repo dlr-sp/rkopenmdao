@@ -7,7 +7,7 @@ Plot all possible graphs for each scheme:
 **TIP: run ./integration_scripts/main.py first.
 """
 
-from ..utils.constants import (
+from rkopenmdao.examples.convergence_study.integration_scripts.constants import (
     PROBLEM,
     BUTCHER_TABLEAUX,
 )

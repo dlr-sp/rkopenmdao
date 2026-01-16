@@ -1,13 +1,11 @@
-from typing import Type
-
+from .constants import PROBLEM, BUTCHER_TABLEAUX
 from rkopenmdao.error_controller import ErrorControllerConfig
 from rkopenmdao.error_controllers import pid, integral, h0_211
 from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
 from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
 )
-from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from ..utils.problems import Problem, IntegrationConfig
+from rkopenmdao.utils.problems import Problem, IntegrationConfig
 
 
 def adaptive_simulation(problem: Problem, butcher_tableaux: dict) -> None:

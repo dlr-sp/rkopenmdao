@@ -260,7 +260,6 @@ def test_parallel_write_out(write_out_distance, shape):
 
 
 def _build_test_h5(
-    tmp_path: pathlib.Path,
     *,
     quantities: list[tuple[str, np.ndarray]],
     steps: list[int],
@@ -273,7 +272,7 @@ def _build_test_h5(
     * ``error_vals``  – optional ``step → error`` mapping written to the
       ``error_measure`` group.
     """
-    file_path = tmp_path / "test_file.h5"
+    file_path = "test_file.h5"
     with h5py.File(file_path, mode="w") as f:
         # ---- quantities -------------------------------------------------
         for name, full_array in quantities:
@@ -311,14 +310,12 @@ def multi_quantity_data():
 
 @pytest.mark.unit
 def test_read_hdf5_file_single_quantity(
-    tmp_path: pathlib.Path,
     single_quantity_data: np.ndarray,
 ):
     """A file with one quantity; the analytical solution returns the same data,
     therefore the computed error dictionary should contain only zeros."""
     # Build file with two steps (0 and 1)
     file_path = _build_test_h5(
-        tmp_path,
         quantities=[("my_quantity", single_quantity_data)],
         steps=[0, 1],
         error_vals={0: 0.123, 1: 0.456},
@@ -344,7 +341,6 @@ def test_read_hdf5_file_single_quantity(
 
 @pytest.mark.unit
 def test_read_hdf5_file_multiple_quantities(
-    tmp_path: pathlib.Path,
     multi_quantity_data: tuple[np.ndarray, np.ndarray],
 ):
     """Two quantities are stored; the analytical solution returns a tuple
@@ -353,24 +349,24 @@ def test_read_hdf5_file_multiple_quantities(
     q1_data, q2_data = multi_quantity_data
 
     file_path = _build_test_h5(
-        tmp_path,
         quantities=[("q_one", q1_data), ("q_two", q2_data)],
         steps=[0, 1],
         error_vals={0: 0.9, 1: 1.1},
     )
 
     # Analytical solution – adds +0.5 to q_one and –0.5 to q_two
-    def analytic_solution(_time: float) -> tuple[np.ndarray, np.ndarray]:
-        return q1_data + 0.5, q2_data - 0.5
+    def analytic_solution(_time: float) -> np.ndarray:
+        return np.stack((q1_data + 0.5, q2_data - 0.5), axis=0)
 
     time, error, result = read_hdf5_file(
         file=str(file_path),
         quantities=["q_one", "q_two"],
         solution=analytic_solution,
     )
-
+    print(error, result)
     # ---- expectations -------------------------------------------------
     assert time == {0: 0.0, 1: 0.1}
+
     np.testing.assert_array_equal(result["q_one"][0], q1_data)
     np.testing.assert_array_equal(result["q_two"][0], q2_data)
     np.testing.assert_array_equal(result["q_one"][1], q1_data)
@@ -383,12 +379,11 @@ def test_read_hdf5_file_multiple_quantities(
 
 
 @pytest.mark.unit
-def test_read_last_local_error_exact_step(tmp_path: pathlib.Path):
+def test_read_last_local_error_exact_step():
     """Write an ``error_measure`` group with several steps and ask for the
     error belonging to the step that exactly matches ``time_objective/step_size``."""
     error_vals = {i: i * 0.1 for i in range(5)}  # 0.0, 0.1, …, 0.4
     file_path = _build_test_h5(
-        tmp_path,
         quantities=[],  # no quantity groups needed for this test
         steps=[],
         error_vals=error_vals,
@@ -406,12 +401,11 @@ def test_read_last_local_error_exact_step(tmp_path: pathlib.Path):
 
 
 @pytest.mark.unit
-def test_read_last_local_error_truncated_step(tmp_path: pathlib.Path):
+def test_read_last_local_error_truncated_step():
     """When ``time_objective/step_size`` is not an integer the function truncates
     the value (via ``int(...)``).  Verify that the truncated step is used."""
     error_vals = {i: float(i) for i in range(10)}  # 0,1,2,…,9
     file_path = _build_test_h5(
-        tmp_path,
         quantities=[],
         steps=[],
         error_vals=error_vals,
@@ -430,13 +424,12 @@ def test_read_last_local_error_truncated_step(tmp_path: pathlib.Path):
 
 
 @pytest.mark.unit
-def test_read_last_local_error_missing_step_raises(tmp_path: pathlib.Path):
+def test_read_last_local_error_missing_step_raises():
     """If the calculated step does not exist in the HDF5 file a ``KeyError`` is
     raised (the usual h5py behavior).  The test ensures the exception is
     indeed propagated."""
     error_vals = {0: 0.0, 1: 0.1}
     file_path = _build_test_h5(
-        tmp_path,
         quantities=[],
         steps=[],
         error_vals=error_vals,

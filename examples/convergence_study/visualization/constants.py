@@ -11,7 +11,7 @@ from rkopenmdao.butcher_tableaux import (
     embedded_fourth_order_four_stage_sdirk as fourth_order_sdirk,
     embedded_fourth_order_five_stage_esdirk as fourth_order_esdirk,
 )
-from .problems import parse_problem
+from rkopenmdao.src.rkopenmdao.utils.problems import parse_problem
 
 PROBLEM = parse_problem()
 

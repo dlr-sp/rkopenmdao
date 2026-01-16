@@ -8,13 +8,14 @@ from typing import Tuple
 import numpy as np
 from openmdao.core.system import System
 import openmdao.api as om
-from rkopenmdao.butcher_tableau import ButcherTableau
-from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
-from rkopenmdao.file_writer import read_last_local_error
-from rkopenmdao.integration_control import TimeTerminationIntegrationControl
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.utils.convergence_test_components import kaps_solution, KapsGroup
-from ..utils.prothero_robinson_ode import ProtheroRobinson
+
+from ..butcher_tableau import ButcherTableau
+from ..error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
+from ..file_writer import read_last_local_error
+from ..integration_control import TimeTerminationIntegrationControl
+from ..runge_kutta_integrator import RungeKuttaIntegrator
+from ..odes.kaps import kaps_solution, KapsGroup
+from ..odes.prothero_robinson_ode import ProtheroRobinson
 
 
 def generate_path(path: str):

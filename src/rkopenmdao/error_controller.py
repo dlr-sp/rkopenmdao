@@ -5,7 +5,7 @@ import warnings
 
 import numpy as np
 
-from rkopenmdao.errors import OuterErrorControllerError, InnerErrorControllerError
+from .errors import OuterErrorControllerError, InnerErrorControllerError
 
 
 @dataclass
