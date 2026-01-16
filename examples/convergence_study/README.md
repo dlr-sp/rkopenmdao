@@ -20,7 +20,6 @@ All examples assume you have installed the core package (see the main repository
 |------------------------|----------------------------------|-----------------------------------------------------|
 | `integration_scripts/` | Running the unsteady simulations | `python -m integration_scripts.main 'problem_name'` |
 | `visualization/`       | Plotting results with Matplotlib | `python -m visualization.main 'problem_name'`       |
-| `utils`                | Helper functions                 |                                                     |
 
 
 In the `integration_scripts` folder, you will find the following scripts:
