@@ -7,13 +7,13 @@ This requires running the "./integration_scripts/homogenous.py" file."
 import matplotlib.pyplot as plt
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.file_writer import read_last_local_error
-from ..utils.constants import (
+from .constants import (
     PROBLEM,
     BUTCHER_TABLEAUX,
     MARKER,
     COLORS,
 )
-from ..utils.problems import Problem, generate_path
+from rkopenmdao.src.rkopenmdao.utils.problems import Problem, generate_path
 
 
 def extract_local_error_data(butcher_tableau: ButcherTableau, problem: Problem) -> dict:

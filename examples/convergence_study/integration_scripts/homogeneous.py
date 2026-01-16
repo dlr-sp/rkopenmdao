@@ -1,3 +1,4 @@
+from .constants import PROBLEM, BUTCHER_TABLEAUX
 from rkopenmdao.error_controller import ErrorControllerConfig
 from rkopenmdao.error_controllers import pseudo
 from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
@@ -5,8 +6,7 @@ from rkopenmdao.integration_control import (
     TimeTerminationIntegrationControl,
 )
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from ..utils.problems import Problem, IntegrationConfig
+from rkopenmdao.utils.problems import Problem, IntegrationConfig
 
 
 def homogeneous_simulation(problem: Problem, butcher_tableaux: dict):

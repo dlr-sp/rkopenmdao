@@ -13,8 +13,11 @@ from matplotlib import ticker
 import numpy as np
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.file_writer import read_hdf5_file
-from ..utils.constants import PROBLEM, BUTCHER_TABLEAUX
-from ..utils.problems import generate_path, Problem
+from rkopenmdao.examples.convergence_study.integration_scripts.constants import (
+    PROBLEM,
+    BUTCHER_TABLEAUX,
+)
+from rkopenmdao.src.rkopenmdao.utils.problems import generate_path
 
 
 @dataclass

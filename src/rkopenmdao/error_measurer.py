@@ -7,8 +7,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
+from .discretized_ode.discretized_ode import DiscretizedODE
+from .discretized_ode.discretized_ode import DiscretizedODEResultState
 
 
 class ErrorMeasurer(ABC):

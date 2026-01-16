@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from rkopenmdao.butcher_tableau import ButcherTableau
-from rkopenmdao.discretized_ode.discretized_ode import (
+from .butcher_tableau import ButcherTableau
+from .discretized_ode.discretized_ode import (
     DiscretizedODE,
     DiscretizedODEInputState,
     DiscretizedODEResultState,
 )
-from rkopenmdao.error_controller import ErrorController
-from rkopenmdao.error_measurer import ErrorMeasurer
-from rkopenmdao.errors import RungeKuttaError
+from .error_controller import ErrorController
+from .error_measurer import ErrorMeasurer
+from .errors import RungeKuttaError
 
 
 class RungeKuttaScheme:

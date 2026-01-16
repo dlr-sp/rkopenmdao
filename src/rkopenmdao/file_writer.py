@@ -158,12 +158,17 @@ def read_hdf5_file(
             group = f[quantity]
             error_data[quantity] = {}  # initialize error data for each quantity
             result[quantity] = {}
+            # Now works for matrices
             for key in group.keys():
-                result[quantity][int(key)] = group[key][0]
+                result[quantity][int(key)] = np.zeros(group[key].shape)
+                for row in range(group[key].shape[0]):
+                    result[quantity][int(key)][row] = group[key][row]
+
                 if len(quantities) > 1:
                     error_data[quantity][int(key)] = np.abs(
                         solution(time[int(key)])[i] - result[quantity][int(key)]
                     )
+
                 else:
                     error_data[quantity][int(key)] = np.abs(
                         solution(time[int(key)]) - result[quantity][int(key)]
@@ -181,5 +186,6 @@ def read_last_local_error(
         mode="r",
     ) as f:
         # Extract time metadata
-        last_step = int(time_objective / step_size)
+        # due to floating point precision error a small epsilon is added
+        last_step = int(time_objective / step_size + 1e-9)
         return f["error_measure"][str(last_step)][0]

@@ -8,13 +8,14 @@ import openmdao.api as om
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from rkopenmdao.utils.convergence_test_components import (
+from ..odes.kaps import (
     KapsGroup,
     kaps_solution,
+)
+from ..odes.simple_linear_ode import (
     SimpleLinearODE,
     simple_linear_solution,
 )
-
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import (
