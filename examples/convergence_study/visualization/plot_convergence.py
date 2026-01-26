@@ -23,9 +23,7 @@ def extract_local_error_data(butcher_tableau: ButcherTableau, problem: Problem) 
     # iterate over the step sizes
     for step_size in problem.step_sizes:
         file_name, file_path = problem.get_file_path(butcher_tableau.name, step_size)
-        butcher_error_data[str(step_size)] = read_last_local_error(
-            file_path, problem.time_objective, step_size
-        )
+        butcher_error_data[str(step_size)] = read_last_local_error(file_path)
     return butcher_error_data
 
 

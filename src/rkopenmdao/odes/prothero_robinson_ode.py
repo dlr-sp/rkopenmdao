@@ -1,6 +1,7 @@
 import numpy as np
 import openmdao.api as om
 
+from rkopenmdao.build.lib.rkopenmdao.odes.prothero_robinson_ode import ProtheroRobinson
 from ..integration_control import IntegrationControl
 
 
@@ -53,11 +54,15 @@ class ProtheroRobinson(om.ExplicitComponent):
         )
 
     @staticmethod
-    def solution(time: float):
-        """Analytical solution of the ODE"""
-        return (np.sin(time) + np.cos(time)) * 2 ** (-1 / 2)
-
-    @staticmethod
     def get_initial_values():
         """Initial values for the ODE"""
         return np.array([np.sin(np.pi / 4)])
+
+    @staticmethod
+    def solution(
+        time: float,
+        initial_values=ProtheroRobinson.get_initial_values(),
+        initial_time=0.0,
+    ):
+        """Analytical solution of the ODE"""
+        return (np.sin(time) + np.cos(time)) * 2 ** (-1 / 2)
