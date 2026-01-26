@@ -358,6 +358,10 @@ class KapsGroup(om.Group):
         return np.array([1.0, 1.0])
 
 
-def kaps_solution(time):
+def kaps_solution(
+    time,
+    initial_values=np.array([0, 0]),
+    initial_time=0.0,
+):
     "Analytical solution to Kaps problem to compare with the components above."
     return np.array([np.exp(-2 * time), np.exp(-time)])

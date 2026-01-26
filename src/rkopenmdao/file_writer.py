@@ -166,26 +166,24 @@ def read_hdf5_file(
 
                 if len(quantities) > 1:
                     error_data[quantity][int(key)] = np.abs(
-                        solution(time[int(key)])[i] - result[quantity][int(key)]
+                        solution(time[int(key)], result[quantity][0], time[0])[i]
+                        - result[quantity][int(key)]
                     )
 
                 else:
                     error_data[quantity][int(key)] = np.abs(
-                        solution(time[int(key)]) - result[quantity][int(key)]
+                        solution(time[int(key)], result[quantity][0], time[0])
+                        - result[quantity][int(key)]
                     )
     return time, error_data, result
 
 
-def read_last_local_error(
-    file_path,
-    time_objective,
-    step_size,
-):
+def read_last_local_error(file_path):
     with h5py.File(
         file_path,
         mode="r",
     ) as f:
         # Extract time metadata
         # due to floating point precision error a small epsilon is added
-        last_step = int(time_objective / step_size + 1e-9)
+        last_step = max(f["error_measure"].keys())
         return f["error_measure"][str(last_step)][0]
