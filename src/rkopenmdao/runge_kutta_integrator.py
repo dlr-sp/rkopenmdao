@@ -317,9 +317,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self.add_input(
                     quantity.name + "_initial",
                     shape=quantity.array_metadata.shape,
-                    # Arrays of size 0 tend to have the wrong shape whenaquired from
-                    # OpenMDAO, making a manual reshape necessary in that case.
                     val=(
+                        # Arrays of size 0 tend to have the wrong shape when aquired
+                        # from OpenMDAO, making a manual reshape necessary in that
+                        # case.
                         time_stage_problem.get_val(
                             quantity.translation_metadata.step_input_var,
                         ).reshape(quantity.array_metadata.shape)
