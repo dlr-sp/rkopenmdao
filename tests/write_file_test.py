@@ -14,6 +14,7 @@ import pytest
 
 from rkopenmdao.integration_control import (
     StepTerminationIntegrationControl,
+    TimeTerminationIntegrationControl,
 )
 from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk,
@@ -27,6 +28,7 @@ from .test_components import (
     solution_test1,
     solution_test5,
 )
+from rkopenmdao.error_controllers import pseudo
 
 
 @pytest.fixture(scope="module")
@@ -379,7 +381,6 @@ def test_parallel_write_out(
 
 @pytest.fixture
 def monodisciplinary_h5(
-    integration_control,
     butcher_tableau,
     tmp_h5_path: pathlib.Path,
 ) -> Tuple[pathlib.Path, List[str], Callable[[float, float, float, float], float]]:
@@ -389,12 +390,13 @@ def monodisciplinary_h5(
     list of quantities that were stored.
     """
     # Build the “stage” problem that only contains TestComp1
+
+    integration_control = TimeTerminationIntegrationControl(0.01, 2.0, 1.0)
     stage_prob = om.Problem()
     stage_prob.model.add_subsystem(
         "test_comp",
         TestComp1(integration_control=integration_control),
     )
-
     # Wrap it with the RK integrator
     rk_prob = om.Problem()
     rk_prob.model.add_subsystem(
@@ -404,6 +406,8 @@ def monodisciplinary_h5(
             butcher_tableau=butcher_tableau,
             integration_control=integration_control,
             write_out_distance=1,
+            adaptive_time_stepping=True,
+            error_controller=[pseudo],
             write_file=str(tmp_h5_path),
             time_integration_quantities=["x"],
         ),
@@ -506,18 +510,18 @@ def test_read_hdf5_file_multidisciplinary_h5(multidisciplinary_h5):
                 time_dict[0],
             )
             - np.array(
-                result_dict[quantities[0]][step], result_dict[quantities[1]][step]
+                [result_dict[quantities[0]][step], result_dict[quantities[1]][step]]
             )
         )
         for index, q in enumerate(quantities):
             assert error_dict[q][step] == computed_error[index]
 
 
-@pytest.mark.unit
+@pytest.mark.rk
 def test_read_last_local_error_exact_step(monodisciplinary_h5):
     """Write an ``error_measure`` group with several steps and ask for the
     error belonging to the step that exactly matches ``time_objective/step_size``."""
-    file_path, _ = monodisciplinary_h5
+    file_path = monodisciplinary_h5[0]
     err = read_last_local_error(str(file_path))
     with h5py.File(file_path, "r") as f:
         assert err == f["error_measure"]["100"][0]

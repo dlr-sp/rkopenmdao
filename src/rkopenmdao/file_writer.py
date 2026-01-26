@@ -165,11 +165,16 @@ def read_hdf5_file(
                     result[quantity][int(key)][row] = group[key][row]
 
                 if len(quantities) > 1:
+                    quan_result = [result[quantity][0]] * len(quantities)
                     error_data[quantity][int(key)] = np.abs(
-                        solution(time[int(key)], result[quantity][0], time[0])[i]
+                        solution(
+                            time[int(key)],
+                            quan_result,
+                            time[0],
+                        )[i]
                         - result[quantity][int(key)]
                     )
-
+                    print(error_data[quantity][int(key)])
                 else:
                     error_data[quantity][int(key)] = np.abs(
                         solution(time[int(key)], result[quantity][0], time[0])
@@ -185,5 +190,5 @@ def read_last_local_error(file_path):
     ) as f:
         # Extract time metadata
         # due to floating point precision error a small epsilon is added
-        last_step = max(f["error_measure"].keys())
+        last_step = max([int(x) for x in f["error_measure"].keys()])
         return f["error_measure"][str(last_step)][0]

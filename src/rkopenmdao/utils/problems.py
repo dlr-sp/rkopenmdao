@@ -81,9 +81,7 @@ class Problem:
             error = np.zeros_like(self.step_sizes, dtype=np.float64)
             for idx, step_size in enumerate(self.step_sizes):
                 _, file_path = self.get_file_path(butcher_name, step_size)
-                error[idx] = read_last_local_error(
-                    file_path, self.time_objective, step_size
-                )
+                error[idx] = read_last_local_error(file_path)
             return np.average(error)
         except FileNotFoundError:
             print(f"No homogeneous data found for {butcher_name}.")
