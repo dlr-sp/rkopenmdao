@@ -372,20 +372,6 @@ def add_distributivity_information(
             shape_matches_locally, MPI.LAND
         )
         quantity.array_metadata.distributed = not shapes_match_everywhere
-        # local = np.array(quantity.array_metadata.local)
-        # everywhere_local = np.zeros_like(local)
-        # # pylint: disable=c-extension-no-member
-        # stage_problem.comm.Allreduce(local, everywhere_local, MPI.LAND)
-        # if everywhere_local:
-        #     # If a variable is local everywhere, it is distributed if and only if the
-        #     # local and global shape don't match.
-        #     quantity.array_metadata.distributed = (
-        #         quantity.array_metadata.shape != quantity.array_metadata.global_shape
-        #     )
-        # else:
-        #     # If a variable is not local, it must be somewhere else, and therefore is
-        #     # distributed
-        #     quantity.array_metadata.distributed = True
 
 
 # TODO: we will later want to differentiate the algebraic part of DAEs (to take
