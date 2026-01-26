@@ -13,7 +13,7 @@ from .constants import (
     MARKER,
     COLORS,
 )
-from rkopenmdao.src.rkopenmdao.utils.problems import Problem, generate_path
+from rkopenmdao.utils.problems import Problem, generate_path
 
 
 def extract_local_error_data(butcher_tableau: ButcherTableau, problem: Problem) -> dict:
