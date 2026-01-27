@@ -12,19 +12,19 @@ from . import runge_kutta_scheme
 
 def __getattr__(attr):
     if attr == "odes":
-        import rkopenmdao.odes as odes
+        from rkopenmdao import odes
 
         return odes
     elif attr == "utils":
-        import rkopenmdao.utils as utils
+        from rkopenmdao import utils
 
         return utils
     elif attr == "checkpoint_interface":
-        import rkopenmdao.checkpoint_interface as checkpoint_interface
+        from rkopenmdao import checkpoint_interface
 
         return checkpoint_interface
     elif attr == "discretized_ode":
-        import rkopenmdao.discretized_ode as discretized_ode
+        from rkopenmdao import discretized_ode
 
         return discretized_ode
     raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")
