@@ -3,14 +3,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 import os
 import pathlib
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
 from openmdao.core.system import System
 import openmdao.api as om
 
 from ..butcher_tableau import ButcherTableau
-from ..error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
+from ..error_measurer import ErrorMeasurer
 from ..file_writer import read_last_local_error
 from ..integration_control import TimeTerminationIntegrationControl
 from ..runge_kutta_integrator import RungeKuttaIntegrator
@@ -35,7 +35,7 @@ class IntegrationConfig:
 
     integration_control: TimeTerminationIntegrationControl
     error_controller: list[Callable[[], None]]
-    error_measurer: SimpleErrorMeasurer | ImprovedErrorMeasurer
+    error_measurer: ErrorMeasurer
     write_file: pathlib.Path = field(
         default_factory=lambda: pathlib.Path.cwd() / "output.h5"
     )
@@ -52,10 +52,10 @@ class Problem:
     stiffness_coef: dict
     folder_path: pathlib.Path
     problem: System
-    solution: Callable[[float], float | np.ndarray]
+    solution: Callable[[float], Union[float, np.ndarray]]
 
     def get_file_path(
-        self, butcher_name: str, _type: str | float
+        self, butcher_name: str, _type: Union[str, float]
     ) -> Tuple[str, pathlib.Path]:
         """Get the file's path"""
         if isinstance(_type, str):
@@ -183,11 +183,12 @@ def prothero_robinson_problem(_lambda: float = -1e2):
     quantities = ["x"]
     time_objective = 10.0
     stiffness_coef = {"lambda_": _lambda}
-    folder_path = pathlib.Path(__file__).parent.parent / "data" / "prothero_robinson"
+    folder_path = (
+        pathlib.Path(__file__).resolve().parents[3] / "data" / "prothero_robinson"
+    )
     # "data/prothero_robinson" should contain the "adaptive" folder for the data of adaptive .h5 runs
     # (adaptive.py), and the "homogeneous" folder for the homogeneous for the data .h5 runs wrt. the adaptive's
     # average delta_t (run_non_adaptive_wrt_adaptive.py)
-    solution = ProtheroRobinson.solution
     return Problem(
         delta_t_list,
         quantities,
@@ -214,7 +215,7 @@ def kaps_problem(epsilon=1.0):
     quantities = ["y_1", "y_2"]
     stiffness_coef = {"epsilon": epsilon}
     time_objective = 1.0
-    folder_path = pathlib.Path(__file__).parent.parent / "data" / "kaps"
+    folder_path = pathlib.Path(__file__).resolve().parents[3] / "data" / "kaps"
     # "data/kaps" should contain the "adaptive" folder for the data of adaptive .h5 runs
     # (adaptive.py), and the "homogeneous" folder for the homogeneous for the data .h5 runs (homogeneous.py) wrt. the adaptive's
     # average delta_t (avg_homogeneous.py)
