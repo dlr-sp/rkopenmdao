@@ -452,25 +452,27 @@ def test_metadata_time_independent_inputs_incorrect(
 
 
 @pytest.mark.mpi
-def test_metadata_distributed_var_correct():
+@pytest.mark.parametrize("shape_rank_0, shape_rank_1", [(10, 11), (21, 0), (0, 21)])
+def test_metadata_distributed_var_correct(shape_rank_0, shape_rank_1):
     """Tests whether addition of metadata for distributed variables is handled
     correctly."""
+    local_array_size = shape_rank_0 if MPI.COMM_WORLD.rank == 0 else shape_rank_1
     input_dict = {
         "x_old": {
             "tags": ["step_input_var", "x"],
-            "shape": 10 + MPI.COMM_WORLD.rank,
+            "shape": local_array_size,
             "distributed": True,
         },
         "x_acc_stages": {
             "tags": ["accumulated_stage_var", "x"],
-            "shape": 10 + MPI.COMM_WORLD.rank,
+            "shape": local_array_size,
             "distributed": True,
         },
     }
     output_dict = {
         "x_update": {
             "tags": ["stage_output_var", "x"],
-            "shape": 10 + MPI.COMM_WORLD.rank,
+            "shape": local_array_size,
             "distributed": True,
         },
     }
@@ -486,23 +488,20 @@ def test_metadata_distributed_var_correct():
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     add_distributivity_information(prob, time_integration_metadata)
 
-    assert (
-        time_integration_metadata.time_integration_array_size
-        == 10 + MPI.COMM_WORLD.rank
-    )
+    assert time_integration_metadata.time_integration_array_size == local_array_size
     assert time_integration_metadata.time_integration_quantity_list == [
         TimeIntegrationQuantity(
             "x",
             "time_integration",
             ArrayMetadata(
-                shape=(10 + MPI.COMM_WORLD.rank,),
+                shape=(local_array_size,),
                 global_shape=(21,),
                 local=True,
                 distributed=True,
                 start_index=0,
-                end_index=10 + MPI.COMM_WORLD.rank,
-                global_start_index=0 if MPI.COMM_WORLD.rank == 0 else 10,
-                global_end_index=10 if MPI.COMM_WORLD.rank == 0 else 21,
+                end_index=local_array_size,
+                global_start_index=0 if MPI.COMM_WORLD.rank == 0 else shape_rank_0,
+                global_end_index=shape_rank_0 if MPI.COMM_WORLD.rank == 0 else 21,
             ),
             TimeIntegrationTranslationMetadata(
                 step_input_var="test_comp.x_old",

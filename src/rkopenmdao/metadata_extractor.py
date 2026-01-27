@@ -365,20 +365,13 @@ def add_distributivity_information(
         runge_kutta_metadata.time_integration_quantity_list,
         runge_kutta_metadata.time_independent_input_quantity_list,
     ):
-        local = np.array(quantity.array_metadata.local)
-        everywhere_local = np.zeros_like(local)
-        # pylint: disable=c-extension-no-member
-        stage_problem.comm.Allreduce(local, everywhere_local, MPI.LAND)
-        if everywhere_local:
-            # If a variable is local everywhere, it is distributed if and only if the
-            # local and global shape don't match.
-            quantity.array_metadata.distributed = (
-                quantity.array_metadata.shape != quantity.array_metadata.global_shape
-            )
-        else:
-            # If a variable is not local, it must be somewhere else, and therefore is
-            # distributed
-            quantity.array_metadata.distributed = True
+        shape_matches_locally = (
+            quantity.array_metadata.shape == quantity.array_metadata.global_shape
+        )
+        shapes_match_everywhere = stage_problem.comm.allreduce(
+            shape_matches_locally, MPI.LAND
+        )
+        quantity.array_metadata.distributed = not shapes_match_everywhere
 
 
 # TODO: we will later want to differentiate the algebraic part of DAEs (to take

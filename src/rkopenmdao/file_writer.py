@@ -63,7 +63,7 @@ class Hdf5FileWriter(FileWriterInterface):
                     dtype=np.float64,
                 )
                 dataset.attrs["time"] = time
-                if quantity.array_metadata.local:
+                if 0 not in quantity.array_metadata.shape:
                     write_indices = self.get_write_indices(quantity)
                     start_array = quantity.array_metadata.start_index
                     end_array = quantity.array_metadata.end_index
