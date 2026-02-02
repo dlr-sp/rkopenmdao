@@ -9,15 +9,6 @@ from typing import List, Tuple, Callable
 
 import h5py
 import numpy as np
-from __future__ import annotations
-
-
-import pathlib
-from typing import List, Tuple, Callable
-
-
-import h5py
-import numpy as np
 import openmdao.api as om
 import pytest
 
@@ -25,13 +16,10 @@ from rkopenmdao.integration_control import (
     IntegrationControl,
     StepTerminationIntegrationControl,
     TimeTerminationIntegrationControl,
-    TimeTerminationIntegrationControl,
 )
 from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk,
 )
-from rkopenmdao.error_controllers import pseudo, integral
-from rkopenmdao.file_writer import read_hdf5_file, read_last_local_error
 from rkopenmdao.error_controllers import pseudo, integral
 from rkopenmdao.file_writer import read_hdf5_file, read_last_local_error
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
@@ -66,13 +54,12 @@ def _multi_prob(integration_control: IntegrationControl) -> om.Problem:
     prob = om.Problem()
     prob.model.add_subsystem(
         "test_comp_1",
-        Testcomp51(integration_control=integration_con),
+        Testcomp51(integration_control=integration_control),
         promotes=["*"],
     )
     prob.model.add_subsystem(
-    prob.model.add_subsystem(
         "test_comp_2",
-        Testcomp52(integration_control=integration_con),
+        Testcomp52(integration_control=integration_control),
         promotes=["*"],
     )
     return prob
@@ -353,19 +340,6 @@ def test_n_d_array(
     rk_prob["time_int_initial"] = np.zeros(shape)
     rk_prob.run_model()
 
-    with h5py.File(WRITE_FILE, "r") as f:
-        assert "time_int" in f, "Missing top‑level group 'time_int'."
-        for step in range(0, 100, write_out_distance):
-            assert str(step) in f["time_int"].keys(), f"Step {step} missing."
-        for step in range(1, write_out_distance):
-            assert (
-                str(step) not in f["time_int"].keys()
-            ), f"Unexpected step {step} written."
-        assert "100" in f["time_int"].keys(), "Final step missing."
-
-        np.testing.assert_array_equal(
-            rk_prob["rk_integration.time_int_final"],
-            f["time_int"]["100"],
     with h5py.File(WRITE_FILE, "r") as f:
         assert "time_int" in f, "Missing top‑level group 'time_int'."
         for step in range(0, 100, write_out_distance):
