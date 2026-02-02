@@ -13,6 +13,7 @@ import openmdao.api as om
 import pytest
 
 from rkopenmdao.integration_control import (
+    IntegrationControl,
     StepTerminationIntegrationControl,
     TimeTerminationIntegrationControl,
 )
@@ -38,27 +39,27 @@ WRITE_FILE = "rk_write_out.h5"
 
 
 def _mono_prob(
-    integration_con,
+    integration_control: IntegrationControl,
 ) -> om.Problem:
     """A single‑component problem that only produces the quantity ``x``."""
     prob = om.Problem()
     prob.model.add_subsystem(
-        "test_comp", TestComp1(integration_control=integration_con)
+        "test_comp", TestComp1(integration_control=integration_control)
     )
     return prob
 
 
-def _multi_prob(integration_con) -> om.Problem:
+def _multi_prob(integration_control: IntegrationControl) -> om.Problem:
     """A two‑component problem that produces ``x`` and ``y`` (promoted)."""
     prob = om.Problem()
     prob.model.add_subsystem(
         "test_comp_1",
-        Testcomp51(integration_control=integration_con),
+        Testcomp51(integration_control=integration_control),
         promotes=["*"],
     )
     prob.model.add_subsystem(
         "test_comp_2",
-        Testcomp52(integration_control=integration_con),
+        Testcomp52(integration_control=integration_control),
         promotes=["*"],
     )
     return prob
@@ -67,7 +68,7 @@ def _multi_prob(integration_con) -> om.Problem:
 def _make_rk_problem(
     *,
     time_stage_problem: om.Problem,
-    integration_con,
+    integration_control: IntegrationControl,
     write_out_distance: int,
     quantities: List[str],
     adaptive: bool = False,
@@ -82,7 +83,7 @@ def _make_rk_problem(
         RungeKuttaIntegrator(
             time_stage_problem=time_stage_problem,
             butcher_tableau=embedded_third_order_four_stage_esdirk,
-            integration_control=integration_con,
+            integration_control=integration_control,
             write_out_distance=write_out_distance,
             adaptive_time_stepping=adaptive,
             error_controller=error_controller or [integral],
@@ -112,27 +113,30 @@ def _assert_time_attrs(
 # ########################
 
 
-@pytest.fixture(name="integration_con")
-def integration_control():
+@pytest.fixture(name="integration_control")
+def integration_control_fixture():
     """Step‑termination control: dt=0.01, max 100 steps, start time = 1.0."""
     return StepTerminationIntegrationControl(0.01, 100, 1.0)
 
 
 @pytest.fixture(name="mono_problem")
-def monodisciplinary_problem(
-    integration_con,
+def monodisciplinary_problem_fixture(
+    integration_control: IntegrationControl,
 ) -> om.Problem:
-    return _mono_prob(integration_con)
+    """A single‑component problem that produces ``x``."""
+    return _mono_prob(integration_control)
 
 
 @pytest.fixture(name="multi_problem")
-def multidisciplinary_problem(integration_con) -> om.Problem:
+def multidisciplinary_problem_fixture(
+    integration_control: IntegrationControl,
+) -> om.Problem:
     """A two‑component problem that produces ``x`` and ``y`` (promoted)."""
-    return _multi_prob(integration_con)
+    return _multi_prob(integration_control)
 
 
-@pytest.fixture(name="nd_array_prob")
-def n_d_array_problem() -> Tuple[om.Problem, List[int]]:
+@pytest.fixture(name="nd_array_problem")
+def n_d_array_problem_fixture() -> Tuple[om.Problem, List[int]]:
     """Problem that exposes a user‑defined N‑D array with tag ``time_int``."""
     prob = om.Problem()
     indep = om.IndepVarComp()
@@ -146,8 +150,10 @@ def n_d_array_problem() -> Tuple[om.Problem, List[int]]:
     return prob, [2, 2]
 
 
-@pytest.fixture(name="parallel_prob")
-def parallel_problem(shape: Tuple[int, ...]) -> Tuple[om.Problem, Tuple[int, ...]]:
+@pytest.fixture(name="parallel_problem")
+def parallel_problem_fixture(
+    shape: Tuple[int, ...],
+) -> Tuple[om.Problem, Tuple[int, ...]]:
     """Problem for the MPI test – a distributed variable with the requested shape."""
     prob = om.Problem()
     indep = om.IndepVarComp()
@@ -172,13 +178,12 @@ def monodisciplinary_h5() -> (
     list of quantities that were stored.
     """
     # Build the “stage” problem that only contains TestComp1
-    # TODO : Change code here.
     _integration_con = TimeTerminationIntegrationControl(0.01, 2.0, 1.0)
     stage = _mono_prob(_integration_con)
     # Wrap it with the RK integrator
     rk_prob = _make_rk_problem(
         time_stage_problem=stage,
-        integration_con=_integration_con,
+        integration_control=_integration_con,
         write_out_distance=1,
         quantities=["x"],
         adaptive=True,
@@ -204,7 +209,7 @@ def multidisciplinary_h5() -> (
 
     rk_prob = _make_rk_problem(
         time_stage_problem=stage,
-        integration_con=_integration_con,
+        integration_control=_integration_con,
         write_out_distance=1,
         quantities=["x", "y"],
         adaptive=True,
@@ -223,12 +228,12 @@ def multidisciplinary_h5() -> (
 @pytest.mark.rk
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
 def test_monodisciplinary(
-    mono_problem, integration_con, write_out_distance: int
+    mono_problem, integration_control, write_out_distance: int
 ) -> None:
     """Write‑out for a monodisciplinary problem (only ``x``)."""
     rk_prob = _make_rk_problem(
         time_stage_problem=mono_problem,
-        integration_con=integration_con,
+        integration_control=integration_control,
         write_out_distance=write_out_distance,
         quantities=["x"],
     )
@@ -258,21 +263,21 @@ def test_monodisciplinary(
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
 def test_time_attribute(
     mono_problem,
-    integration_con,
+    integration_control,
     write_out_distance: int,
 ) -> None:
     """Validate that the ``time`` attribute of each stored step is correct."""
     rk_prob = _make_rk_problem(
         time_stage_problem=mono_problem,
-        integration_con=integration_con,
+        integration_control=integration_control,
         write_out_distance=write_out_distance,
         quantities=["x"],
     )
     rk_prob.setup()
     rk_prob.run_model()
 
-    dt = integration_con.initial_delta_t
-    t0 = integration_con.initial_time
+    dt = integration_control.initial_delta_t
+    t0 = integration_control.initial_time
 
     with h5py.File(WRITE_FILE, "r") as f:
         for step in range(0, 100, write_out_distance):
@@ -283,13 +288,13 @@ def test_time_attribute(
 @pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
 def test_multidisciplinary(
     multi_problem,
-    integration_con,
+    integration_control,
     write_out_distance: int,
 ) -> None:
     """Write‑out for a multidisciplinary problem (quantities ``x`` and ``y``)."""
     rk_prob = _make_rk_problem(
         time_stage_problem=multi_problem,
-        integration_con=integration_con,
+        integration_control=integration_control,
         write_out_distance=write_out_distance,
         quantities=["x", "y"],
     )
@@ -317,16 +322,16 @@ def test_multidisciplinary(
 @pytest.mark.rk
 @pytest.mark.parametrize("write_out_distance", (1, 10))
 def test_n_d_array(
-    nd_array_prob,
-    integration_con,
+    nd_array_problem,
+    integration_control: IntegrationControl,
     write_out_distance: int,
 ) -> None:
     """Write‑out when the stored quantity has shape > 1 (2×2 array in this case)."""
-    prob, shape = nd_array_prob
+    prob, shape = nd_array_problem
 
     rk_prob = _make_rk_problem(
         time_stage_problem=prob,
-        integration_con=integration_con,
+        integration_control=integration_control,
         write_out_distance=write_out_distance,
         quantities=["time_int"],
     )
@@ -356,8 +361,8 @@ def test_n_d_array(
 @pytest.mark.parametrize("write_out_distance", [1, 10])
 @pytest.mark.parametrize("shape", [(2,), (2, 2), (2, 2, 2)])
 def test_parallel_write_out(
-    parallel_prob,
-    integration_con,
+    parallel_problem,
+    integration_control: IntegrationControl,
     write_out_distance: int,
     shape: Tuple[int, ...],
 ) -> None:
@@ -369,8 +374,8 @@ def test_parallel_write_out(
       of the distributed variable stored in the OpenMDAO problem.
     """
 
-    prob, _ = parallel_prob
-    integration_con = StepTerminationIntegrationControl(0.01, 100, 1.0)
+    prob, _ = parallel_problem
+    integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
     # Build the RK problem that writes to a temporary file.
     # Use the core driver when available – it creates an in‑memory file on each rank.
@@ -378,7 +383,7 @@ def test_parallel_write_out(
 
     rk_prob = _make_rk_problem(
         time_stage_problem=prob,
-        integration_con=integration_con,
+        integration_control=integration_control,
         write_out_distance=write_out_distance,
         quantities=["time_int"],
     )
@@ -423,6 +428,11 @@ def test_parallel_write_out(
 
 @pytest.mark.rk
 def test_read_hdf5_file_monodisciplinary(mono_h5):
+    """
+    Read the quantity ``x`` of a monodisciplinary problem and assert for each step
+    whether the function `read_hdf5_file` provides correct time, error
+    and result parameters.
+    """
     quantities, solution = mono_h5
     time_dict, error_dict, result_dict = read_hdf5_file(
         WRITE_FILE, quantities, solution
@@ -446,6 +456,11 @@ def test_read_hdf5_file_monodisciplinary(mono_h5):
 @pytest.mark.mpi
 @pytest.mark.rk
 def test_read_hdf5_file_multidisciplinary_h5(multi_h5):
+    """
+    Read the quantity ``x``,``y`` of a multidisciplinary problem and assert for each
+    step whether the function `read_hdf5_file` provides correct time, error and result
+    parameters.
+    """
     quantities, solution = multi_h5
     time_dict, error_dict, result_dict = read_hdf5_file(
         WRITE_FILE, quantities, solution
@@ -480,4 +495,6 @@ def test_read_last_local_error_exact_step(mono_h5):
     error belonging to the step that exactly matches ``time_objective/step_size``."""
     err = read_last_local_error(WRITE_FILE)
     with h5py.File(WRITE_FILE, "r") as f:
-        assert err == f["error_measure"]["100"][0]
+        assert (
+            err == f["error_measure"]["100"][0]
+        ), f"Error estimation of ``{mono_h5[0]}`` at step ``100`` is wrong."

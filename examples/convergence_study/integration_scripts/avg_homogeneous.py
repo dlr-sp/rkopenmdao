@@ -20,7 +20,7 @@ def count_keys(path: str):
 def avg_homogeneous_simulation(problem: Problem, butcher_tableaux: dict):
     """Execute homogeneous integration for each Butcher tableau with the average step size of the adaptive runs."""
     integration_config = IntegrationConfig(
-        TimeTerminationIntegrationControl(0, PROBLEM.time_objective, 0.0),
+        TimeTerminationIntegrationControl(0, problem.time_objective, 0.0),
         [pseudo],
         SimpleErrorMeasurer(),
     )
