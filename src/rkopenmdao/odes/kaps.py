@@ -1,7 +1,7 @@
 import numpy as np
 import openmdao.api as om
 
-from ..integration_control import IntegrationControl
+from rkopenmdao.integration_control import IntegrationControl
 
 # pylint: disable=arguments-differ, unused-argument, too-many-branches
 

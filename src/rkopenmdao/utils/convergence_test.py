@@ -8,11 +8,10 @@ import openmdao.api as om
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from ..odes.kaps import (
+from rkopenmdao.odes.kaps import (
     KapsGroup,
-    kaps_solution,
 )
-from ..odes.simple_linear_ode import (
+from rkopenmdao.odes.simple_linear_ode import (
     SimpleLinearODE,
     simple_linear_solution,
 )
@@ -63,7 +62,7 @@ mpl.rcParams["figure.titlesize"] = "large"
 
 problem_dict = {
     # "Simple_linear": (SimpleLinearODE, SimpleLinearSolution, ["y"]),
-    "Kaps": (KapsGroup, kaps_solution, ["y_1", "y_2"]),
+    "Kaps": (KapsGroup, KapsGroup.kaps_solution, ["y_1", "y_2"]),
 }
 
 butcher_tableau_dict = {

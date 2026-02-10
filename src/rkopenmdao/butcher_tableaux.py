@@ -19,7 +19,7 @@ Prefixes:
 
 import numpy as np
 
-from .butcher_tableau import ButcherTableau, EmbeddedButcherTableau
+from rkopenmdao.butcher_tableau import ButcherTableau, EmbeddedButcherTableau
 
 __all__ = [
     "explicit_euler",

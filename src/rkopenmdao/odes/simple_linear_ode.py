@@ -1,7 +1,7 @@
 import numpy as np
 import openmdao.api as om
 
-from ..integration_control import IntegrationControl
+from rkopenmdao.integration_control import IntegrationControl
 
 
 class SimpleLinearODE(om.ExplicitComponent):
@@ -39,7 +39,11 @@ class SimpleLinearODE(om.ExplicitComponent):
             d_inputs["y_old"] -= factor * d_outputs["y_stage"]
             d_inputs["y_accumulated_stages"] -= delta_t * factor * d_outputs["y_stage"]
 
-
-def simple_linear_solution(time):
-    """Analytical solution to y' = -y, y(0) = 1"""
-    return np.array([np.exp(-time)])
+    @staticmethod
+    def simple_linear_solution(
+        time: float,
+        initial_values=1.0,
+        initial_time=0.0,
+    ):
+        """Analytical solution to y' = -y"""
+        return initial_values / np.exp(-initial_time) * np.exp(-time)

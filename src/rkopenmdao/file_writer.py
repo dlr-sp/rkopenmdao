@@ -12,7 +12,7 @@ import h5py
 from mpi4py.MPI import Comm
 import numpy as np
 
-from .metadata_extractor import Quantity, TimeIntegrationMetadata
+from rkopenmdao.metadata_extractor import Quantity, TimeIntegrationMetadata
 
 
 @dataclass

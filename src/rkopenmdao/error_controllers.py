@@ -7,7 +7,7 @@ Mark H. Carpenter.
 # pylint: disable=missing-function-docstring
 import numpy as np
 
-from .error_controller import (
+from rkopenmdao.error_controller import (
     ErrorController,
     ErrorControllerDecorator,
     ErrorControllerConfig,

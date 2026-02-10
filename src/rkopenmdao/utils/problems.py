@@ -9,13 +9,13 @@ import numpy as np
 from openmdao.core.system import System
 import openmdao.api as om
 
-from ..butcher_tableau import ButcherTableau
-from ..error_measurer import ErrorMeasurer
-from ..file_writer import read_last_local_error
-from ..integration_control import TimeTerminationIntegrationControl
-from ..runge_kutta_integrator import RungeKuttaIntegrator
-from ..odes.kaps import KapsGroup
-from ..odes.prothero_robinson_ode import ProtheroRobinson
+from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.error_measurer import ErrorMeasurer
+from rkopenmdao.file_writer import read_last_local_error
+from rkopenmdao.integration_control import TimeTerminationIntegrationControl
+from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.odes.kaps import KapsGroup
+from rkopenmdao.odes.prothero_robinson_ode import ProtheroRobinson
 
 
 def generate_path(path: str):
