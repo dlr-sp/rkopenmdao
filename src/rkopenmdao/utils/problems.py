@@ -75,6 +75,10 @@ class Problem:
         else:
             raise ValueError("_type must be of type str or float")
 
+    def file_exists(self, butcher_name, _type) -> bool:
+        _, path = self.get_file_path(butcher_name=butcher_name, _type=_type)
+        return os.path.isfile(path)
+
     def compute_tolerance(self, butcher_name: str) -> np.floating:
         """compute the tolerance for the given Runge-Kutta scheme"""
         try:

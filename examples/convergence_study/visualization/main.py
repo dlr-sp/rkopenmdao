@@ -12,13 +12,47 @@ from .constants import (
     BUTCHER_TABLEAUX,
 )
 from .plot_convergence import generate_convergence_graph, extract_local_error_data
-from .plot_log_error import (
+from .plot_errors import (
     extract_solution_per_butcher_tableau,
     generate_solution_figure,
     generate_global_error_figure,
 )
 
 
+# Check whether all files exist, and name the files that do not exist
+def check_and_raise_missing_files():
+    """Check whether all files exist, and name the files that do not exist"""
+    # Group 1: Step-size files (clustered together)
+    missing_steps = [
+        f"Step-size file for {bt.name} (h={step_size}) missing: {PROBLEM.get_file_path(bt.name, step_size)}"
+        for bt in BUTCHER_TABLEAUX.values()
+        for step_size in PROBLEM.step_sizes
+        if not PROBLEM.file_exists(bt.name, step_size)
+    ]
+
+    # Group 2: Homogeneous/adaptive files (clustered together)
+    missing_types = [
+        f" {_type.capitalize()} file for {bt.name} missing: {PROBLEM.get_file_path(bt.name, _type)}"
+        for bt in BUTCHER_TABLEAUX.values()
+        for _type in ["avg_homogeneous", "adaptive"]
+        if not PROBLEM.file_exists(bt.name, _type)
+    ]
+
+    if missing_steps or missing_types:
+        error_parts = []
+        if missing_steps:
+            error_parts.append("MISSING STEP-SIZE FILES:")
+            error_parts.extend(missing_steps)
+        if missing_types:
+            error_parts.append("MISSING SPECIALIZED FILES:")
+            error_parts.extend(missing_types)
+
+        error_parts.append("\nHint: Run simulations to generate missing files first.")
+
+        raise FileNotFoundError("\n".join(error_parts))
+
+
+check_and_raise_missing_files()
 local_error_data = {}
 for butcher_tableau in BUTCHER_TABLEAUX.values():
     # ----------------------------------------------
