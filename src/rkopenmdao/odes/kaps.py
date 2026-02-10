@@ -357,11 +357,23 @@ class KapsGroup(om.Group):
     def get_initial_values():
         return np.array([1.0, 1.0])
 
-
-def kaps_solution(
-    time,
-    initial_values=np.array([0, 0]),
-    initial_time=0.0,
-):
-    "Analytical solution to Kaps problem to compare with the components above."
-    return np.array([np.exp(-2 * time), np.exp(-time)])
+    @staticmethod
+    def kaps_solution(
+        time,
+        initial_values=get_initial_values(),
+        initial_time=0.0,
+    ):
+        """
+        Analytical solution to Kaps problem (using Homotopy Perturbation Method) to
+        compare with the components above.
+        """
+        return np.array(
+            [
+                initial_values[1] * np.exp(-2 * time)
+                + (initial_values[0] - initial_values[1] ** 2) * np.exp(-2 * time),
+                (initial_values[1] - initial_values[0] + initial_values[1] ** 2)
+                * np.exp(-time)
+                + initial_values[0] * np.exp(-2 * time)
+                - initial_values[1] ** 2 * np.exp(-2 * time),
+            ]
+        )

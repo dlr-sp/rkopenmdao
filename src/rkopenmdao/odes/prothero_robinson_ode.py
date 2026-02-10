@@ -64,4 +64,7 @@ class ProtheroRobinson(om.ExplicitComponent):
         initial_time=0.0,
     ):
         """Analytical solution of the ODE"""
-        return (np.sin(time) + np.cos(time)) * 2 ** (-1 / 2)
+        # x = phi(t) + Ce^t
+        return ProtheroRobinson.phi(time) + (
+            initial_values - ProtheroRobinson.phi(initial_time)
+        ) / np.exp(initial_time) * np.exp(time)

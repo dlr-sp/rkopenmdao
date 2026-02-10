@@ -174,7 +174,6 @@ def read_hdf5_file(
                         )[i]
                         - result[quantity][int(key)]
                     )
-                    print(error_data[quantity][int(key)])
                 else:
                     error_data[quantity][int(key)] = np.abs(
                         solution(time[int(key)], result[quantity][0], time[0])

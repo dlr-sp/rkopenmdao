@@ -31,8 +31,6 @@ class ResultData:
 def sort_dicts(time: dict, error: dict, result: dict, quantities: list[str]):
     """Sort the dictionaries by time."""
     time = dict(sorted(time.items()))
-    # Takes the time dictionary, sorts its items (by key),
-    # and converts the result back into a dictionary
     step_sizes = [0.0] * len(time)
     for i in range(len(time) - 1):
         # calculate the difference between consecutive time points.

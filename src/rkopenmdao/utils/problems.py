@@ -14,7 +14,7 @@ from ..error_measurer import ErrorMeasurer
 from ..file_writer import read_last_local_error
 from ..integration_control import TimeTerminationIntegrationControl
 from ..runge_kutta_integrator import RungeKuttaIntegrator
-from ..odes.kaps import kaps_solution, KapsGroup
+from ..odes.kaps import KapsGroup
 from ..odes.prothero_robinson_ode import ProtheroRobinson
 
 
@@ -226,5 +226,5 @@ def kaps_problem(epsilon=1.0):
         stiffness_coef,
         folder_path,
         KapsGroup,
-        kaps_solution,
+        KapsGroup.kaps_solution,
     )

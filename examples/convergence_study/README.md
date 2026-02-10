@@ -1,6 +1,6 @@
 # 'convergence_study/' – Usage example for RKOpenMDAO
 
-This example shows how to use RKOpenMDAO to solve a simple ODE and PDE problems.
+This example shows how simple ODE problems are solved with RKOpenMDAO.
 
 ---
 
@@ -32,8 +32,7 @@ files.
 In the `visualization` folder, you will find the following scripts:
 - `main.py`: Plots the results from the simulations.
 - `plot_convergence.py`: Plots the convergence of the homogeneous time stepping simulations.
-- `plot_log_error.py`: Plots the logarithmic error of the adaptive simulations with comparison to the average step size
-homogeneous simulation.
+- `plot_errors.py`: Plots the global error and the solution of the adaptive simulations with comparison to the average step size homogeneous simulation.
 
 ---
 ## How to run an example
