@@ -75,7 +75,7 @@ class Problem:
         else:
             raise ValueError("_type must be of type str or float")
 
-    def file_exists(self, butcher_name, _type) -> bool:
+    def file_exists(self, butcher_name: str, _type: Union[str, float]) -> bool:
         _, path = self.get_file_path(butcher_name=butcher_name, _type=_type)
         return os.path.isfile(path)
 
