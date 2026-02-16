@@ -31,7 +31,8 @@ jobs:
         pip install cython  # required to build petsc4py
         export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
         pip install petsc
-        PIP_CONSTRAINT=<(echo 'setuptools<81') pip install petsc4py
+        PIP_CONSTRAINT='setuptools<81' 
+        pip install petsc4py
         pip install openmdao==3.33
         CC="mpicc" HDF5_MPI="ON" pip install --no-binary=h5py ".[dev]"
     - name: Lint with pylint
