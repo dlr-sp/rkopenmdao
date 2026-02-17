@@ -110,7 +110,7 @@ def create_third_order_three_stage_esdirk():
 third_order_three_stage_esdirk = create_third_order_three_stage_esdirk()
 
 
-def create_third_order_three_stage_sdirk(): #TODO: Embedded 
+def create_third_order_three_stage_sdirk():  # TODO: Embedded
     gamma = 0.43586652150845899941601945
     alpha = 1 - 4 * gamma + 2 * gamma**2
     beta = -1 + 6 * gamma - 9 * gamma**2 + 3 * gamma**3
@@ -637,24 +637,19 @@ def create_third_order_four_stage_esdirk():
     )
     return tableau
 
+
 # https://doi.org/10.1007/BF01934920
 embedded_third_order_three_stage_sdirk = EmbeddedButcherTableau(
     np.array(
         [
-            [ 5/6, 0.0, 0.0],
-            [-61/108, 5/6, 0.0],
-            [-23/183, -33/61, 5/6],
+            [5 / 6, 0.0, 0.0],
+            [-61 / 108, 5 / 6, 0.0],
+            [-23 / 183, -33 / 61, 5 / 6],
         ]
     ),
-    np.array(
-        [26/61, 324/671, 1/11]
-    ),
-    np.array(
-        [25/61, 36/61, 0.0]
-    ),
-    np.array(
-        [5/6, 29/108, 1/6]
-    ),
+    np.array([26 / 61, 324 / 671, 1 / 11]),
+    np.array([25 / 61, 36 / 61, 0.0]),
+    np.array([5 / 6, 29 / 108, 1 / 6]),
     p=3,
     phat=2,
     name="SDIRK 3-stage, 3rd order",
@@ -811,24 +806,19 @@ def create_fourth_order_five_stage_esdirk():  # STIFF METHOD
 
     return tableau
 
+
 embedded_fourth_order_four_stage_sdirk = EmbeddedButcherTableau(
     np.array(
         [
             [5 / 6, 0.0, 0.0, 0.0],
             [-15 / 26, 5 / 6, 0.0, 0.0],
             [215 / 54, -130 / 27, 5 / 6, 0.0],
-            [4007 / 6075, -31031 / 24300, -133 / 2700, 5 / 6]
+            [4007 / 6075, -31031 / 24300, -133 / 2700, 5 / 6],
         ]
     ),
-    np.array(
-        [61/150, 2197/2100, 19/100, -9/14]
-    ),
-    np.array(
-        [32/75, 169/300, 1/100, 0.0]
-    ),
-    np.array(
-        [5/6, 10/39, 0.0, 1/6]
-    ),
+    np.array([61 / 150, 2197 / 2100, 19 / 100, -9 / 14]),
+    np.array([32 / 75, 169 / 300, 1 / 100, 0.0]),
+    np.array([5 / 6, 10 / 39, 0.0, 1 / 6]),
     p=4,
     phat=3,
     name="SDIRK 4-stage, 4rd order",

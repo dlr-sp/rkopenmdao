@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 import json
+from typing import Tuple
 
 import h5py
 
@@ -11,7 +12,7 @@ import h5py
 from mpi4py.MPI import Comm
 import numpy as np
 
-from .metadata_extractor import Quantity, TimeIntegrationMetadata
+from rkopenmdao.metadata_extractor import Quantity, TimeIntegrationMetadata
 
 
 @dataclass
@@ -132,3 +133,61 @@ class TXTFileWriter(FileWriterInterface):
                             .tolist()
                         )
                 file_out.write(json.dumps(data_dict) + "\n")
+
+
+def read_hdf5_file(
+    file: str, quantities: list[str], solution: callable
+) -> Tuple[dict, dict, dict]:
+    """extracts the time, error and result data from an HDF5 file"""
+    # Initialize dictionaries
+    time = {}
+    error_data = {}
+    result = {}
+    # Open the HDF5 file in read-only mode
+    with h5py.File(
+        file,
+        mode="r",
+    ) as f:
+        # coefficient values
+        group = f[quantities[0]]
+        # Extract time metadata
+        for key in group.keys():
+            time[int(key)] = group[key].attrs["time"]
+        # Extract solution and compute Error wrt. analytical solution
+        for i, quantity in enumerate(quantities):
+            group = f[quantity]
+            error_data[quantity] = {}  # initialize error data for each quantity
+            result[quantity] = {}
+            # Now works for matrices
+            for key in group.keys():
+                result[quantity][int(key)] = np.zeros(group[key].shape)
+                for row in range(group[key].shape[0]):
+                    result[quantity][int(key)][row] = group[key][row]
+
+                if len(quantities) > 1:
+                    quan_result = [result[quantity][0]] * len(quantities)
+                    error_data[quantity][int(key)] = np.abs(
+                        solution(
+                            time[int(key)],
+                            quan_result,
+                            time[0],
+                        )[i]
+                        - result[quantity][int(key)]
+                    )
+                else:
+                    error_data[quantity][int(key)] = np.abs(
+                        solution(time[int(key)], result[quantity][0], time[0])
+                        - result[quantity][int(key)]
+                    )
+    return time, error_data, result
+
+
+def read_last_local_error(file_path):
+    with h5py.File(
+        file_path,
+        mode="r",
+    ) as f:
+        # Extract time metadata
+        # due to floating point precision error a small epsilon is added
+        last_step = max([int(x) for x in f["error_measure"].keys()])
+        return f["error_measure"][str(last_step)][0]

@@ -8,13 +8,13 @@ import openmdao.api as om
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-from rkopenmdao.utils.convergence_test_components import (
+from rkopenmdao.odes.kaps import (
     KapsGroup,
-    kaps_solution,
+)
+from rkopenmdao.odes.simple_linear_ode import (
     SimpleLinearODE,
     simple_linear_solution,
 )
-
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.integration_control import (
@@ -62,7 +62,7 @@ mpl.rcParams["figure.titlesize"] = "large"
 
 problem_dict = {
     # "Simple_linear": (SimpleLinearODE, SimpleLinearSolution, ["y"]),
-    "Kaps": (KapsGroup, kaps_solution, ["y_1", "y_2"]),
+    "Kaps": (KapsGroup, KapsGroup.kaps_solution, ["y_1", "y_2"]),
 }
 
 butcher_tableau_dict = {
