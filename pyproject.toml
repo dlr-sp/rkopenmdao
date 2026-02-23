@@ -1,0 +1,104 @@
+# Guide (user-friendly): 
+# https://packaging.python.org/en/latest/guides/writing-pyproject-toml/ 
+
+# Specification (technical, formal): 
+# https://packaging.python.org/en/latest/specifications/pyproject-toml/
+
+# Specifies tools required to build the package, including setuptools and wheel for packaging and distribution.
+
+[build-system]
+requires = ["setuptools>=64", "setuptools_scm>=8", "numpy>=2.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rkopenmdao"
+dynamic = ["version"]
+description = "Runge-Kutta time integration in OpenMDAO"
+readme = "README.md"
+license = "BSD-3-Clause"
+license-files = ["LICENSE.txt"]
+requires-python = ">=3.8"
+authors = [
+    {name = "Deutsches Zentrum fuer Luft- und Raumfahrt e.V. (DLR)", email = "florian.ross@dlr.de"}
+]
+maintainers = [
+    {name = "Florian Roß", email = "florian.ross@dlr.de"},
+    {name = "Sebastian Gottfried", email = "sebastian.gottfried@dlr.de"},
+    {name = "Imri Shuvi", email = "imri.shuvi@dlr.de"},
+]
+keywords = [
+    "analysis",
+    "multi-disciplinary",
+    "multidisciplinary",
+    "optimization",
+    "unsteady",
+    "runge-kutta",
+    "instationary",
+]
+classifiers  = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "scipy>=1.13",
+    "numpy",
+    "matplotlib",
+    "h5py",
+    "pyrevolve",
+    "mpi4py",
+    "petsc4py",
+    "openmdao",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort",
+    "docutils",
+    "pycodestyle",
+    "pytest",
+    "pytest-mpi",
+    "pylint",
+]
+
+[project.scripts]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages]
+find = { where = ["src"] }
+
+
+[tool.black]
+target_version = ["py38"]
+line-length = 88
+
+[tool.isort]
+force_single_line = true
+line_length = 88
+skip_glob = ["venv*/*", "dist/*", "build/*"]
+
+[pycodestyle]
+max-line-length = 88
+
+[tool.pylint]
+max-line-length = 88
+ignore = ["build", "dist", ".git"]
+extension-pkg-allow-list = "mpi4py.MPI"
+good-names-rgxs = "^[_a-z][_a-z0-9]?$"
+min-similarity-lines = 10
+max-args = 10
+max-attributes = 12
+max-branches = 15
+max-locals = 20
+max-nested-blocks = 9
+max-parents = 15
+max-positional-arguments = 8
+
+[tool.setuptools_scm]
