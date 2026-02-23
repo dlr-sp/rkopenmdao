@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Runge-Kutta time integration in OpenMDAO"
 readme = "README.md"
 license = {text = "BSD-3-Clause"}
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     {name = "Deutsches Zentrum fuer Luft- und Raumfahrt e.V. (DLR)", email = "florian.ross@dlr.de"}
 ]
@@ -36,7 +36,7 @@ classifiers  = [
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "scipy>=1.13",
+    "scipy",
     "numpy",
     "matplotlib",
     "h5py",
@@ -49,9 +49,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "black",
-    "isort",
-    "docutils",
-    "pycodestyle",
     "pytest",
     "pytest-mpi",
     "pylint",
@@ -65,31 +62,31 @@ include-package-data = true
 [tool.setuptools.packages]
 find = { where = ["src"] }
 
-
 [tool.black]
-target_version = ["py38"]
+target_version = ["py39"]
 line-length = 88
 
-[tool.isort]
-force_single_line = true
-line_length = 88
-skip_glob = ["venv*/*", "dist/*", "build/*"]
-
-[pycodestyle]
-max-line-length = 88
-
 [tool.pylint]
-max-line-length = 88
-ignore = ["build", "dist", ".git"]
-extension-pkg-allow-list = "mpi4py.MPI"
-good-names-rgxs = "^[_a-z][_a-z0-9]?$"
-min-similarity-lines = 10
 max-args = 10
-max-attributes = 12
-max-branches = 15
-max-locals = 20
-max-nested-blocks = 9
-max-parents = 15
-max-positional-arguments = 8
+max-attributes=12
+disable=[
+    "no-else-return",
+    "no-else-raise",
+]
+extension-pkg-whitelist= [
+    "mpi4py"
+]
+good-names=[
+    "ax",
+    "im",
+    "x",
+    "y",
+    "i",
+    "j",
+    "f",
+    "g",
+    "t"]
+max-line-length=88
+min-similarity-lines = 10
 
 [tool.setuptools_scm]

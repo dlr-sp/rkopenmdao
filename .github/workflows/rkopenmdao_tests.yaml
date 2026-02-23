@@ -39,8 +39,8 @@ jobs:
     - name: Lint with pylint
       continue-on-error: true
       run: |
-        pylint src tests setup.py
-        
+        pylint src tests
+                
     - name: Run tests
       run: |
         mpirun -n 2 pytest --with-mpi tests
