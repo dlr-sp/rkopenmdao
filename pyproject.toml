@@ -1,11 +1,3 @@
-# Guide (user-friendly): 
-# https://packaging.python.org/en/latest/guides/writing-pyproject-toml/ 
-
-# Specification (technical, formal): 
-# https://packaging.python.org/en/latest/specifications/pyproject-toml/
-
-# Specifies tools required to build the package, including setuptools and wheel for packaging and distribution.
-
 [build-system]
 requires = ["setuptools>=64", "setuptools_scm>=8", "numpy>=2.0"]
 build-backend = "setuptools.build_meta"
@@ -15,8 +7,7 @@ name = "rkopenmdao"
 dynamic = ["version"]
 description = "Runge-Kutta time integration in OpenMDAO"
 readme = "README.md"
-license = "BSD-3-Clause"
-license-files = ["LICENSE.txt"]
+license = {text = "BSD-3-Clause"}
 requires-python = ">=3.8"
 authors = [
     {name = "Deutsches Zentrum fuer Luft- und Raumfahrt e.V. (DLR)", email = "florian.ross@dlr.de"}
