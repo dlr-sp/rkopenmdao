@@ -7,27 +7,6 @@ from typing import TypeVar
 import numpy as np
 
 
-class DiscretizedODELinearizationPoint(ABC):
-    """
-    Abstract base class for the representation of a linearization point for the
-    DiscretizedODE class.
-    """
-
-    @abstractmethod
-    def to_numpy_array(self) -> np.ndarray:
-        """
-        Method to serialize the linearization point to a numpy array for use with
-        checkpointing.
-        """
-
-    @abstractmethod
-    def from_numpy_array(self, array: np.ndarray) -> None:
-        """
-        Method to deserialize the linearization point from a numpy array back to its
-        original form.
-        """
-
-
 @dataclass
 class DiscretizedODEInputState:
     """
@@ -55,6 +34,7 @@ class DiscretizedODEInputState:
     stage_input: np.ndarray
     independent_input: np.ndarray
     time: float
+    linearization_point: np.ndarray | None = None
 
 
 @dataclass
