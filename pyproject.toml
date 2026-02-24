@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "setuptools_scm>=8", "numpy>=2.0"]
+requires = ["setuptools>=64", "setuptools_scm>=8", "numpy>=1.15.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -25,9 +25,10 @@ keywords = [
     "unsteady",
     "runge-kutta",
     "instationary",
+    "mdao",
 ]
 classifiers  = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Natural Language :: English",
     "Programming Language :: Python",
