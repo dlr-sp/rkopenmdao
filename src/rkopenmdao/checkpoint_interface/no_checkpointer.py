@@ -63,9 +63,7 @@ class NoCheckpointer(CheckpointInterface):
             self.state.set(self.run_step_func(self.state))
         return self.state
 
-    def iterate_reverse(
-        self, final_state_perturbation: TimeIntegrationState
-    ) -> TimeIntegrationState:
+    def iterate_reverse(self, final_state_perturbation: TimeIntegrationState):
         """
         Does nothing.
 
@@ -74,12 +72,6 @@ class NoCheckpointer(CheckpointInterface):
         final_state_perturbation: TimeIntegrationState
             The perturbation of the final state used as starting point for reverse
             iteration.
-
-        Returns
-        -------
-        initial_state_perturbation: TimeIntegrationState
-            The resulting perturbation of the initial state after completing all time
-            steps.
 
         Raises
         ------

@@ -31,7 +31,7 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
         self._time_integration_state = time_integration_state
         self._symbols = time_integration_state.to_dict()
 
-    def get_data_location(self, timestep):
+    def get_data_location(self, timestep) -> list:
         """
         Gets location for data at given time step.
 
@@ -51,7 +51,7 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
         locations = self._get_data_impl(self._symbols, location=True)
         return locations
 
-    def get_data(self, timestep):
+    def get_data(self, timestep) -> list:
         """
         Gets data at given time step.
 
@@ -99,7 +99,7 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
         return result
 
     @property
-    def size(self):
+    def size(self) -> int:
         """
         The memory consumption of the data contained in this checkpoint.
 
@@ -137,7 +137,7 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
         return size
 
     @property
-    def dtype(self):
+    def dtype(self) -> type:
         """
         Data type used for single values of the checkpoint.
 
@@ -175,6 +175,8 @@ class RungeKuttaForwardOperator(pr.Operator):
         """
         Does forward (primal) integration from step `t_start` + 1 to `t_end` + 1.
 
+        Parameters
+        ----------
         t_start: int
             First integrated time step shifted by one.
         t_end: int
@@ -222,6 +224,8 @@ class RungeKuttaReverseOperator(pr.Operator):
         """
         Does reverse (linear) integration from step `t_end` + 2 to `t_start` + 2.
 
+        Parameters
+        ----------
         t_start: int
             First integrated time step shifted by one.
         t_end: int
