@@ -13,7 +13,16 @@ from rkopenmdao.integration_control import IntegrationControl
 
 
 class RungeKuttaCheckpoint(pr.Checkpoint):
-    """Blueprint for one checkpoint."""
+    """
+    Blueprint for one checkpoint.
+
+    Parameters
+    ----------
+    _symbol: dict
+        Storage for making checkpoints accessible to pyRevolve.
+    _time_integration_state: TimeIntegrationState
+        Time integration state consistent with `_symbol`.
+    """
 
     _symbol: dict
     _time_integration_state: TimeIntegrationState
@@ -23,7 +32,19 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
         self._symbols = time_integration_state.to_dict()
 
     def get_data_location(self, timestep):
-        """Gets location for data at given time step."""
+        """
+        Gets location for data at given time step.
+
+        Parameters
+        ----------
+        timestep: Any
+            Unused argument required by the interface.
+
+        Returns
+        -------
+        locations: list
+            Memory locations where checkpoint data is saved.
+        """
         # pylint: disable=unused-argument
         # Here the method of getting the data is independent of the time step, but the
         # interface requires the argument.
@@ -31,10 +52,39 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
         return locations
 
     def get_data(self, timestep):
+        """
+        Gets data at given time step.
+
+        Parameters
+        ----------
+        timestep: Any
+            Unused argument required by the interface.
+
+        Returns
+        -------
+        locations: list
+            Data if currently loaded checkpoint.
+        """
         data = self._get_data_impl(self._symbols, location=False)
         return data
 
     def _get_data_impl(self, state_part: dict | np.ndarray, location: bool) -> list:
+        """
+        Recursive implementation of `get_data` and `get_data_location`.
+
+        Parameters
+        ----------
+        state_part: dict | np.ndarray
+            Current sub-part which is traversed to get data (location).
+        location: bool
+            Flag indicating whether location of data (True) or copy of data (False)
+            is requested.
+
+        Returns
+        -------
+        result: list
+            List containing data (locations) of already traversed part of dict.
+        """
         result = []
         if isinstance(state_part, dict):
             for part in state_part.values():
@@ -50,10 +100,30 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
 
     @property
     def size(self):
-        """The memory consumption of the data contained in this checkpoint."""
+        """
+        The memory consumption of the data contained in this checkpoint.
+
+        Returns
+        -------
+        size: int
+            Memory size of checkpoint in Bytes.
+        """
         return self._size_impl(self._symbols)
 
     def _size_impl(self, state_part: dict | np.ndarray) -> int:
+        """
+        Recursive implementation of the size property.
+
+        Parameters
+        ----------
+        state_part: dict | np.ndarray
+            Current sub-part which is traversed to get checkpoint size.
+
+        Returns
+        -------
+        size: int
+            Size of already traversed part of checkpoint.
+        """
         size = 0
         if isinstance(state_part, dict):
             for part in state_part.values():
@@ -68,24 +138,48 @@ class RungeKuttaCheckpoint(pr.Checkpoint):
 
     @property
     def dtype(self):
+        """
+        Data type used for single values of the checkpoint.
+
+        Returns
+        -------
+        dtype: type
+            Data type used by single values of the checkpoint.
+        """
         return np.float64
 
 
 @dataclass
 class RungeKuttaForwardOperator(pr.Operator):
-    """Forward operator of the RungeKuttaIntegrator (i.e. the normal time
-    integration)."""
+    """
+    Forward operator of the RungeKuttaIntegrator (i.e. the normal time
+    integration).
 
-    # pylint: disable=too-few-public-methods
-    # The interface is controlled by PyRevolve, and more methods are not needed.
+    Parameters
+    ----------
+    time_integration_state: TimeIntegrationState
+        State on which internal calculations are performed.
+    fwd_operation: Callable[[TimeIntegrationState], TimeIntegrationState]
+        Function applying one single step of time integration.
+    integration_control: IntegrationControl
+        Object for sharing data between ODE, time discretization and time integration.
+    """
 
     time_integration_state: TimeIntegrationState
-    fwd_operation: Callable[[int, np.ndarray], np.ndarray]
+    fwd_operation: Callable[[TimeIntegrationState], TimeIntegrationState]
     integration_control: IntegrationControl
 
     def apply(self, **kwargs):
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
         # how it is.
+        """
+        Does forward (primal) integration from step `t_start` + 1 to `t_end` + 1.
+
+        t_start: int
+            First integrated time step shifted by one.
+        t_end: int
+            Last integration time step shifted by one.
+        """
         self.integration_control.step = kwargs["t_start"] + 1
         self.integration_control.step_time = (
             self.time_integration_state.discretization_state.final_time[0]
@@ -100,10 +194,22 @@ class RungeKuttaForwardOperator(pr.Operator):
 
 @dataclass
 class RungeKuttaReverseOperator(pr.Operator):
-    """Backward operator of the Runge-Kutta-integrator (i.e. one reverse step)."""
+    """
+    Backward operator of the Runge-Kutta-integrator (i.e. one reverse step).
 
-    # pylint: disable=too-few-public-methods
-    # The interface is controlled by PyRevolve, and more methods are not needed.
+    Parameters
+    ----------
+    time_integration_state: TimeIntegrationState
+        State which contains the current linearization point.
+    time_integration_state_perturbations: TimeIntegrationState
+        Perturbation state on which internal calculations are performed.
+    rev_operation: Callable[
+        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+    ]
+        Function applying one single reverse step of time integration.
+    integration_control: IntegrationControl
+        Object for sharing data between ODE, time discretization and time integration.
+    """
 
     time_integration_state: TimeIntegrationState
     time_integration_state_perturbations: TimeIntegrationState
@@ -113,6 +219,14 @@ class RungeKuttaReverseOperator(pr.Operator):
     integration_control: IntegrationControl
 
     def apply(self, **kwargs):
+        """
+        Does reverse (linear) integration from step `t_end` + 2 to `t_start` + 2.
+
+        t_start: int
+            First integrated time step shifted by one.
+        t_end: int
+            Last integration time step shifted by one.
+        """
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
         # how it is.
         t_start = kwargs["t_start"]
