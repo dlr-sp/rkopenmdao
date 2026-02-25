@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TypeVar
 
 import numpy as np
 
@@ -28,6 +27,8 @@ class DiscretizedODEInputState:
         independent of the time.
     time: float
         The time the ODE is evaluated at.
+    linearization_point: np.ndarray | None
+        Optional linearization point for use in differentiated operations.
     """
 
     step_input: np.ndarray
@@ -57,6 +58,8 @@ class DiscretizedODEResultState:
         A vector corresponding to the output or a perturbation of the output data that
         is not directly dependent of the time integration (i.e. there is no time
         derivative for the contained data in the ODE system).
+    linearization_point: np.ndarray | None
+        Optional linearization point for use in differentiated operations.
     """
 
     stage_update: np.ndarray
@@ -179,16 +182,40 @@ class DiscretizedODE(ABC):
 
     @abstractmethod
     def get_state_size(self) -> int:
-        """"""
+        """
+        Returns the size of the time integration state of the ODE.
+
+        Returns
+        -------
+        Time integration state size.
+        """
 
     @abstractmethod
     def get_independent_input_size(self) -> int:
-        """"""
+        """
+        Returns the size of the inputs independent of time of the ODE.
+
+        Returns
+        -------
+        Independent input size.
+        """
 
     @abstractmethod
     def get_independent_output_size(self) -> int:
-        """"""
+        """
+        Returns the size of the outputs independent of time of the ODE.
+
+        Returns
+        -------
+        Independent output size.
+        """
 
     @abstractmethod
     def get_linearization_point_size(self) -> int:
-        """"""
+        """
+        Returns the size of a linearization point of the ODE.
+
+        Returns
+        -------
+        Linearization point size.
+        """

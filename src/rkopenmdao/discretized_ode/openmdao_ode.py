@@ -1,6 +1,7 @@
-# pylint: disable=missing-module-docstring, unused-argument
+"""ODE implementation for an OpenMDAO Problem."""
 
-from dataclasses import dataclass
+# pylint: disable=unused-argument
+
 import functools
 import inspect
 from typing import Union, Callable, Optional
@@ -26,27 +27,6 @@ from .discretized_ode import (
 )
 
 
-# @dataclass
-# class OpenMDAOODELinearizationPoint:
-#     """Linearization point class for OpenMDAOODE."""
-
-#     stage_time: float
-#     inputs_copy: np.ndarray
-#     outputs_copy: np.ndarray
-
-#     def to_numpy_array(self) -> np.ndarray:
-#         serialized_array = np.zeros(1 + self.inputs_copy.size + self.outputs_copy.size)
-#         serialized_array[0] = self.stage_time
-#         serialized_array[1 : 1 + self.inputs_copy.size] = self.inputs_copy
-#         serialized_array[1 + self.outputs_copy.size :] = self.outputs_copy
-#         return serialized_array
-
-#     def from_numpy_array(self, array: np.ndarray) -> None:
-#         self.stage_time = array[0]
-#         self.inputs_copy = array[1 : 1 + self.inputs_copy.size]
-#         self.outputs_copy = array[1 + self.outputs_copy.size :]
-
-
 class OpenMDAOODE(DiscretizedODE):
     """
     Wraps an OpenMDAO problem into an instance of discretized ODE, handling the
@@ -66,6 +46,11 @@ class OpenMDAOODE(DiscretizedODE):
     independent_input_quantities: list
         Quantities that act as time independent inputs that are seached for in the inner
         problem.
+    norm_exclusions: Optional[list]
+        List of excluded quantities during calculation of norms. By default None.
+    norm_order: Union[float, str]
+        Order used for the norm. By default 2, resulting in the euclidean norm.
+
 
     Attributes
     ----------
