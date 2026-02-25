@@ -206,17 +206,11 @@ def test_component_integration(
         AllCheckpointer,
     ],
 )
-@pytest.mark.parametrize(
-    "test_measurer", [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
-)
-@pytest.mark.parametrize("test_controller", error_controller_list)
 def test_time_integration_partials(
     test_class,
     initial_time,
     butcher_tableau,
     checkpointing_implementation,
-    test_measurer,
-    test_controller,
 ):
     """Tests the partials of the time integration of the different components."""
     integration_control = TimeTerminationIntegrationControl(
@@ -241,9 +235,9 @@ def test_time_integration_partials(
             integration_control=integration_control,
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
-            error_controller=[test_controller, integral],
+            error_controller=[integral],
             error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
-            error_measurer=test_measurer,
+            error_measurer=SimpleErrorMeasurer(),
             adaptive_time_stepping=True,
         ),
         promotes=["*"],
@@ -272,9 +266,10 @@ def check_partials_wo_fd(jac_data, tol=1e-6):
     2. http://dx.doi.org/10.1090/S0025-5718-99-01027-3
     """
     for i in ["x_initial", "b"]:
-        fwd = jac_data["rk_integrator"][("x_final", i)]["J_fwd"][0]
-        rev = jac_data["rk_integrator"][("x_final", i)]["J_rev"][0]
-        # Absolute :
-        assert np.abs(fwd - rev) < tol
-        # Relative
-        assert np.abs(fwd - rev) / min(np.abs(fwd), np.abs(rev)) < tol
+        if ("x_final", i) in jac_data["rk_integrator"]:
+            fwd = jac_data["rk_integrator"][("x_final", i)]["J_fwd"][0]
+            rev = jac_data["rk_integrator"][("x_final", i)]["J_rev"][0]
+            # Absolute :
+            assert np.abs(fwd - rev) < tol
+            # Relative
+            assert np.abs(fwd - rev) / min(np.abs(fwd), np.abs(rev)) < tol

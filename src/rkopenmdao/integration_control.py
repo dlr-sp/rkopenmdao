@@ -64,7 +64,7 @@ class IntegrationControl(ABC):
         """
 
     @abstractmethod
-    def remaining_time(self):
+    def remaining_time(self, current_time: float):
         """
         Returns
         ------
@@ -123,20 +123,20 @@ class TimeTerminationIntegrationControl(IntegrationControl):
         self.tol = tol
         super().__init__(delta_t, initial_time)
 
-    @property
-    def delta_t(self):
-        """
-        Returns
-        ------
-        float
-            Time difference of the current time step.
-        """
-        return self._delta_t
+    # @property
+    # def delta_t(self):
+    #     """
+    #     Returns
+    #     ------
+    #     float
+    #         Time difference of the current time step.
+    #     """
+    #     return self._delta_t
 
-    @delta_t.setter
-    def delta_t(self, delta_t):
-        self._delta_t = min(delta_t, self.remaining_time())
-        self.update_smallest_delta_t()
+    # @delta_t.setter
+    # def delta_t(self, delta_t):
+    #     self._delta_t = min(delta_t, self.remaining_time(self.step_time))
+    #     self.update_smallest_delta_t()
 
     def is_last_time_step(self) -> bool:
         """
@@ -145,16 +145,16 @@ class TimeTerminationIntegrationControl(IntegrationControl):
         bool
             True if last step.
         """
-        return self.remaining_time() <= self.tol
+        return self.remaining_time(self.step_time) <= self.tol
 
-    def remaining_time(self) -> float:
+    def remaining_time(self, current_time: float) -> float:
         """
         Returns
         ------
         float
             Remaining time.
         """
-        return self.end_time - self.step_time
+        return self.end_time - current_time
 
 
 class StepTerminationIntegrationControl(IntegrationControl):
@@ -177,11 +177,11 @@ class StepTerminationIntegrationControl(IntegrationControl):
         """
         return self.step == self.num_steps
 
-    def remaining_time(self) -> float:
+    def remaining_time(self, current_time) -> float:
         """
         Returns
         ------
         float
             Remaining time.
         """
-        return self.num_steps * self.delta_t - self.step_time
+        return self.num_steps * self.delta_t - current_time

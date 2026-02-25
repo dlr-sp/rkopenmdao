@@ -64,7 +64,6 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
                 time_discretization_state.final_time[0],
             )
         )
-
         return time_discretization_state
 
     def compute_step_derivative(
@@ -101,7 +100,6 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
                 time_discretization_state_perturbation.final_time[0],
             )
         )
-
         return time_discretization_state_perturbation
 
     def compute_step_adjoint_derivative(
@@ -127,7 +125,7 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         )
         time_discretization_state_perturbation.final_time += final_time_perturbations
 
-        time_discretization_state_perturbation.start_state = (
+        time_discretization_state_perturbation.start_state[:] = (
             time_discretization_state_perturbation.final_state
         )
         for i in range(self.butcher_tableau.number_of_stages()):
@@ -289,6 +287,9 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
                 self.butcher_tableau.butcher_matrix[stage, i]
                 * ode_input_perturbation.stage_input
             )
+        time_discretization_state_perturbation.start_time += (
+            time_discretization_state_perturbation.stage_times[stage]
+        )
         return time_discretization_state_perturbation
 
     # FIXME: Implement the following three methods.
@@ -480,8 +481,5 @@ class StageOrderedEmbeddedRungeKuttaDiscretization(
     ) -> EmbeddedRungeKuttaDiscretizationState:
         time_discretization_state = super().compute_step(
             ode, time_discretization_state, step_size
-        )
-        print(
-            time_discretization_state.final_state, time_discretization_state.final_time
         )
         return super().compute_error_estimate(time_discretization_state, step_size)

@@ -21,31 +21,30 @@ from rkopenmdao.metadata_extractor import (
 from rkopenmdao.integration_control import IntegrationControl
 from .discretized_ode import (
     DiscretizedODE,
-    DiscretizedODELinearizationPoint,
     DiscretizedODEInputState,
     DiscretizedODEResultState,
 )
 
 
-@dataclass
-class OpenMDAOODELinearizationPoint(DiscretizedODELinearizationPoint):
-    """Linearization point class for OpenMDAOODE."""
+# @dataclass
+# class OpenMDAOODELinearizationPoint:
+#     """Linearization point class for OpenMDAOODE."""
 
-    stage_time: float
-    inputs_copy: np.ndarray
-    outputs_copy: np.ndarray
+#     stage_time: float
+#     inputs_copy: np.ndarray
+#     outputs_copy: np.ndarray
 
-    def to_numpy_array(self) -> np.ndarray:
-        serialized_array = np.zeros(1 + self.inputs_copy.size + self.outputs_copy.size)
-        serialized_array[0] = self.stage_time
-        serialized_array[1 : 1 + self.inputs_copy.size] = self.inputs_copy
-        serialized_array[1 + self.outputs_copy.size :] = self.outputs_copy
-        return serialized_array
+#     def to_numpy_array(self) -> np.ndarray:
+#         serialized_array = np.zeros(1 + self.inputs_copy.size + self.outputs_copy.size)
+#         serialized_array[0] = self.stage_time
+#         serialized_array[1 : 1 + self.inputs_copy.size] = self.inputs_copy
+#         serialized_array[1 + self.outputs_copy.size :] = self.outputs_copy
+#         return serialized_array
 
-    def from_numpy_array(self, array: np.ndarray) -> None:
-        self.stage_time = array[0]
-        self.inputs_copy = array[1 : 1 + self.inputs_copy.size]
-        self.outputs_copy = array[1 + self.outputs_copy.size :]
+#     def from_numpy_array(self, array: np.ndarray) -> None:
+#         self.stage_time = array[0]
+#         self.inputs_copy = array[1 : 1 + self.inputs_copy.size]
+#         self.outputs_copy = array[1 + self.outputs_copy.size :]
 
 
 class OpenMDAOODE(DiscretizedODE):
@@ -147,9 +146,7 @@ class OpenMDAOODE(DiscretizedODE):
         self._time_stage_problem.model.run_solve_nonlinear()
 
         stage_update = np.zeros_like(ode_input.step_input)
-        stage_state = np.zeros_like(
-            0
-        )  # Currently not used, needs update in metadata_extractor
+        stage_state = np.zeros_like(stage_update)
         independent_output = np.zeros(
             0
         )  # Currently not used, needs update in metadata_extractor
@@ -158,23 +155,10 @@ class OpenMDAOODE(DiscretizedODE):
             outputs, stage_update, stage_state, independent_output
         )
 
-        return DiscretizedODEResultState(stage_update, stage_state, independent_output)
-
-    def get_linearization_point(self) -> OpenMDAOODELinearizationPoint:
-        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
-        return OpenMDAOODELinearizationPoint(
-            self._integration_control.stage_time,
-            inputs.asarray(copy=True),
-            outputs.asarray(copy=True),
+        linearization_point = self._get_linearization_point()
+        return DiscretizedODEResultState(
+            stage_update, stage_state, independent_output, linearization_point
         )
-
-    def set_linearization_point(
-        self, linearization_state: OpenMDAOODELinearizationPoint
-    ) -> None:
-        self._integration_control.stage_time = linearization_state.stage_time
-        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
-        inputs.asarray()[:] = linearization_state.inputs_copy
-        outputs.asarray()[:] = linearization_state.outputs_copy
 
     def compute_update_derivative(
         self,
@@ -182,6 +166,7 @@ class OpenMDAOODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEResultState:
+        self._set_linearization_point(ode_input_perturbation.linearization_point)
         self._integration_control.delta_t = step_size
         self._integration_control.butcher_diagonal_element = stage_factor
         self._time_stage_problem.model.run_linearize()
@@ -200,9 +185,7 @@ class OpenMDAOODE(DiscretizedODE):
         self._om_run_solve_linear("fwd")
 
         stage_update_pert = np.zeros_like(ode_input_perturbation.step_input)
-        stage_state_pert = np.zeros(
-            0
-        )  # Currently not used, needs update in metadata_extractor
+        stage_state_pert = np.zeros_like(stage_update_pert)
         independent_output_pert = np.zeros(
             0
         )  # Currently not used, needs update in metadata_extractor
@@ -220,6 +203,7 @@ class OpenMDAOODE(DiscretizedODE):
         step_size: float,
         stage_factor: float,
     ) -> DiscretizedODEInputState:
+        self._set_linearization_point(ode_result_perturbation.linearization_point)
         self._integration_control.delta_t = step_size
         self._integration_control.butcher_diagonal_element = stage_factor
         self._time_stage_problem.model.run_linearize()
@@ -250,6 +234,36 @@ class OpenMDAOODE(DiscretizedODE):
         return DiscretizedODEInputState(
             step_input_pert, stage_input_pert, independent_input_pert, 0.0
         )
+
+    def get_state_size(self) -> int:
+        return self.time_integration_metadata.time_integration_array_size
+
+    def get_independent_input_size(self) -> int:
+        return self.time_integration_metadata.time_independent_input_size
+
+    def get_independent_output_size(self) -> int:
+        return 0  # Not implemented yet
+
+    def get_linearization_point_size(self) -> int:
+        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
+        return 1 + inputs.asarray().size + outputs.asarray().size
+
+    def _get_linearization_point(self) -> np.ndarray:
+        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
+        serialized_array = np.zeros(1 + inputs.asarray().size + outputs.asarray().size)
+        serialized_array[0] = self._integration_control.stage_time
+        serialized_array[1 : 1 + inputs.asarray().size] = inputs.asarray(copy=True)
+        serialized_array[1 + inputs.asarray().size :] = outputs.asarray(copy=True)
+        return serialized_array
+
+    def _set_linearization_point(
+        self,
+        linearization_state: np.ndarray,
+    ) -> None:
+        self._integration_control.stage_time = linearization_state[0]
+        inputs, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
+        inputs.asarray()[:] = linearization_state[1 : 1 + inputs.asarray().size]
+        outputs.asarray()[:] = linearization_state[1 + inputs.asarray().size :]
 
     def _input_state_to_om_vector(
         self,

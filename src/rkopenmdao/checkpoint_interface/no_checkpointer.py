@@ -11,18 +11,15 @@ class NoCheckpointer(CheckpointInterface):
     """Checkpointer that sets no checkpoints, for cases where we don't need the
     reverse mode."""
 
-    def __post_init__(self):
-        """Reserves memory for time integration state."""
-        self._state = np.zeros(self.array_size)
-
     def create_checkpointer(self):
         """Doesn't checkpoint, so does nothing"""
 
     def iterate_forward(self, initial_state):
         """Runs time integration from start to finish."""
-        self._state = initial_state
+        self.state.set(initial_state)
         while self.integration_control.termination_condition_status():
-            self._state = self.run_step_func(self._state.copy())[0]
+            self.state.set(self.run_step_func(self.state))
+        return self.state
 
     def iterate_reverse(self, final_state_perturbation):
         """Does nothing"""

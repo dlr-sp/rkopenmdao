@@ -62,6 +62,7 @@ class DiscretizedODEResultState:
     stage_update: np.ndarray
     stage_state: np.ndarray
     independent_output: np.ndarray
+    linearization_point: np.ndarray | None = None
 
 
 class DiscretizedODE(ABC):
@@ -69,8 +70,6 @@ class DiscretizedODE(ABC):
     Base class for the representation of ordinary differential equations (ODEs) in
     RKOpenMDAO.
     """
-
-    CacheType = TypeVar("CacheType")
 
     @abstractmethod
     def compute_update(
@@ -100,36 +99,6 @@ class DiscretizedODE(ABC):
         -------
         ode_result: DiscretizedODEResultState
             Result for the calculation of the time stage.
-        """
-
-    @abstractmethod
-    def get_linearization_point(self) -> DiscretizedODELinearizationPoint:
-        """
-        Exports the data of the ODE necessary for linearization. Must to implemented in
-        child class.
-
-        Returns
-        -------
-        linearization_state: DiscretizedODELinearizationPoint
-            An object containing all the information necessary to linearize the class
-            instance.
-        """
-
-    @abstractmethod
-    def set_linearization_point(
-        self, linearization_state: DiscretizedODELinearizationPoint
-    ) -> None:
-        """
-        Imports the data of the ODE necessary for linearization. After a call, the class
-        instance is in a state where the functions compute_update_derivative and
-        compute_update_adjoint_derivative can be called. Must to implemented in
-        child class.
-
-        Parameters
-        ----------
-        linearization_state: DiscretizedODELinearizationPoint
-            An object containing all the information necessary to linearize the class
-            instance.
         """
 
     @abstractmethod
@@ -207,3 +176,19 @@ class DiscretizedODE(ABC):
         norm: float
             Norm of provided state
         """
+
+    @abstractmethod
+    def get_state_size(self) -> int:
+        """"""
+
+    @abstractmethod
+    def get_independent_input_size(self) -> int:
+        """"""
+
+    @abstractmethod
+    def get_independent_output_size(self) -> int:
+        """"""
+
+    @abstractmethod
+    def get_linearization_point_size(self) -> int:
+        """"""

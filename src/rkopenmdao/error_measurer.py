@@ -20,8 +20,8 @@ class ErrorMeasurer(ABC):
     @abstractmethod
     def get_measure(
         self,
-        state_error_estimate: np.ndarray,
-        state: np.ndarray,
+        state_error_estimate: DiscretizedODEResultState,
+        state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
         """
@@ -47,13 +47,11 @@ class SimpleErrorMeasurer(ErrorMeasurer):
 
     def get_measure(
         self,
-        state_error_estimate: np.ndarray,
-        state: np.ndarray,
+        state_error_estimate: DiscretizedODEResultState,
+        state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
-        return ode.compute_state_norm(
-            DiscretizedODEResultState(np.zeros(0), state_error_estimate, np.zeros(0))
-        )
+        return ode.compute_state_norm(state_error_estimate)
 
 
 @dataclass
@@ -74,17 +72,12 @@ class ImprovedErrorMeasurer(ErrorMeasurer):
 
     def get_measure(
         self,
-        state_error_estimate: np.ndarray,
-        state: np.ndarray,
+        state_error_estimate: DiscretizedODEResultState,
+        state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
 
-        error_estimate_norm = ode.compute_state_norm(
-            DiscretizedODEResultState(
-                np.zeros(0),
-                state_error_estimate / (np.abs(state) + self.eta / self.eps),
-                np.zeros(0),
-            )
-        )
+        error_estimate_norm = ode.compute_state_norm(state_error_estimate)
+        state_norm = ode.compute_state_norm(state)
 
-        return error_estimate_norm
+        return error_estimate_norm / (state_norm + self.eta / self.eps)
