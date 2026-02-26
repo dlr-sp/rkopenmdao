@@ -398,11 +398,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 self._ode.time_integration_metadata,
                 self.comm,
             )
-            self._write_out(
-                0,
-                self.options["integration_control"].initial_time,
-                self._time_integration_state.discretization_state.final_state,
-            )
 
     def _setup_checkpointing(self):
         self._checkpointer = self.options["checkpointing_type"](
@@ -445,6 +440,12 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._reset_error_control(integration_state)
         integration_state.discretization_state.linearization_points.fill(0.0)
+
+        self._write_out(
+            0,
+            self.options["integration_control"].initial_time,
+            self._time_integration_state.discretization_state.final_state,
+        )
 
     def _to_numpy_array_time_integration(
         self, om_vector: OMVector, np_array: np.ndarray
