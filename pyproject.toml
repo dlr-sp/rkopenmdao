@@ -68,7 +68,7 @@ target_version = ["py310"]
 line-length = 88
 
 [tool.pylint]
-max-args = 10
+max-args=10
 max-attributes=12
 disable=[
     "no-else-return",
