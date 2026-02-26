@@ -201,7 +201,7 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         stage: int,
     ) -> RungeKuttaDiscretizationState:
         time_discretization_state.stage_times[stage] = (
-            time_discretization_state.start_time
+            time_discretization_state.start_time[0]
             + step_size * self.butcher_tableau.butcher_time_stages[stage]
         )
         stage_input = self._accumulate_stages(
@@ -237,7 +237,7 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         linearization_point: np.ndarray,
     ) -> RungeKuttaDiscretizationState:
         time_discretization_state_perturbation.stage_times[stage] = (
-            time_discretization_state_perturbation.start_time
+            time_discretization_state_perturbation.start_time[0]
         )
         stage_input_perturbations = self._accumulate_stages(
             stage, time_discretization_state_perturbation.stage_updates

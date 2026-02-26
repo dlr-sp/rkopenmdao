@@ -55,7 +55,7 @@ class IdentityODE(DiscretizedODE):
         )
 
     def compute_state_norm(self, state: DiscretizedODEResultState):
-        return np.abs(state.stage_state)
+        return np.abs(state.stage_state)[0]
 
     def get_state_size(self) -> int:
         return 1
@@ -112,11 +112,11 @@ class TimeODE(DiscretizedODE):
             + step_size * stage_factor * ode_result_perturbation.stage_state
         )
         return DiscretizedODEInputState(
-            step_input_pert, stage_input_pert, np.zeros(0), time_pert
+            step_input_pert, stage_input_pert, np.zeros(0), time_pert[0]
         )
 
     def compute_state_norm(self, state: DiscretizedODEResultState):
-        return np.abs(state.stage_state)
+        return np.abs(state.stage_state)[0]
 
     def get_state_size(self) -> int:
         return 1
@@ -217,11 +217,11 @@ class TimeScaledIdentityODE(DiscretizedODE):
             ode_result_perturbation.stage_state
         )
         return DiscretizedODEInputState(
-            step_input_pert, stage_input_pert, np.zeros(0), time_pert
+            step_input_pert, stage_input_pert, np.zeros(0), time_pert[0]
         )
 
     def compute_state_norm(self, state: DiscretizedODEResultState):
-        return np.abs(state.stage_state)
+        return np.abs(state.stage_state)[0]
 
     def get_state_size(self) -> int:
         return 1
@@ -287,7 +287,7 @@ class ParameterODE(DiscretizedODE):
         )
 
     def compute_state_norm(self, state: DiscretizedODEResultState):
-        return np.abs(state.stage_state)
+        return np.abs(state.stage_state)[0]
 
     def get_state_size(self) -> int:
         return 1
@@ -382,7 +382,7 @@ class RootODE(DiscretizedODE):
         )
 
     def compute_state_norm(self, state: DiscretizedODEResultState):
-        return np.abs(state.stage_state)
+        return np.abs(state.stage_state)[0]
 
     def get_state_size(self) -> int:
         return 1
