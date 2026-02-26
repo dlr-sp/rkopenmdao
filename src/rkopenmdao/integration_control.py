@@ -66,9 +66,14 @@ class IntegrationControl(ABC):
     @abstractmethod
     def remaining_time(self, current_time: float):
         """
+        Parameters
+        ----------
+        current_time: float
+            Current time.
+
         Returns
         ------
-        float
+        remaining_time: float
             Remaining time.
         """
 
@@ -122,21 +127,6 @@ class TimeTerminationIntegrationControl(IntegrationControl):
         self.end_time = end_time
         self.tol = tol
         super().__init__(delta_t, initial_time)
-
-    # @property
-    # def delta_t(self):
-    #     """
-    #     Returns
-    #     ------
-    #     float
-    #         Time difference of the current time step.
-    #     """
-    #     return self._delta_t
-
-    # @delta_t.setter
-    # def delta_t(self, delta_t):
-    #     self._delta_t = min(delta_t, self.remaining_time(self.step_time))
-    #     self.update_smallest_delta_t()
 
     def is_last_time_step(self) -> bool:
         """

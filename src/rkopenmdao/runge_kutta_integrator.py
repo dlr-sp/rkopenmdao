@@ -1,4 +1,6 @@
-# pylint: disable=missing-module-docstring, protected-access
+"""Runge-Kutta integration implementation for OpenMDAO."""
+
+# pylint: disable=protected-access
 
 from __future__ import annotations
 from copy import deepcopy
@@ -68,9 +70,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._file_writer = None
         self._error_controller = None
         self._checkpointer = None
-
-        self.error_history: np.ndarray = np.zeros(2)
-        self.step_size_history: np.ndarray = np.zeros(2)
 
     def initialize(self):
         self.options.declare(
@@ -258,10 +257,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_checkpointing()
         if self.comm.rank == 0:
             print("\n" + "=" * 34 + " setup ends " + "=" * 34 + "\n")
-
-    def _reset_error_control_history(self):
-        self.step_size_history.fill(0.0)
-        self.error_history.fill(self._error_controller.config.tol)
 
     def _setup_ode(self):
         self.options["time_stage_problem"].setup()
@@ -497,12 +492,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 error_measure,
             )
 
-    def _compute_checkpointing_setup_phase(self):
-        self._checkpointer.create_checkpointer()
-
-    def _compute_translate_to_om_vector_phase(self, outputs: OMVector):
-        self._from_numpy_array_time_integration(self._serialized_state, outputs)
-
     def _from_numpy_array_time_integration(
         self, np_array: np.ndarray, om_vector: OMVector
     ):
@@ -573,7 +562,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         if self.options["adaptive_time_stepping"]:
             if self.comm.rank == 0:
                 print(
-                    f"Start Iteration {i}: Trying with {time_integration_state.step_size_suggestion[0]}"
+                    f"Start Iteration {i}: Trying with "
+                    f"{time_integration_state.step_size_suggestion[0]}"
                 )
         temp_discretization_state = deepcopy(
             time_integration_state.discretization_state
@@ -778,23 +768,22 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             print(
                 "\n" + "=" * 24 + " rev-mode jacvec product starts " + "=" * 24 + "\n\n"
             )
+        integration_state_perturbations = self._time_integration_state_perturbations
         self._compute_jacvec_rev_preparation_phase(
             inputs,
             d_outputs,
-            self._time_integration_state_perturbations,
+            integration_state_perturbations,
         )
         self._time_integration_state_perturbations.set(
-            self._checkpointer.iterate_reverse(
-                self._time_integration_state_perturbations
-            )
+            self._checkpointer.iterate_reverse(integration_state_perturbations)
         )
 
         self._from_numpy_array_time_integration(
-            self._time_integration_state_perturbations.discretization_state.final_state,
+            integration_state_perturbations.discretization_state.final_state,
             d_inputs,
         )
         self._from_numpy_array_independent_input(
-            self._time_integration_state_perturbations.discretization_state.independent_inputs,
+            integration_state_perturbations.discretization_state.independent_inputs,
             d_inputs,
         )
         self._configure_write_out()
