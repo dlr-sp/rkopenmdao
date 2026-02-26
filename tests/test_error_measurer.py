@@ -11,7 +11,8 @@ from rkopenmdao.error_measurer import (
     ImprovedErrorMeasurer,
     ErrorMeasurer,
 )
-from .test_runge_kutta_scheme import RootODE
+from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
+from .odes import RootODE
 
 
 @pytest.mark.parametrize(
@@ -45,5 +46,9 @@ def test_error_measurer(
     """
     Tests the correct calculation of the error measure based on an estimate and ODE.
     """
-    result = measurer.get_measure(estimate, state, ode)
+    result = measurer.get_measure(
+        DiscretizedODEResultState(None, estimate, None),
+        DiscretizedODEResultState(None, state, None),
+        ode,
+    )
     assert result == pytest.approx(expected_measure)

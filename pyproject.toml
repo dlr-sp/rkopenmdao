@@ -68,13 +68,13 @@ target_version = ["py310"]
 line-length = 88
 
 [tool.pylint]
-max-args = 10
+max-args=10
 max-attributes=12
 disable=[
     "no-else-return",
     "no-else-raise",
 ]
-extension-pkg-whitelist= [
+extension-pkg-whitelist=[
     "mpi4py"
 ]
 good-names=[
@@ -89,6 +89,6 @@ good-names=[
     "t",
 ]
 max-line-length=88
-min-similarity-lines = 10
+min-similarity-lines=10
 
 [tool.setuptools_scm]

@@ -202,8 +202,7 @@ class ErrorController:
         new_delta_t = max(
             self.config.lower_bound, min(self.config.upper_bound, new_delta_t)
         )
-        if remaining_time - (delta_t + new_delta_t) < self.config.lower_bound:
-            new_delta_t = remaining_time
+        new_delta_t = min(remaining_time + (1 - success) * delta_t, new_delta_t)
         return ErrorControllerStatus(new_delta_t, success)
 
     def _estimate_next_step_function(
