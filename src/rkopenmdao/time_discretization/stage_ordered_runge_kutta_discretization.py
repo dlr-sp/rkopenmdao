@@ -1,3 +1,5 @@
+"""Time discretization scheme implementation for ERK and DIRK methods."""
+
 from __future__ import annotations
 from dataclasses import dataclass
 
@@ -24,6 +26,17 @@ from rkopenmdao.time_discretization.time_discretization_scheme_interface import 
 
 @dataclass
 class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
+    """
+    Implementation of `TimeDiscretizationSchemeInterface` for "stage ordered"
+    Runge-Kutta methods, meaning that their stages can be performed one after another
+    in an sequential manner. This includes ERK and DIRK schemes.
+
+    Parameters
+    ----------
+    butcher_tableau: ButcherTableau
+        Representation of RK scheme as butcher tableau.
+    """
+
     butcher_tableau: ButcherTableau
 
     def create_empty_discretization_state(
@@ -260,12 +273,13 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         stage: int,
         linearization_point: np.ndarray,
     ) -> RungeKuttaDiscretizationState:
+        independent_output = (
+            time_discretization_state_perturbation.stage_independent_outputs[stage]
+        )
         ode_result_perturbation = DiscretizedODEResultState(
             stage_update=time_discretization_state_perturbation.stage_updates[stage, :],
             stage_state=time_discretization_state_perturbation.stage_states[stage, :],
-            independent_output=time_discretization_state_perturbation.stage_independent_outputs[
-                stage
-            ],
+            independent_output=independent_output,
             linearization_point=linearization_point,
         )
         ode_input_perturbation = ode.compute_update_adjoint_derivative(
@@ -292,13 +306,16 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         )
         return time_discretization_state_perturbation
 
-    # FIXME: Implement the following three methods.
+    # TODO: Implement the following three methods.
     # What can be done here greatly depends on how the used RK method looks like
     # For SDIRK methods, this can in general be done by computing pseudo time
-    # derivatives.
-    # For methods involving explicit stages, this in general needs interpolation.
+    # derivatives. For methods involving explicit stages, this in general needs
+    # interpolation.
     # In the case of stiffly-accurate methods (i.e. last stage = end of time step), we
     # can just copy the value from the last stage
+    #
+    # This will be done at a later date.
+    # pylint: disable=unused-argument
     @staticmethod
     def _compute_final_independent_outputs(
         stage_times: np.ndarray,
@@ -330,18 +347,14 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
     def time_discretization_starting_scheme(
         self,
         ode: DiscretizedODE,
-        time_discretization_starting_values: TimeDiscretizationStartingValues,
+        starting_values: TimeDiscretizationStartingValues,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
         initial_discretization_state = self.create_empty_discretization_state(ode)
-        initial_discretization_state.final_time[0] = (
-            time_discretization_starting_values.initial_time
-        )
-        initial_discretization_state.final_state[:] = (
-            time_discretization_starting_values.initial_values
-        )
+        initial_discretization_state.final_time[0] = starting_values.initial_time
+        initial_discretization_state.final_state[:] = starting_values.initial_values
         initial_discretization_state.independent_inputs[:] = (
-            time_discretization_starting_values.independent_inputs
+            starting_values.independent_inputs
         )
         initial_discretization_state.step_size[0] = step_size
         return initial_discretization_state
@@ -349,86 +362,97 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
     def time_discretization_starting_scheme_derivative(
         self,
         ode: DiscretizedODE,
-        time_discretization_starting_values: TimeDiscretizationStartingValues,
-        time_discretization_starting_value_perturbations: TimeDiscretizationStartingValues,
+        starting_values: TimeDiscretizationStartingValues,
+        starting_value_perturbations: TimeDiscretizationStartingValues,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
         initial_discretization_state_perturbations = (
             self.create_empty_discretization_state(ode)
         )
         initial_discretization_state_perturbations.final_time[0] = (
-            time_discretization_starting_value_perturbations.initial_time
+            starting_value_perturbations.initial_time
         )
         initial_discretization_state_perturbations.final_state[:] = (
-            time_discretization_starting_value_perturbations.initial_values
+            starting_value_perturbations.initial_values
         )
         initial_discretization_state_perturbations.independent_inputs[:] = (
-            time_discretization_starting_value_perturbations.independent_inputs
+            starting_value_perturbations.independent_inputs
         )
         return initial_discretization_state_perturbations
 
     def time_discretization_starting_scheme_adjoint_derivative(
         self,
         ode: DiscretizedODE,
-        time_discretization_starting_values: TimeDiscretizationStartingValues,
-        initial_discretization_state_perturbations: RungeKuttaDiscretizationState,
+        starting_values: TimeDiscretizationStartingValues,
+        started_discretization_state_perturbations: RungeKuttaDiscretizationState,
         step_size: float,
     ) -> TimeDiscretizationStartingValues:
         return TimeDiscretizationStartingValues(
-            initial_discretization_state_perturbations.final_time,
-            initial_discretization_state_perturbations.final_state,
-            initial_discretization_state_perturbations.independent_inputs,
+            started_discretization_state_perturbations.final_time,
+            started_discretization_state_perturbations.final_state,
+            started_discretization_state_perturbations.independent_inputs,
         )
 
     def time_discretization_finalization_scheme(
         self,
         ode: DiscretizedODE,
-        final_time_discretization_state: RungeKuttaDiscretizationState,
+        discretization_state: RungeKuttaDiscretizationState,
         step_size: float,
     ) -> TimeDiscretizationFinalizationValues:
         return TimeDiscretizationFinalizationValues(
-            final_time_discretization_state.final_time,
-            final_time_discretization_state.final_state,
-            final_time_discretization_state.final_independent_outputs,
+            discretization_state.final_time,
+            discretization_state.final_state,
+            discretization_state.final_independent_outputs,
         )
 
     def time_discretization_finalization_scheme_derivative(
         self,
         ode: DiscretizedODE,
-        final_time_discretization_state: RungeKuttaDiscretizationState,
-        final_time_discretization_state_perturbation: RungeKuttaDiscretizationState,
+        discretization_state: RungeKuttaDiscretizationState,
+        discretization_state_perturbations: RungeKuttaDiscretizationState,
         step_size: float,
     ) -> TimeDiscretizationFinalizationValues:
         return TimeDiscretizationFinalizationValues(
-            final_time_discretization_state_perturbation.final_time,
-            final_time_discretization_state_perturbation.final_state,
-            final_time_discretization_state_perturbation.final_independent_outputs,
+            discretization_state_perturbations.final_time,
+            discretization_state_perturbations.final_state,
+            discretization_state_perturbations.final_independent_outputs,
         )
 
     def time_discretization_finalization_scheme_adjoint_derivative(
         self,
         ode: DiscretizedODE,
-        final_time_discretization_state: RungeKuttaDiscretizationState,
-        time_discretization_finalization_values: TimeDiscretizationFinalizationValues,
+        discretization_state: RungeKuttaDiscretizationState,
+        finalization_value_perturbations: TimeDiscretizationFinalizationValues,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
         final_time_discretization_state_perturbation = (
             self.create_empty_discretization_state(ode)
         )
         final_time_discretization_state_perturbation.final_time[0] = (
-            time_discretization_finalization_values.final_time
+            finalization_value_perturbations.final_time
         )
         final_time_discretization_state_perturbation.final_state[:] = (
-            time_discretization_finalization_values.final_values
+            finalization_value_perturbations.final_values
         )
         final_time_discretization_state_perturbation.final_independent_outputs[:] = (
-            time_discretization_finalization_values.final_independent_outputs
+            finalization_value_perturbations.final_independent_outputs
         )
         return final_time_discretization_state_perturbation
 
 
 @dataclass
 class EmbeddedRungeKuttaMixin:
+    """
+    Mixin containing all necessary methods and modifications for enabling an embedded
+    Runge-Kutta scheme.
+
+    Parameters
+    ----------
+    butcher_tableau: EmbeddedButcherTableau
+        Representation of RK scheme as butcher tableau. Contains an additional set
+        of weights for a lower order embedded time integration scheme.
+    """
+
     butcher_tableau: EmbeddedButcherTableau
 
     def compute_error_estimate(
@@ -436,6 +460,25 @@ class EmbeddedRungeKuttaMixin:
         time_discretization_state: EmbeddedRungeKuttaDiscretizationState,
         step_size: float,
     ) -> EmbeddedRungeKuttaDiscretizationState:
+        """
+        Computes the error estimate for the embedded Runge-Kutta scheme based on the
+        schemes true and embedded states.
+
+        Note that this happens in place, meaning the argument
+        `time_discretization_state` contains the new data after the call and is
+        returned additionally for convenience.
+
+        Parameters
+        ----------
+        time_discretization_state: EmbeddedRungeKuttaDiscretizationState
+            Discretization state on which computations take place.
+        step_size: float
+            Step size for the current step of time integration.
+
+        Returns
+        -------
+        time_discretization_state: EmbeddedRungeKuttaDiscretizationState
+        """
         time_discretization_state.embedded_state[:] = self._accumulate_embedded_step(
             time_discretization_state.start_state,
             time_discretization_state.stage_updates,
@@ -461,6 +504,16 @@ class EmbeddedRungeKuttaMixin:
 class StageOrderedEmbeddedRungeKuttaDiscretization(
     EmbeddedRungeKuttaMixin, StageOrderedRungeKuttaDiscretization
 ):
+    """
+    Implementation of `TimeDiscretizationSchemeInterface` for "stage ordered"
+    Runge-Kutta methods with an embedded scheme.
+
+    Parameters
+    ----------
+    butcher_tableau: EmbeddedButcherTableau
+        Representation of RK scheme as butcher tableau. Contains an additional set
+        of weights for a lower order embedded time integration scheme.
+    """
 
     def create_empty_discretization_state(
         self, ode: DiscretizedODE

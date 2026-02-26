@@ -1,4 +1,4 @@
-""""""
+"""Discretization state implementation for Runge-Kutta methods."""
 
 from __future__ import annotations
 
@@ -11,6 +11,37 @@ from rkopenmdao.time_discretization.time_discretization_scheme_interface import 
 
 
 class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
+    """
+    Discretization state format for Runge-Kutta methods. Represents data for a whole
+    time step.
+
+    Attributes
+    ----------
+    start_state: np.ndarray
+        State at start of the time step.
+    stage_states: np.ndarray
+        States at stages of RK scheme.
+    stage_updates: np.ndarray
+        Updates at stages of RK scheme.
+    final_state: np.ndarray
+        State at end of the time step.
+    independent_inputs: np.ndarray
+        Independent inputs to RK scheme
+    stage_independent_outputs: np.ndarray
+        Independent outputs at stage of RK scheme.
+    final_independent_output: np.ndarray
+        Independent outputs at end of the time step.
+    start_time: np.ndarray
+        Time at start of time step.
+    stage_times: np.ndarray
+        Times at stages of RK scheme.
+    final_time: np.ndarray
+        Time at end of time step.
+    step_size: np.ndarray
+        Step size used for current step of RK scheme.
+    linearization_points:
+        Linearization points for the different stages of the RK scheme.
+    """
 
     start_state: np.ndarray
     stage_states: np.ndarray
@@ -62,7 +93,6 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         )
 
     def set(self, other: RungeKuttaDiscretizationState):
-        """"""
         self.start_state[:] = other.start_state[:]
         self.stage_states[:] = other.stage_states[:]
         self.stage_updates[:] = other.stage_updates[:]
@@ -123,16 +153,53 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
 
 
 class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
+    """
+    Discretization state format for embedded Runge-Kutta methods. Represents data for a
+    whole time step.
+
+    Attributes
+    ----------
+    start_state: np.ndarray
+        State at start of the time step.
+    stage_states: np.ndarray
+        States at stages of RK scheme.
+    stage_updates: np.ndarray
+        Updates at stages of RK scheme.
+    final_state: np.ndarray
+        State at end of the time step.
+    independent_inputs: np.ndarray
+        Independent inputs to RK scheme
+    stage_independent_outputs: np.ndarray
+        Independent outputs at stage of RK scheme.
+    final_independent_output: np.ndarray
+        Independent outputs at end of the time step.
+    start_time: np.ndarray
+        Time at start of time step.
+    stage_times: np.ndarray
+        Times at stages of RK scheme.
+    final_time: np.ndarray
+        Time at end of time step.
+    step_size: np.ndarray
+        Step size used for current step of RK scheme.
+    linearization_points:
+        Linearization points for the different stages of the RK scheme.
+    embedded_state: np.ndarray
+        State at end of time step of the embedded RK scheme.
+    error_estimate: np.ndarray
+        Error estimate resulting of difference of non-embedded and embedded state of RK
+        scheme.
+    """
+
     embedded_state: np.ndarray
     error_estimate: np.ndarray
 
     def __init__(
         self,
-        ode_state_size,
-        independent_input_size,
-        independent_output_size,
-        number_of_stages,
-        linearization_point_size,
+        ode_state_size: int,
+        independent_input_size: int,
+        independent_output_size: int,
+        number_of_stages: int,
+        linearization_point_size: int,
     ):
         super().__init__(
             ode_state_size,
@@ -144,14 +211,14 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
         self.embedded_state = np.zeros_like(self.start_state)
         self.error_estimate = np.zeros_like(self.start_state)
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         time_step_dict = super().to_dict()
         time_step_dict["embedded_state"] = self.embedded_state
         time_step_dict["error_estimate"] = self.error_estimate
         return time_step_dict
 
     @classmethod
-    def from_dict(cls, state_dict):
+    def from_dict(cls, state_dict: dict):
         state = super().from_dict(state_dict)
         state.embedded_state = state_dict["embedded_dict"]
         state.error_estimate = state_dict["error_estimate"]
