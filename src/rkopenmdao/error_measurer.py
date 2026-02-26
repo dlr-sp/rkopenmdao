@@ -5,8 +5,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-import numpy as np
-
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
 
@@ -27,9 +25,9 @@ class ErrorMeasurer(ABC):
         """
         Parameters
         ----------
-        state_error_estimate : np.ndarray
+        state_error_estimate : DiscretizedODEResultState
             Error estimate of one step of a time integration
-        state : np.ndarray
+        state : DiscretizedODEResultState
             Solution of one step of a time integration
         ode: DiscretizedODE:
             Equation that the error estimate and solution belong to.
@@ -61,10 +59,11 @@ class ImprovedErrorMeasurer(ErrorMeasurer):
     norms.
     Parameters
     ----------
-    eta : float, optional
+    eta : float
         A small positive absolute tolerance which added to avoid division by zero.
-    eps: float, optional
-        relative error tolerance
+        1e-6 by default.
+    eps: float
+        Relative error tolerance. 1e-6 by default.
     """
 
     eta: float = 1e-6
