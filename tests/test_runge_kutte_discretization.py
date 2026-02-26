@@ -1,3 +1,5 @@
+"""Tests the discretization implementation for Runge-Kutta."""
+
 # pylint: disable=protected-access
 # Lots of inner functions are tested here
 
@@ -44,9 +46,6 @@ def state_dot_func(
 ) -> float:
     """
     Compute the inner product between two RungeKuttaDiscretizationState objects.
-
-    The inner product is computed as the sum of element-wise products of all
-    numpy arrays in the states.
 
     Parameters
     ----------
@@ -103,6 +102,9 @@ def state_dot_func(
     ],
 )
 def fixture_ode_collection(request):
+    """
+    Collection of ODE + misc. info for convergence tests.
+    """
     ode, analytical_solution, order_barrier = request.param
     starting_values = TimeDiscretizationStartingValues(
         1.0, np.ones(ode.get_state_size()), np.ones(ode.get_independent_input_size())
@@ -129,6 +131,9 @@ def test_convergence(
     base_step_size: float,
     ode_collection: dict,
 ):
+    """
+    Tests that a Runge-Kutta discretization exhibits the right order of convergence.
+    """
     discretization = StageOrderedRungeKuttaDiscretization(butcher_tableau)
     order_barrier = ode_collection.pop("order_barrier")
     norm_comparisons = convergence_study(
@@ -163,7 +168,9 @@ def test_convergence(
 )
 @pytest.mark.parametrize("seed", range(5))
 def test_step_duality(butcher_tableau: ButcherTableau, ode: DiscretizedODE, seed: int):
-    """Test duality between compute_step_derivative and compute_step_adjoint_derivative."""
+    """
+    Test duality between compute_step_derivative andcompute_step_adjoint_derivative.
+    """
     discretization = StageOrderedRungeKuttaDiscretization(butcher_tableau)
 
     # Create a state at which to evaluate the Jacobian
@@ -329,6 +336,9 @@ def test_error_estimate_convergence(
     base_step_size: float,
     ode_collection: dict,
 ):
+    """
+    Tests that the error estimate of embedded RK-scheme converge with the correct order.
+    """
     discretization = StageOrderedEmbeddedRungeKuttaDiscretization(butcher_tableau)
     order_barrier = ode_collection.pop("order_barrier")
     ode: DiscretizedODE = ode_collection["ode"]

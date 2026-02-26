@@ -266,10 +266,9 @@ def check_partials_wo_fd(jac_data, tol=1e-6):
     2. http://dx.doi.org/10.1090/S0025-5718-99-01027-3
     """
     for i in ["x_initial", "b"]:
-        if ("x_final", i) in jac_data["rk_integrator"]:
-            fwd = jac_data["rk_integrator"][("x_final", i)]["J_fwd"][0]
-            rev = jac_data["rk_integrator"][("x_final", i)]["J_rev"][0]
-            # Absolute :
-            assert np.abs(fwd - rev) < tol
-            # Relative
-            assert np.abs(fwd - rev) / min(np.abs(fwd), np.abs(rev)) < tol
+        fwd = jac_data["rk_integrator"][("x_final", i)]["J_fwd"][0]
+        rev = jac_data["rk_integrator"][("x_final", i)]["J_rev"][0]
+        # Absolute :
+        assert np.abs(fwd - rev) < tol
+        # Relative
+        assert np.abs(fwd - rev) / min(np.abs(fwd), np.abs(rev)) < tol

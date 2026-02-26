@@ -1,3 +1,5 @@
+"""Some direct implementations of DiscretizedODE to test time discretizations."""
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -211,7 +213,9 @@ class TimeScaledIdentityODE(DiscretizedODE):
             inv_divisor + step_size * stage_factor * inv_divisor**2
         ) * ode_result_perturbation.stage_update + (
             step_input + step_size * stage_input
-        ) * step_size * stage_factor * inv_divisor**2 * ode_result_perturbation.stage_state
+        ) * step_size * stage_factor * inv_divisor**2 * (
+            ode_result_perturbation.stage_state
+        )
         return DiscretizedODEInputState(
             step_input_pert, stage_input_pert, np.zeros(0), time_pert
         )
