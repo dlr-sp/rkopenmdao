@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04, ubuntu-latest]
-        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python_version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
         om_version: ["==3.33", ""]
 
 
@@ -34,6 +34,8 @@ jobs:
         python-version: ${{ matrix.python_version }}
     - name: Install dependencies
       run: |
+        echo 'setuptools<81' > constraints.txt
+        export PIP_CONSTRAINT=constraints.txt
         pip install cython  # required to build petsc4py
         export PETSC_CONFIGURE_OPTIONS="--download-fblaslapack=1"
         pip install petsc
