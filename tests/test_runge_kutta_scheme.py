@@ -2,7 +2,7 @@
 
 # pylint: disable=unused-argument
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
@@ -171,8 +171,8 @@ class TimeScaledIdentityODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = t*x(t).
     """
 
-    _cached_linearization: SimpleODELinearizationPoint = SimpleODELinearizationPoint(
-        0.0, np.zeros(2)
+    _cached_linearization: SimpleODELinearizationPoint = field(
+        default_factory=lambda: SimpleODELinearizationPoint(0.0, np.zeros(2))
     )
 
     def compute_update(
@@ -334,8 +334,8 @@ class RootODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = sqrt(x(t)).
     """
 
-    _cached_linearization: SimpleODELinearizationPoint = SimpleODELinearizationPoint(
-        0.0, np.zeros(2)
+    _cached_linearization: SimpleODELinearizationPoint = field(
+        default_factory=lambda: SimpleODELinearizationPoint(0.0, np.zeros(2))
     )
 
     def compute_update(
