@@ -74,6 +74,7 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
 
     test_prob.setup()
     test_prob.run_model()
+    test_prob.model.run_linearize()
     data = test_prob.check_partials()
     assert_check_partials(data)
 
