@@ -81,6 +81,7 @@ def test_metadata_non_parallel_correct():
     set."""
     prob = basic_test_problem()
     prob.setup()
+    prob.final_setup()
 
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
 
@@ -323,6 +324,7 @@ def test_metadata_non_parallel_incorrect(
     prob = om.Problem()
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
     prob.setup()
+    prob.final_setup()
     with pytest.raises(SetupError, match=error_message):
         extract_time_integration_metadata(prob, time_integration_quantity_list)
 
@@ -344,6 +346,7 @@ def test_metadata_time_independent_inputs_correct():
         ),
     )
     prob.setup()
+    prob.final_setup()
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     add_time_independent_input_metadata(prob, ["w"], time_integration_metadata)
     assert time_integration_metadata.time_independent_input_size == 4
@@ -444,6 +447,7 @@ def test_metadata_time_independent_inputs_incorrect(
         ),
     )
     prob.setup()
+    prob.final_setup()
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     with pytest.raises(SetupError, match=error_message):
         add_time_independent_input_metadata(
@@ -484,6 +488,7 @@ def test_metadata_distributed_var_correct(shape_rank_0, shape_rank_1):
     prob.model.add_subsystem("indep", indep, promotes=["*"])
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
     prob.setup()
+    prob.final_setup()
 
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     add_distributivity_information(prob, time_integration_metadata)
@@ -568,6 +573,7 @@ def test_metadata_parallel_group_correct():
     prob = om.Problem()
     prob.model.add_subsystem("par_group", par_group, promotes=["*"])
     prob.setup()
+    prob.final_setup()
 
     time_integration_metadata = extract_time_integration_metadata(prob, ["x", "y"])
     add_distributivity_information(prob, time_integration_metadata)
