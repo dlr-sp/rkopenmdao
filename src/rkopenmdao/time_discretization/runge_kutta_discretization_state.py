@@ -1,6 +1,7 @@
 """Discretization state implementation for Runge-Kutta methods."""
 
 from __future__ import annotations
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -10,6 +11,7 @@ from rkopenmdao.time_discretization.time_discretization_scheme_interface import 
 )
 
 
+@dataclass(init=False)
 class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
     """
     Discretization state format for Runge-Kutta methods. Represents data for a whole
@@ -152,6 +154,7 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         return state
 
 
+@dataclass(init=False)
 class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
     """
     Discretization state format for embedded Runge-Kutta methods. Represents data for a

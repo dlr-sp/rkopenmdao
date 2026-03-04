@@ -54,21 +54,23 @@ class PyrevolveCheckpointer(CheckpointInterface):
     revolver_type: str = "Memory"
     revolver_options: dict = field(default_factory=dict)
 
+    _first_complete_state: TimeIntegrationState = field(init=None)
+    _revolver: pr.BaseRevolver | None = field(init=None)
+    _revolver_class_type: type = field(init=None)
+
     def __post_init__(self):
         """Sets up all permanent data derived from initialization arguments."""
         self._first_complete_state = deepcopy(self.state)
         checkpoint = RungeKuttaCheckpoint(self.state)
 
-        self.revolver_class_type = self._setup_revolver_class_type(self.revolver_type)
+        self._revolver_class_type = self._setup_revolver_class_type(self.revolver_type)
         if isinstance(self.integration_control, StepTerminationIntegrationControl):
             num_steps = self.integration_control.num_steps
         else:
-            raise TypeError(
-                """
+            raise TypeError("""
             Does not support online checkpointing yet:
             IntegrationControl must be of type StepTerminationIntegrationControl
-            """
-            )
+            """)
         for key, value in self.revolver_options.items():
             if self.revolver_type == "MultiLevel" and key == "storage_list":
                 storage_list = []
@@ -104,7 +106,7 @@ class PyrevolveCheckpointer(CheckpointInterface):
 
     def create_checkpointer(self):
         """Creates the actual revolver object used for checkpointing by Pyrevolve."""
-        self._revolver = self.revolver_class_type(**self.revolver_options)
+        self._revolver = self._revolver_class_type(**self.revolver_options)
 
     def _setup_revolver_class_type(self, revolver_type: str) -> type:
         """

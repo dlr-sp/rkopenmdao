@@ -140,7 +140,7 @@ def test_convergence(
         discretization=discretization,
         base_step_size=base_step_size,
         num_calculations=4,
-        **ode_collection
+        **ode_collection,
     )
     norm_comparisons = np.log2(norm_comparisons)
 
@@ -169,7 +169,7 @@ def test_convergence(
 @pytest.mark.parametrize("seed", range(5))
 def test_step_duality(butcher_tableau: ButcherTableau, ode: DiscretizedODE, seed: int):
     """
-    Test duality between compute_step_derivative andcompute_step_adjoint_derivative.
+    Test duality between compute_step_derivative and compute_step_adjoint_derivative.
     """
     discretization = StageOrderedRungeKuttaDiscretization(butcher_tableau)
 

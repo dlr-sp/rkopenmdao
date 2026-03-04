@@ -43,7 +43,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _of_vars: list
     _wrt_vars: list
 
-    _ode: OpenMDAOODE
+    _ode: OpenMDAOODE | None
 
     _runge_kutta_discretization: StageOrderedRungeKuttaDiscretization | None
     _time_integration_state: TimeIntegrationState | None
@@ -64,11 +64,19 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._of_vars = []
         self._wrt_vars = []
 
+        self._ode = None
+        self._runge_kutta_discretization = None
+        self._time_integration_state = None
+        self._time_integration_state_perturbations = None
+
         self._cached_input = None
+
+        self._error_controller = None
+        self._error_measurer = None
 
         self._disable_write_out = False
         self._file_writer = None
-        self._error_controller = None
+
         self._checkpointer = None
 
     def initialize(self):
@@ -588,15 +596,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
             if self.comm.rank == 0:
                 nl = "\n"
-                print(
-                    f"""End Iteration {i}: {
+                print(f"""End Iteration {i}: {
                     self.options['integration_control'].delta_t} {f'succeeded. {nl}'
                     'Estimation for next step is:' 
                     if error_controller_status.acceptance else f'failed. {nl}' 
                     'retrying with:'
                     } {error_controller_status.step_size_suggestion}
-                    """
-                )
+                    """)
             if error_controller_status.acceptance:
                 new_step_size_history = np.roll(
                     time_integration_state.step_size_history, 1
