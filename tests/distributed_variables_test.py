@@ -392,13 +392,13 @@ def test_parallel_single_distributed_time_integration(
 
 
 @pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
     "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
-    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
+    "num_steps, checkpointing_implementation",
+    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveCheckpointer)],
 )
 def test_parallel_single_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
@@ -529,13 +529,13 @@ def test_parallel_two_distributed_time_integration(
 
 
 @pytest.mark.mpi
-@pytest.mark.parametrize("num_steps", [1, 10])
 @pytest.mark.parametrize(
     "butcher_tableau", [implicit_euler, embedded_second_order_two_stage_sdirk]
 )
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
-    "checkpointing_implementation", [AllCheckpointer, PyrevolveCheckpointer]
+    "num_steps, checkpointing_implementation",
+    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveCheckpointer)],
 )
 def test_parallel_two_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation

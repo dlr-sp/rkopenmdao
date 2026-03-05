@@ -2,156 +2,245 @@
 RungeKuttaIntegrator."""
 
 from __future__ import annotations
-from collections.abc import Mapping, Callable
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import pyrevolve as pr
 import numpy as np
 
-
-# More or less the same as the one from use_modernised.py in the pyrevolve examples
-class RungeKuttaIntegratorSymbol:
-    """One atomic part of the checkpointed data."""
-
-    def __init__(self, data_dim):
-        self._storage = np.zeros(data_dim + 1)
-        self._data_dim = data_dim
-
-    @property
-    def data(self):
-        """Property for the internal storage vector."""
-        return self._storage
-
-    @data.setter
-    def data(self, data):
-        """Setter for the internal storage vector."""
-        if isinstance(data, np.ndarray):
-            self._storage = data
-        else:
-            raise TypeError("Symbol data must be a numpy array.")
-
-    @property
-    def size(self):
-        """Gets the size of the internal storage vector."""
-        return self._storage.size
+from rkopenmdao.time_integration_state import TimeIntegrationState
+from rkopenmdao.integration_control import IntegrationControl
 
 
 class RungeKuttaCheckpoint(pr.Checkpoint):
-    """Blueprint for one checkpoint."""
+    """
+    Blueprint for one checkpoint.
 
-    def __init__(self, symbols: dict):
-        if isinstance(symbols, Mapping):
-            self.symbols: dict = symbols
-        else:
-            raise TypeError(
-                "Symbols must be a Mapping, for example a \
-                              dictionary."
-            )
+    Parameters
+    ----------
+    _symbol: dict
+        Storage for making checkpoints accessible to pyRevolve.
+    _time_integration_state: TimeIntegrationState
+        Time integration state consistent with `_symbol`.
+    """
 
-    def get_data_location(self, timestep):
-        """Gets location for data at given time step."""
+    _symbol: dict
+    _time_integration_state: TimeIntegrationState
+
+    def __init__(self, time_integration_state: TimeIntegrationState):
+        self._time_integration_state = time_integration_state
+        self._symbols = time_integration_state.to_dict()
+
+    def get_data_location(self, timestep) -> list:
+        """
+        Gets location for data at given time step.
+
+        Parameters
+        ----------
+        timestep: Any
+            Unused argument required by the interface.
+
+        Returns
+        -------
+        locations: list
+            Memory locations where checkpoint data is saved.
+        """
         # pylint: disable=unused-argument
         # Here the method of getting the data is independent of the time step, but the
         # interface requires the argument.
-        return [x.data for x in list(self.symbols.values())]
+        locations = self._get_data_impl(self._symbols, location=True)
+        return locations
 
-    def get_data(self, timestep):
-        return [x.data for x in self.symbols.values()]
+    def get_data(self, timestep) -> list:
+        """
+        Gets data at given time step.
+
+        Parameters
+        ----------
+        timestep: Any
+            Unused argument required by the interface.
+
+        Returns
+        -------
+        locations: list
+            Data if currently loaded checkpoint.
+        """
+        data = self._get_data_impl(self._symbols, location=False)
+        return data
+
+    def _get_data_impl(self, state_part: dict | np.ndarray, location: bool) -> list:
+        """
+        Recursive implementation of `get_data` and `get_data_location`.
+
+        Parameters
+        ----------
+        state_part: dict | np.ndarray
+            Current sub-part which is traversed to get data (location).
+        location: bool
+            Flag indicating whether location of data (True) or copy of data (False)
+            is requested.
+
+        Returns
+        -------
+        result: list
+            List containing data (locations) of already traversed part of dict.
+        """
+        result = []
+        if isinstance(state_part, dict):
+            for part in state_part.values():
+                result += self._get_data_impl(part, location)
+        elif isinstance(state_part, np.ndarray):
+            if state_part.size > 0:
+                result.append(state_part if location else state_part.copy())
+        else:
+            raise TypeError(
+                f"Unexpected type {type(state_part)} in RungeKuttaCheckpoint"
+            )
+        return result
 
     @property
-    def size(self):
-        """The memory consumption of the data contained in this checkpoint."""
+    def size(self) -> int:
+        """
+        The memory consumption of the data contained in this checkpoint.
+
+        Returns
+        -------
+        size: int
+            Memory size of checkpoint in Bytes.
+        """
+        return self._size_impl(self._symbols)
+
+    def _size_impl(self, state_part: dict | np.ndarray) -> int:
+        """
+        Recursive implementation of the size property.
+
+        Parameters
+        ----------
+        state_part: dict | np.ndarray
+            Current sub-part which is traversed to get checkpoint size.
+
+        Returns
+        -------
+        size: int
+            Size of already traversed part of checkpoint.
+        """
         size = 0
-        for i in self.symbols:
-            size = size + self.symbols[i].size
+        if isinstance(state_part, dict):
+            for part in state_part.values():
+                size += self._size_impl(part)
+        elif isinstance(state_part, np.ndarray):
+            size += state_part.size
+        else:
+            raise TypeError(
+                f"Unexpected type {type(state_part)} in RungeKuttaCheckpoint"
+            )
         return size
 
     @property
-    def dtype(self):
+    def dtype(self) -> type:
+        """
+        Data type used for single values of the checkpoint.
+
+        Returns
+        -------
+        dtype: type
+            Data type used by single values of the checkpoint.
+        """
         return np.float64
 
 
+@dataclass
 class RungeKuttaForwardOperator(pr.Operator):
-    """Forward operator of the RungeKuttaIntegrator (i.e. the normal time
-    integration)."""
+    """
+    Forward operator of the RungeKuttaIntegrator (i.e. the normal time
+    integration).
 
-    # pylint: disable=too-few-public-methods
-    # The interface is controlled by PyRevolve, and more methods are not needed.
+    Parameters
+    ----------
+    time_integration_state: TimeIntegrationState
+        State on which internal calculations are performed.
+    fwd_operation: Callable[[TimeIntegrationState], TimeIntegrationState]
+        Function applying one single step of time integration.
+    integration_control: IntegrationControl
+        Object for sharing data between ODE, time discretization and time integration.
+    """
 
-    serialized_old_state_symbol: RungeKuttaIntegratorSymbol
-    serialized_new_state_symbol: RungeKuttaIntegratorSymbol
-    fwd_operation: Callable[[int, np.ndarray], np.ndarray]
-
-    def __init__(
-        self,
-        serialized_old_state_symbol: RungeKuttaIntegratorSymbol,
-        serialized_new_state_symbol: RungeKuttaIntegratorSymbol,
-        fwd_operation: Callable[
-            [int, np.ndarray],
-            np.ndarray,
-        ],
-        integration_control,
-    ):
-        self.serialized_old_state_symbol = serialized_old_state_symbol
-        self.serialized_new_state_symbol = serialized_new_state_symbol
-        self.fwd_operation = fwd_operation
-        self.integration_control = integration_control
+    time_integration_state: TimeIntegrationState
+    fwd_operation: Callable[[TimeIntegrationState], TimeIntegrationState]
+    integration_control: IntegrationControl
 
     def apply(self, **kwargs):
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
         # how it is.
-        self.integration_control.step = kwargs["t_start"]
+        """
+        Does forward (primal) integration from step `t_start` + 1 to `t_end` + 1.
+
+        Parameters
+        ----------
+        t_start: int
+            First integrated time step shifted by one.
+        t_end: int
+            Last integration time step shifted by one.
+        """
+        self.integration_control.step = kwargs["t_start"] + 1
+        self.integration_control.step_time = (
+            self.time_integration_state.discretization_state.final_time[0]
+        )
         t_end = kwargs["t_end"]
 
-        self.integration_control.step_time = self.serialized_new_state_symbol.data[-1]
-
-        while self.integration_control.termination_condition_status(t_end):
-            self.serialized_old_state_symbol.data = (
-                self.serialized_new_state_symbol.data.copy()
-            )
-            self.serialized_new_state_symbol.data[:-1] = self.fwd_operation(
-                self.serialized_old_state_symbol.data[:-1],
-            )[0]
-            self.serialized_new_state_symbol.data[-1] = (
-                self.integration_control.step_time
+        while self.integration_control.termination_condition_status(t_end + 1):
+            self.time_integration_state.set(
+                self.fwd_operation(self.time_integration_state)
             )
 
 
+@dataclass
 class RungeKuttaReverseOperator(pr.Operator):
-    """Backward operator of the Runge-Kutta-integrator (i.e. one reverse step)."""
+    """
+    Backward operator of the Runge-Kutta-integrator (i.e. one reverse step).
 
-    # pylint: disable=too-few-public-methods
-    # The interface is controlled by PyRevolve, and more methods are not needed.
+    Parameters
+    ----------
+    time_integration_state: TimeIntegrationState
+        State which contains the current linearization point.
+    time_integration_state_perturbations: TimeIntegrationState
+        Perturbation state on which internal calculations are performed.
+    rev_operation: Callable[
+        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+    ]
+        Function applying one single reverse step of time integration.
+    integration_control: IntegrationControl
+        Object for sharing data between ODE, time discretization and time integration.
+    """
 
-    serialized_old_state_symbol: RungeKuttaIntegratorSymbol
-    serialized_state_perturbations: np.ndarray
-    rev_operation: Callable[[int, np.ndarray, np.ndarray], np.ndarray]
-
-    def __init__(
-        self,
-        serialized_old_state_symbol: RungeKuttaIntegratorSymbol,
-        state_size: int,
-        rev_operation: Callable[
-            [int, np.ndarray, np.ndarray],
-            np.ndarray,
-        ],
-        integration_control,
-    ):
-        self.serialized_old_state_symbol = serialized_old_state_symbol
-        self.serialized_state_perturbations = np.zeros(state_size)
-        self.rev_operation = rev_operation
-        self.integration_control = integration_control
+    time_integration_state: TimeIntegrationState
+    time_integration_state_perturbations: TimeIntegrationState
+    rev_operation: Callable[
+        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+    ]
+    integration_control: IntegrationControl
 
     def apply(self, **kwargs):
+        """
+        Does reverse (linear) integration from step `t_end` + 2 to `t_start` + 2.
+
+        Parameters
+        ----------
+        t_start: int
+            First integrated time step shifted by one.
+        t_end: int
+            Last integration time step shifted by one.
+        """
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
         # how it is.
         t_start = kwargs["t_start"]
         t_end = kwargs["t_end"]
-        for step in reversed(range(t_start + 1, t_end + 1)):
+        for step in reversed(range(t_start + 2, t_end + 2)):
             self.integration_control.step = step
-            self.integration_control.step_time = self.serialized_old_state_symbol.data[
-                -1
-            ]
-            self.serialized_state_perturbations = self.rev_operation(
-                self.serialized_old_state_symbol.data[:-1],
-                self.serialized_state_perturbations,
+            self.time_integration_state_perturbations.set(
+                self.rev_operation(
+                    self.time_integration_state,
+                    self.time_integration_state_perturbations,
+                )
             )
+            self.integration_control.decrement_step()

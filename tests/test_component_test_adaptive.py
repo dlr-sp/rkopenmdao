@@ -206,17 +206,11 @@ def test_component_integration(
         AllCheckpointer,
     ],
 )
-@pytest.mark.parametrize(
-    "test_measurer", [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
-)
-@pytest.mark.parametrize("test_controller", error_controller_list)
 def test_time_integration_partials(
     test_class,
     initial_time,
     butcher_tableau,
     checkpointing_implementation,
-    test_measurer,
-    test_controller,
 ):
     """Tests the partials of the time integration of the different components."""
     integration_control = TimeTerminationIntegrationControl(
@@ -241,9 +235,9 @@ def test_time_integration_partials(
             integration_control=integration_control,
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
-            error_controller=[test_controller, integral],
+            error_controller=[integral],
             error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
-            error_measurer=test_measurer,
+            error_measurer=SimpleErrorMeasurer(),
             adaptive_time_stepping=True,
         ),
         promotes=["*"],

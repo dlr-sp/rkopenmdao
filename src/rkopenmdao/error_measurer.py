@@ -5,8 +5,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-import numpy as np
-
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
 
@@ -20,16 +18,16 @@ class ErrorMeasurer(ABC):
     @abstractmethod
     def get_measure(
         self,
-        state_error_estimate: np.ndarray,
-        state: np.ndarray,
+        state_error_estimate: DiscretizedODEResultState,
+        state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
         """
         Parameters
         ----------
-        state_error_estimate : np.ndarray
+        state_error_estimate : DiscretizedODEResultState
             Error estimate of one step of a time integration
-        state : np.ndarray
+        state : DiscretizedODEResultState
             Solution of one step of a time integration
         ode: DiscretizedODE:
             Equation that the error estimate and solution belong to.
@@ -47,13 +45,11 @@ class SimpleErrorMeasurer(ErrorMeasurer):
 
     def get_measure(
         self,
-        state_error_estimate: np.ndarray,
-        state: np.ndarray,
+        state_error_estimate: DiscretizedODEResultState,
+        state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
-        return ode.compute_state_norm(
-            DiscretizedODEResultState(np.zeros(0), state_error_estimate, np.zeros(0))
-        )
+        return ode.compute_state_norm(state_error_estimate)
 
 
 @dataclass
@@ -63,10 +59,11 @@ class ImprovedErrorMeasurer(ErrorMeasurer):
     norms.
     Parameters
     ----------
-    eta : float, optional
+    eta : float
         A small positive absolute tolerance which added to avoid division by zero.
-    eps: float, optional
-        relative error tolerance
+        1e-6 by default.
+    eps: float
+        Relative error tolerance. 1e-6 by default.
     """
 
     eta: float = 1e-6
@@ -74,17 +71,12 @@ class ImprovedErrorMeasurer(ErrorMeasurer):
 
     def get_measure(
         self,
-        state_error_estimate: np.ndarray,
-        state: np.ndarray,
+        state_error_estimate: DiscretizedODEResultState,
+        state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
 
-        error_estimate_norm = ode.compute_state_norm(
-            DiscretizedODEResultState(
-                np.zeros(0),
-                state_error_estimate / (np.abs(state) + self.eta / self.eps),
-                np.zeros(0),
-            )
-        )
+        error_estimate_norm = ode.compute_state_norm(state_error_estimate)
+        state_norm = ode.compute_state_norm(state)
 
-        return error_estimate_norm
+        return error_estimate_norm / (state_norm + self.eta / self.eps)
