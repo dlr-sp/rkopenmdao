@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.termination_criterion import TerminationCriterion
 from rkopenmdao.time_integration_state import TimeIntegrationState
 
 
@@ -20,15 +20,15 @@ class CheckpointInterface(ABC):
 
     Parameters
     ----------
-    integration_control: IntegrationControl
-        IntegrationControl object for sharing data between ODE time discretization and
-        time integration.
-    run_step_func: Callable[[TimeIntegrationState], TimeIntegrationState]
+    # integration_control: IntegrationControl
+    #     IntegrationControl object for sharing data between ODE time discretization and
+    #     time integration.
+    run_step_func: Callable[[int, TimeIntegrationState], TimeIntegrationState]
         Function for the computation of one step of the forward (primal) time
         integration. Input is the state of the time integration at the start of the
         step, return value the state at the end of the same step.
     run_step_jacvec_rev_func: Callable[
-        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
     ]
         Function for the computation of one step of the reverse (linear) time
         integration. Inputs are the state of the time integration during the step
@@ -42,10 +42,10 @@ class CheckpointInterface(ABC):
         integration are performed.
     """
 
-    integration_control: IntegrationControl
-    run_step_func: Callable[[TimeIntegrationState], TimeIntegrationState]
+    termination_criterion: TerminationCriterion
+    run_step_func: Callable[[int, TimeIntegrationState], TimeIntegrationState]
     run_step_jacvec_rev_func: Callable[
-        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
     ]
     state: TimeIntegrationState
     state_perturbation: TimeIntegrationState

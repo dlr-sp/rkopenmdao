@@ -11,7 +11,6 @@ from rkopenmdao.discretized_ode.discretized_ode import (
     DiscretizedODEResultState,
 )
 from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
-from rkopenmdao.integration_control import StepTerminationIntegrationControl
 
 from .test_components import TestComp1
 from .distributed_variables_test import Test2Component1, Test2Component2
@@ -22,18 +21,14 @@ DELTA_T = 0.1
 @pytest.fixture(name="identity_openmdao_ode")
 def fixture_identity_openmdao_ode() -> OpenMDAOODE:
     """Creates an OpenMDAO ODE for the identity ODE x'=x."""
-    test_integration_control = StepTerminationIntegrationControl(DELTA_T, 1, 0.0)
     test_problem = om.Problem()
-    test_problem.model.add_subsystem(
-        "comp", TestComp1(integration_control=test_integration_control), promotes=["*"]
-    )
+    test_problem.model.add_subsystem("comp", TestComp1(), promotes=["*"])
     test_problem.setup()
     test_problem.final_setup()
     test_time_integration_quantities = ["x"]
     test_independent_input_quantities = ["b"]
     ode = OpenMDAOODE(
         test_problem,
-        test_integration_control,
         test_time_integration_quantities,
         test_independent_input_quantities,
     )
@@ -71,7 +66,7 @@ def test_compute_update_stage_update(compute_update_output):
     [
         (
             "compute_update_output",
-            np.array([0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1 + DELTA_T]),
+            np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1 + DELTA_T]),
         ),
     ],
 )
@@ -184,19 +179,16 @@ def test_sequential_norm(identity_openmdao_ode, state, expected_norm):
 def fixture_complicated_openmdao_ode() -> OpenMDAOODE:
     """More complicated OpenMDAO ODE with a mix of distributed and non-distributed
     variables. Is used here only for the calculation of the norm."""
-    test_integration_control = StepTerminationIntegrationControl(DELTA_T, 1, 0.0)
     test_problem = om.Problem()
-    test_problem.model.add_subsystem(
-        "comp", TestComp1(integration_control=test_integration_control), promotes=["*"]
-    )
+    test_problem.model.add_subsystem("comp", TestComp1(), promotes=["*"])
     test_problem.model.add_subsystem(
         "comp_1",
-        Test2Component1(integration_control=test_integration_control),
+        Test2Component1(),
         promotes=["*"],
     )
     test_problem.model.add_subsystem(
         "comp_2",
-        Test2Component2(integration_control=test_integration_control),
+        Test2Component2(),
         promotes=["*"],
     )
     ivc = om.IndepVarComp()
@@ -215,7 +207,6 @@ def fixture_complicated_openmdao_ode() -> OpenMDAOODE:
     test_time_integration_quantities = ["x12", "x43", "x"]
     ode = OpenMDAOODE(
         test_problem,
-        test_integration_control,
         test_time_integration_quantities,
     )
     return ode

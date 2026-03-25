@@ -19,12 +19,12 @@ class AllCheckpointer(CheckpointInterface):
     integration_control: IntegrationControl
         IntegrationControl object for sharing data between ODE time discretization and
         time integration.
-    run_step_func: Callable[[TimeIntegrationState], TimeIntegrationState]
+    run_step_func: Callable[[int, TimeIntegrationState], TimeIntegrationState]
         Function for the computation of one step of the forward (primal) time
         integration. Input is the state of the time integration at the start of the
         step, return value the state at the end of the same step.
     run_step_jacvec_rev_func: Callable[
-        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
     ]
         Function for the computation of one step of the reverse (linear) time
         integration. Inputs are the state of the time integration during the step
@@ -64,8 +64,12 @@ class AllCheckpointer(CheckpointInterface):
             The resulting state after completing all time steps.
         """
         self.state.set(initial_state)
-        while self.integration_control.termination_condition_status():
-            self.state.set(self.run_step_func(self.state))
+        iteration = 0
+        while not self.termination_criterion.is_iteration_finished(
+            iteration, self.state
+        ):
+            iteration += 1
+            self.state.set(self.run_step_func(iteration, self.state))
             self._storage.append(deepcopy(self.state))
         return self.state
 
@@ -89,10 +93,11 @@ class AllCheckpointer(CheckpointInterface):
             steps.
         """
         self.state_perturbation.set(final_state_perturbation)
-        while self.integration_control.step > 0:
+        iteration = len(self._storage)
+        while self._storage:
             state = self._storage.pop()
             self.state_perturbation.set(
-                self.run_step_jacvec_rev_func(state, self.state_perturbation)
+                self.run_step_jacvec_rev_func(iteration, state, self.state_perturbation)
             )
-            self.integration_control.decrement_step()
+            iteration -= 1
         return self.state_perturbation

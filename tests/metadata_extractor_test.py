@@ -31,8 +31,16 @@ class MetadataTestComponent(om.ExplicitComponent):
         self.options.declare(
             "output_dict", types=dict, default={}, desc="Outputs with tags"
         )
+        self.options.declare(
+            "time_var_dict",
+            types=dict,
+            default={},
+            desc="Whether to add a variable for time or not.",
+        )
 
     def setup(self):
+        if self.options["time_var_dict"]:
+            self.add_input(**self.options["time_var_dict"])
         for var, metadata in self.options["input_dict"].items():
             self.add_input(
                 var,
@@ -325,6 +333,39 @@ def test_metadata_non_parallel_incorrect(
     prob.setup()
     with pytest.raises(SetupError, match=error_message):
         extract_time_integration_metadata(prob, time_integration_quantity_list)
+
+
+def test_metadata_time_correct():
+    prob = basic_test_problem()
+    prob.model.add_subsystem(
+        "time_comp",
+        MetadataTestComponent(
+            time_var_dict={"name": "time", "shape": 1, "tags": ["time_variable"]}
+        ),
+    )
+    prob.setup()
+    time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
+    assert time_integration_metadata.time_variable == "time_comp.time"
+
+
+@pytest.mark.parametrize(
+    "time_var_dict, error_message",
+    [
+        (
+            {"name": "time", "shape": 2, "tags": ["time_variable"]},
+            "Variable with tag 'time_variable' is not a scalar.",
+        ),
+    ],
+)
+def test_metadata_time_incorrect(time_var_dict: dict, error_message: str):
+    prob = basic_test_problem()
+    prob.model.add_subsystem(
+        "time_comp",
+        MetadataTestComponent(time_var_dict=time_var_dict),
+    )
+    prob.setup()
+    with pytest.raises(SetupError, match=error_message):
+        extract_time_integration_metadata(prob, ["x"])
 
 
 def test_metadata_time_independent_inputs_correct():

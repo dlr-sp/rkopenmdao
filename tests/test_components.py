@@ -1,15 +1,14 @@
 """Components for various ODEs with which the RungeKuttaIntegrator gets tested in
 test_component_test.py"""
 
-import openmdao.api as om
 import numpy as np
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.components import ExplicitUnsteadyComponent, ImplicitUnsteadyComponent
 
 # pylint: disable=arguments-differ
 
 
-class TestComp1(om.ExplicitComponent):
+class TestComp1(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE x' = a * x. The following formula for the stage
     results:
@@ -23,9 +22,6 @@ class TestComp1(om.ExplicitComponent):
     has to work.
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
         self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
@@ -33,36 +29,39 @@ class TestComp1(om.ExplicitComponent):
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
         outputs["x_stage"] = (
             inputs["b"]
-            * (inputs["x"] + delta_t * inputs["acc_stages"])
-            / (
-                1
-                - delta_t * self.options["integration_control"].butcher_diagonal_element
-            )
+            * (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
+            / (1 - self.om_data_exchange.step_size * self.om_data_exchange.stage_factor)
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
         divisor = (
-            1 - delta_t * self.options["integration_control"].butcher_diagonal_element
+            1 - self.om_data_exchange.step_size * self.om_data_exchange.stage_factor
         )
         if mode == "fwd":
             d_outputs["x_stage"] += inputs["b"] * d_inputs["x"] / divisor
             d_outputs["x_stage"] += (
-                inputs["b"] * delta_t * d_inputs["acc_stages"] / divisor
+                inputs["b"]
+                * self.om_data_exchange.step_size
+                * d_inputs["acc_stages"]
+                / divisor
             )
             d_outputs["x_stage"] += (
-                (inputs["x"] + delta_t * inputs["acc_stages"]) / divisor * d_inputs["b"]
+                (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
+                / divisor
+                * d_inputs["b"]
             )
         elif mode == "rev":
             d_inputs["x"] += inputs["b"] * d_outputs["x_stage"] / divisor
             d_inputs["acc_stages"] += (
-                inputs["b"] * delta_t * d_outputs["x_stage"] / divisor
+                inputs["b"]
+                * self.om_data_exchange.step_size
+                * d_outputs["x_stage"]
+                / divisor
             )
             d_inputs["b"] += (
-                (inputs["x"] + delta_t * inputs["acc_stages"])
+                (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
                 / divisor
                 * d_outputs["x_stage"]
             )
@@ -73,7 +72,7 @@ def solution_test1(time, initial_value, initial_time, param=1.0):
     return initial_value * np.exp(param * (time - initial_time))
 
 
-class TestComp2(om.ExplicitComponent):
+class TestComp2(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE x' = t. The following formula for the stage
     results:
@@ -89,18 +88,18 @@ class TestComp2(om.ExplicitComponent):
     test case.
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
+        self.add_input("time", shape=1, tags=["time_variable"])
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        stages_time = self.options["integration_control"].stage_time
-        outputs["x_stage"] = stages_time
+        outputs["x_stage"] = inputs["time"]
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        pass
+        if mode == "fwd":
+            d_outputs["x_stage"] += d_inputs["time"]
+        if mode == "rev":
+            d_inputs["time"] += d_outputs["x_stage"]
 
 
 def solution_test2(time, initial_value, initial_time):
@@ -108,7 +107,7 @@ def solution_test2(time, initial_value, initial_time):
     return initial_value + 0.5 * (time**2 - initial_time**2)
 
 
-class TestComp3(om.ExplicitComponent):
+class TestComp3(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE x' = t*x. The following formula for the stage
     results:
@@ -121,47 +120,56 @@ class TestComp3(om.ExplicitComponent):
     This is the simplest non-autonomous case that actually needs an ODE-solver.
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
+        self.add_input("time", shape=1, tags=["time_variable"])
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
         self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        stage_time = self.options["integration_control"].stage_time
         outputs["x_stage"] = (
-            stage_time
-            * (inputs["x"] + delta_t * inputs["acc_stages"])
+            inputs["time"]
+            * (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
             / (
                 1
-                - delta_t
-                * self.options["integration_control"].butcher_diagonal_element
-                * stage_time
+                - self.om_data_exchange.step_size
+                * self.om_data_exchange.stage_factor
+                * inputs["time"]
             )
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        stage_time = self.options["integration_control"].stage_time
-
         divisor = (
             1
-            - delta_t
-            * self.options["integration_control"].butcher_diagonal_element
-            * stage_time
+            - self.om_data_exchange.step_size
+            * self.om_data_exchange.stage_factor
+            * inputs["time"]
         )
         if mode == "fwd":
-            d_outputs["x_stage"] += stage_time * d_inputs["x"] / divisor
+            d_outputs["x_stage"] += inputs["time"] * d_inputs["x"] / divisor
             d_outputs["x_stage"] += (
-                delta_t * stage_time * d_inputs["acc_stages"] / divisor
+                self.om_data_exchange.step_size
+                * inputs["time"]
+                * d_inputs["acc_stages"]
+                / divisor
+            )
+            d_outputs["x_stage"] += (
+                (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
+                * d_inputs["time"]
+                / divisor**2
             )
         elif mode == "rev":
-            d_inputs["x"] += stage_time * d_outputs["x_stage"] / divisor
+            d_inputs["x"] += inputs["time"] * d_outputs["x_stage"] / divisor
             d_inputs["acc_stages"] += (
-                delta_t * stage_time * d_outputs["x_stage"] / divisor
+                self.om_data_exchange.step_size
+                * inputs["time"]
+                * d_outputs["x_stage"]
+                / divisor
+            )
+            d_inputs["time"] += (
+                (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
+                * d_outputs["x_stage"]
+                / divisor**2
             )
 
 
@@ -170,7 +178,7 @@ def solution_test3(time, initial_value, initial_time):
     return initial_value * np.exp(0.5 * (time**2 - initial_time**2))
 
 
-class TestComp4(om.ExplicitComponent):
+class TestComp4(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE system  x' = y, y'=x. The following formula for the
     stage
@@ -195,31 +203,28 @@ class TestComp4(om.ExplicitComponent):
     that the RK-Integrator can work with such multidimensional problems.
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
         self.add_input("x", shape=2, tags=["step_input_var", "x"])
         self.add_input("acc_stages", shape=2, tags=["accumulated_stage_var", "x"])
         self.add_output("x_stage", shape=2, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        factor = delta_t * self.options["integration_control"].butcher_diagonal_element
+        factor = self.om_data_exchange.step_size * self.om_data_exchange.stage_factor
         outputs["x_stage"][0] = (
             factor * inputs["x"][0]
             + inputs["x"][1]
-            + delta_t * (factor * inputs["acc_stages"][0] + inputs["acc_stages"][1])
+            + self.om_data_exchange.step_size
+            * (factor * inputs["acc_stages"][0] + inputs["acc_stages"][1])
         ) / (1 - factor**2)
         outputs["x_stage"][1] = (
             inputs["x"][0]
             + factor * inputs["x"][1]
-            + delta_t * (inputs["acc_stages"][0] + factor * inputs["acc_stages"][1])
+            + self.om_data_exchange.step_size
+            * (inputs["acc_stages"][0] + factor * inputs["acc_stages"][1])
         ) / (1 - factor**2)
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        factor = delta_t * self.options["integration_control"].butcher_diagonal_element
+        factor = self.om_data_exchange.step_size * self.om_data_exchange.stage_factor
 
         if mode == "fwd":
             d_outputs["x_stage"][0] += (
@@ -229,12 +234,12 @@ class TestComp4(om.ExplicitComponent):
                 d_inputs["x"][0] + factor * d_inputs["x"][1]
             ) / (1 - factor**2)
             d_outputs["x_stage"][0] += (
-                delta_t
+                self.om_data_exchange.step_size
                 * (factor * d_inputs["acc_stages"][0] + d_inputs["acc_stages"][1])
                 / (1 - factor**2)
             )
             d_outputs["x_stage"][1] += (
-                delta_t
+                self.om_data_exchange.step_size
                 * (d_inputs["acc_stages"][0] + factor * d_inputs["acc_stages"][1])
                 / (1 - factor**2)
             )
@@ -246,12 +251,12 @@ class TestComp4(om.ExplicitComponent):
                 d_outputs["x_stage"][0] + factor * d_outputs["x_stage"][1]
             ) / (1 - factor**2)
             d_inputs["acc_stages"][0] += (
-                delta_t
+                self.om_data_exchange.step_size
                 * (factor * d_outputs["x_stage"][0] + d_outputs["x_stage"][1])
                 / (1 - factor**2)
             )
             d_inputs["acc_stages"][1] += (
-                delta_t
+                self.om_data_exchange.step_size
                 * (d_outputs["x_stage"][0] + factor * d_outputs["x_stage"][1])
                 / (1 - factor**2)
             )
@@ -276,7 +281,7 @@ def solution_test4(time, initial_value, initial_time):
 # ways (one or two components) work the same.
 
 
-class Testcomp51(om.ExplicitComponent):
+class Testcomp51(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE x' = y. The following formula for the stage
     results:
@@ -288,9 +293,6 @@ class Testcomp51(om.ExplicitComponent):
     (rev) dk_i^2 = dt * a_ii * dk_i^1
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
         self.add_input("y", shape=1, tags=["step_input_var", "y"])
         self.add_input("acc_stages_y", shape=1, tags=["accumulated_stage_var", "y"])
@@ -298,36 +300,38 @@ class Testcomp51(om.ExplicitComponent):
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         outputs["x_stage"] = (
             inputs["y"]
-            + delta_t * inputs["acc_stages_y"]
-            + delta_t * butcher_diagonal_element * inputs["y_stage"]
+            + self.om_data_exchange.step_size * inputs["acc_stages_y"]
+            + self.om_data_exchange.step_size
+            * self.om_data_exchange.stage_factor
+            * inputs["y_stage"]
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         if mode == "fwd":
             d_outputs["x_stage"] += d_inputs["y"]
-            d_outputs["x_stage"] += delta_t * d_inputs["acc_stages_y"]
             d_outputs["x_stage"] += (
-                delta_t * butcher_diagonal_element * d_inputs["y_stage"]
+                self.om_data_exchange.step_size * d_inputs["acc_stages_y"]
+            )
+            d_outputs["x_stage"] += (
+                self.om_data_exchange.step_size
+                * self.om_data_exchange.stage_factor
+                * d_inputs["y_stage"]
             )
         elif mode == "rev":
             d_inputs["y"] += d_outputs["x_stage"]
-            d_inputs["acc_stages_y"] += delta_t * d_outputs["x_stage"]
+            d_inputs["acc_stages_y"] += (
+                self.om_data_exchange.step_size * d_outputs["x_stage"]
+            )
             d_inputs["y_stage"] += (
-                delta_t * butcher_diagonal_element * d_outputs["x_stage"]
+                self.om_data_exchange.step_size
+                * self.om_data_exchange.stage_factor
+                * d_outputs["x_stage"]
             )
 
 
-class Testcomp52(om.ExplicitComponent):
+class Testcomp52(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE y' = x. The following formula for the stage
     results:
@@ -339,9 +343,6 @@ class Testcomp52(om.ExplicitComponent):
     (rev) dk_i^1 = dt * a_ii * dk_i^2
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
         self.add_input("acc_stages_x", shape=1, tags=["accumulated_stage_var", "x"])
@@ -349,32 +350,34 @@ class Testcomp52(om.ExplicitComponent):
         self.add_output("y_stage", shape=1, tags=["stage_output_var", "y"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         outputs["y_stage"] = (
             inputs["x"]
-            + delta_t * inputs["acc_stages_x"]
-            + delta_t * butcher_diagonal_element * inputs["x_stage"]
+            + self.om_data_exchange.step_size * inputs["acc_stages_x"]
+            + self.om_data_exchange.step_size
+            * self.om_data_exchange.stage_factor
+            * inputs["x_stage"]
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         if mode == "fwd":
             d_outputs["y_stage"] += d_inputs["x"]
-            d_outputs["y_stage"] += delta_t * d_inputs["acc_stages_x"]
             d_outputs["y_stage"] += (
-                delta_t * butcher_diagonal_element * d_inputs["x_stage"]
+                self.om_data_exchange.step_size * d_inputs["acc_stages_x"]
+            )
+            d_outputs["y_stage"] += (
+                self.om_data_exchange.step_size
+                * self.om_data_exchange.stage_factor
+                * d_inputs["x_stage"]
             )
         elif mode == "rev":
             d_inputs["x"] += d_outputs["y_stage"]
-            d_inputs["acc_stages_x"] += delta_t * d_outputs["y_stage"]
+            d_inputs["acc_stages_x"] += (
+                self.om_data_exchange.step_size * d_outputs["y_stage"]
+            )
             d_inputs["x_stage"] += (
-                delta_t * butcher_diagonal_element * d_outputs["y_stage"]
+                self.om_data_exchange.step_size
+                * self.om_data_exchange.stage_factor
+                * d_outputs["y_stage"]
             )
 
 
@@ -394,7 +397,7 @@ def solution_test5(time, initial_value, initial_time):
     )
 
 
-class TestComp6(om.ExplicitComponent):
+class TestComp6(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE x' = x**0.5. The following formula for the stage
     results:
@@ -409,53 +412,50 @@ class TestComp6(om.ExplicitComponent):
     This is a simple test case for that.
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
         self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        outputs["x_stage"] = 0.5 * delta_t * butcher_diagonal_element + np.sqrt(
-            0.25 * delta_t**2 * butcher_diagonal_element**2
-            + inputs["x"]
-            + delta_t * inputs["acc_stages"]
+        outputs["x_stage"] = (
+            0.5 * self.om_data_exchange.step_size * self.om_data_exchange.stage_factor
+            + np.sqrt(
+                0.25
+                * self.om_data_exchange.step_size**2
+                * self.om_data_exchange.stage_factor**2
+                + inputs["x"]
+                + self.om_data_exchange.step_size * inputs["acc_stages"]
+            )
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         divisor = 2 * np.sqrt(
-            0.25 * delta_t**2 * butcher_diagonal_element**2
+            0.25
+            * self.om_data_exchange.step_size**2
+            * self.om_data_exchange.stage_factor**2
             + inputs["x"]
-            + delta_t * inputs["acc_stages"]
+            + self.om_data_exchange.step_size * inputs["acc_stages"]
         )
         if mode == "fwd":
             d_outputs["x_stage"] += d_inputs["x"] / divisor
-            d_outputs["x_stage"] += delta_t * d_inputs["acc_stages"] / divisor
+            d_outputs["x_stage"] += (
+                self.om_data_exchange.step_size * d_inputs["acc_stages"] / divisor
+            )
 
         elif mode == "rev":
             d_inputs["x"] += d_outputs["x_stage"] / divisor
-            d_inputs["acc_stages"] += delta_t * d_outputs["x_stage"] / divisor
+            d_inputs["acc_stages"] += (
+                self.om_data_exchange.step_size * d_outputs["x_stage"] / divisor
+            )
 
 
-class TestComp6a(om.ImplicitComponent):
+class TestComp6a(ImplicitUnsteadyComponent):
     """Same as test 6, but as an implicit component with linearize"""
 
     dr_dx_stage: float
     dr_dx: float
     dr_dacc_stages: float
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
@@ -465,16 +465,15 @@ class TestComp6a(om.ImplicitComponent):
     def apply_nonlinear(
         self, inputs, outputs, residuals, discrete_inputs=None, discrete_outputs=None
     ):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         residuals["x_stage"] = (
             outputs["x_stage"]
             - (
                 inputs["x"]
-                + delta_t
-                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+                + self.om_data_exchange.step_size
+                * (
+                    inputs["acc_stages"]
+                    + self.om_data_exchange.stage_factor * outputs["x_stage"]
+                )
             )
             ** 0.5
         )
@@ -482,19 +481,18 @@ class TestComp6a(om.ImplicitComponent):
     def linearize(
         self, inputs, outputs, jacobian, discrete_inputs=None, discrete_outputs=None
     ):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
         self.dr_dx_stage = (
             1
             - 0.5
-            * delta_t
-            * butcher_diagonal_element
+            * self.om_data_exchange.step_size
+            * self.om_data_exchange.stage_factor
             / (
                 inputs["x"]
-                + delta_t
-                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+                + self.om_data_exchange.step_size
+                * (
+                    inputs["acc_stages"]
+                    + self.om_data_exchange.stage_factor * outputs["x_stage"]
+                )
             )
             ** 0.5
         )
@@ -502,19 +500,25 @@ class TestComp6a(om.ImplicitComponent):
             -0.5
             / (
                 inputs["x"]
-                + delta_t
-                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+                + self.om_data_exchange.step_size
+                * (
+                    inputs["acc_stages"]
+                    + self.om_data_exchange.stage_factor * outputs["x_stage"]
+                )
             )
             ** 0.5
         )
 
         self.dr_dacc_stages = (
             -0.5
-            * delta_t
+            * self.om_data_exchange.step_size
             / (
                 inputs["x"]
-                + delta_t
-                * (inputs["acc_stages"] + butcher_diagonal_element * outputs["x_stage"])
+                + self.om_data_exchange.step_size
+                * (
+                    inputs["acc_stages"]
+                    + self.om_data_exchange.stage_factor * outputs["x_stage"]
+                )
             )
             ** 0.5
         )
@@ -535,7 +539,7 @@ def solution_test6(time, initial_value, initial_time):
     return (0.5 * (time - initial_time) + np.sqrt(initial_value)) ** 2
 
 
-class TestComp7(om.ExplicitComponent):
+class TestComp7(ExplicitUnsteadyComponent):
     """
     Models the stage of the ODE x' = (t*x)**0.5. The following formula for the stage
     results:
@@ -553,49 +557,85 @@ class TestComp7(om.ExplicitComponent):
     non-autonomous nonlinear testcase.
     """
 
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
-
     def setup(self):
+        self.add_input("time", shape=1, tags=["time_variable"])
         self.add_input("x", shape=1, tags=["step_input_var", "x"])
         self.add_input("acc_stages", shape=1, tags=["accumulated_stage_var", "x"])
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        stage_time = self.options["integration_control"].stage_time
         outputs["x_stage"] = (
-            0.5 * delta_t * butcher_diagonal_element * stage_time
-            + np.sqrt(
-                0.25 * delta_t**2 * butcher_diagonal_element**2 * stage_time**2
-                + stage_time * (inputs["x"] + delta_t * inputs["acc_stages"])
-            )
+            0.5
+            * self.om_data_exchange.step_size
+            * self.om_data_exchange.stage_factor
+            * inputs["time"]
+        ) + np.sqrt(
+            0.25
+            * self.om_data_exchange.step_size**2
+            * self.om_data_exchange.stage_factor**2
+            * inputs["time"] ** 2
+            + inputs["time"]
+            * (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
         )
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        stage_time = self.options["integration_control"].stage_time
         divisor = 2 * np.sqrt(
-            0.25 * delta_t**2 * butcher_diagonal_element**2 * stage_time**2
-            + stage_time * (inputs["x"] + delta_t * inputs["acc_stages"])
+            0.25
+            * self.om_data_exchange.step_size**2
+            * self.om_data_exchange.stage_factor**2
+            * inputs["time"] ** 2
+            + inputs["time"]
+            * (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
         )
         if mode == "fwd":
-            d_outputs["x_stage"] += stage_time * d_inputs["x"] / divisor
+            d_outputs["x_stage"] += inputs["time"] * d_inputs["x"] / divisor
             d_outputs["x_stage"] += (
-                stage_time * delta_t * d_inputs["acc_stages"] / divisor
+                inputs["time"]
+                * self.om_data_exchange.step_size
+                * d_inputs["acc_stages"]
+                / divisor
             )
+            d_outputs["x_stage"] += (
+                (
+                    0.5
+                    * self.om_data_exchange.step_size
+                    * self.om_data_exchange.stage_factor
+                )
+                + (
+                    0.5
+                    * self.om_data_exchange.step_size**2
+                    * self.om_data_exchange.stage_factor**2
+                    * inputs["time"]
+                    + inputs["x"]
+                    + self.om_data_exchange.step_size * inputs["acc_stages"]
+                )
+                / divisor
+            ) * d_inputs["time"]
 
         elif mode == "rev":
-            d_inputs["x"] += stage_time * d_outputs["x_stage"] / divisor
+            d_inputs["x"] += inputs["time"] * d_outputs["x_stage"] / divisor
             d_inputs["acc_stages"] += (
-                stage_time * delta_t * d_outputs["x_stage"] / divisor
+                inputs["time"]
+                * self.om_data_exchange.step_size
+                * d_outputs["x_stage"]
+                / divisor
             )
+            d_inputs["time"] += (
+                (
+                    0.5
+                    * self.om_data_exchange.step_size
+                    * self.om_data_exchange.stage_factor
+                )
+                + (
+                    0.5
+                    * self.om_data_exchange.step_size**2
+                    * self.om_data_exchange.stage_factor**2
+                    * inputs["time"]
+                    + inputs["x"]
+                    + self.om_data_exchange.step_size * inputs["acc_stages"]
+                )
+                / divisor
+            ) * d_outputs["x_stage"]
 
 
 def solution_test7(time, initial_value, initial_time):

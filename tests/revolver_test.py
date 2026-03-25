@@ -6,18 +6,17 @@ from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import (
-    StepTerminationIntegrationControl,
-)
 from rkopenmdao.butcher_tableaux import implicit_euler
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+from rkopenmdao.integration_config import IntegrationConfig
+from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
+
 from .test_components import TestComp6
 
 revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
 
 
 # TODO: tests with compression
-@pytest.mark.rk
 @pytest.mark.parametrize(
     "revolver_type, revolver_options",
     (
@@ -59,12 +58,10 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
 def test_rk_integrator_revolver_options(revolver_type, revolver_options):
     """Tests that the options given to the RungeKuttaIntegrator are passed through to
     the Revolver."""
-    integration_control = StepTerminationIntegrationControl(0.01, 10, 0.0)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.01)
 
     inner_prob = om.Problem()
-    inner_prob.model.add_subsystem(
-        "test", TestComp6(integration_control=integration_control)
-    )
+    inner_prob.model.add_subsystem("test", TestComp6())
     runge_kutta_prob = om.Problem()
 
     runge_kutta_prob.model.add_subsystem(
@@ -72,7 +69,7 @@ def test_rk_integrator_revolver_options(revolver_type, revolver_options):
         RungeKuttaIntegrator(
             time_stage_problem=inner_prob,
             butcher_tableau=implicit_euler,
-            integration_control=integration_control,
+            integration_config=integration_config,
             time_integration_quantities=["x"],
             checkpointing_type=PyrevolveCheckpointer,
             checkpoint_options={
