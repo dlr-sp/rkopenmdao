@@ -221,13 +221,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             desc="""ErrorMeasurer used for error control.""",
         )
 
-        self.options.declare(
-            "adaptive_time_stepping",
-            types=bool,
-            default=False,
-            desc="A flag that indicates whether to use the adaptive scheme.",
-        )
-
     @staticmethod
     def check_checkpointing_type(name, value):
         """Checks whether the passed checkpointing type for the options is an actual
@@ -468,7 +461,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._write_out(
             0,
-            inputs["time_initial"],
+            inputs["time_initial"][0],
             self._time_integration_state.discretization_state.final_state,
         )
 
@@ -581,7 +574,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     ):
         """Iterates on the a step until a time step that
         complies with the norm's tolerance"""
-        if self.options["adaptive_time_stepping"]:
+        if self._integration_config.use_adaptive_time_stepping:
             if self.comm.rank == 0:
                 print(
                     f"Start Iteration {i}: Trying with "
@@ -595,7 +588,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             temp_discretization_state,
             time_integration_state.step_size_suggestion[0],
         )
-        if self.options["adaptive_time_stepping"]:
+        if self._integration_config.use_adaptive_time_stepping:
             error_measure = self._get_error_measure(temp_discretization_state)
 
             remaining_time = self._remaining_time_func(

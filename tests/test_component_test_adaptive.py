@@ -251,10 +251,10 @@ def test_time_integration_partials(
 
     else:
         data = runge_kutta_prob.check_partials()
-        assert_check_partials(data)
+        check_partials_wo_fd(data)
 
 
-def check_partials_wo_fd(jac_data, tol=1e-6):
+def check_partials_wo_fd(jac_data: dict, tol: float = 1e-6):
     """
     Since FD by the Openmdao and fwd/rev are not comparable for adaptive schemes, a
     function excluding fd is necessary. The fd of OpenMDAO perturbs the inputs/initial
@@ -264,10 +264,8 @@ def check_partials_wo_fd(jac_data, tol=1e-6):
     (see 1. https://doi.org/10.1016/j.cam.2009.08.109 and
     2. http://dx.doi.org/10.1090/S0025-5718-99-01027-3
     """
-    for i in ["x_initial", "b"]:
-        fwd = jac_data["rk_integrator"][("x_final", i)]["J_fwd"][0]
-        rev = jac_data["rk_integrator"][("x_final", i)]["J_rev"][0]
+    for pair in jac_data["rk_integrator"]:
+        fwd = jac_data["rk_integrator"][pair]["J_fwd"]
+        rev = jac_data["rk_integrator"][pair]["J_rev"]
         # Absolute :
-        assert np.abs(fwd - rev) < tol
-        # Relative
-        assert np.abs(fwd - rev) / min(np.abs(fwd), np.abs(rev)) < tol
+        assert rev == pytest.approx(fwd, rel=tol, abs=tol)

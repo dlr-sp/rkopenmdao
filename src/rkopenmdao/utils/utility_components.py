@@ -1,16 +1,13 @@
 """Place for some components that are useful in multiple scenarios"""
 
-import openmdao.api as om
-
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.components import ExplicitUnsteadyComponent
 
 
-class StageValueComponent(om.ExplicitComponent):
+class StageValueComponent(ExplicitUnsteadyComponent):
     """General purpose component to compute the state at stage time (which is needed for
     coupling) from the old information and the newly computed stage variable."""
 
     def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
         self.options.declare(
             "tag",
             types=(type(None), str),
@@ -41,21 +38,18 @@ class StageValueComponent(om.ExplicitComponent):
         self.add_output("stage_value", copy_shape="stage_slope", val=0.0)
 
     def compute(self, inputs, outputs):  # pylint: disable = arguments-differ
-        outputs["stage_value"] = inputs["old_value"] + self.options[
-            "integration_control"
-        ].delta_t * (
+        outputs["stage_value"] = inputs[
+            "old_value"
+        ] + self.om_data_exchange.step_size * (
             inputs["acc_stages"]
-            + self.options["integration_control"].butcher_diagonal_element
-            * inputs["stage_slope"]
+            + self.om_data_exchange.stage_factor * inputs["stage_slope"]
         )
 
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode
     ):  # pylint: disable = arguments-differ
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if mode == "fwd":
             if "stage_value" in d_outputs:
                 if "old_value" in d_inputs:
@@ -78,13 +72,12 @@ class StageValueComponent(om.ExplicitComponent):
                     )
 
 
-class StageUpdateComponent(om.ExplicitComponent):
+class StageUpdateComponent(ExplicitUnsteadyComponent):
     """General purpose component to compute the stage at stage time (which is needed for
     coupling) from the old information and the newly computed stage state. Can also be
     used to passthrough a variable without time-derivative to the RK-scheme."""
 
     def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
         self.options.declare("quantity_list", types=list)
 
     def setup(self):
@@ -117,8 +110,8 @@ class StageUpdateComponent(om.ExplicitComponent):
             )
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        delta_t = self.options["integration_control"].delta_t
-        a_ii = self.options["integration_control"].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        a_ii = self.om_data_exchange.stage_factor
         for quantity in self.options["quantity_list"]:
             outputs[quantity + "_update"] = (
                 inputs[quantity]
@@ -129,8 +122,8 @@ class StageUpdateComponent(om.ExplicitComponent):
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
     ):
-        delta_t = self.options["integration_control"].delta_t
-        a_ii = self.options["integration_control"].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        a_ii = self.om_data_exchange.stage_factor
         if mode == "fwd":
             for quantity in self.options["quantity_list"]:
                 if quantity + "_update" in d_outputs:

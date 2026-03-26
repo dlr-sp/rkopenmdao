@@ -1,18 +1,17 @@
 import numpy as np
 import openmdao.api as om
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.components import ImplicitUnsteadyComponent
 
 # pylint: disable=arguments-differ, unused-argument, too-many-branches
 
 
-class KapsComponent1(om.ImplicitComponent):
+class KapsComponent1(ImplicitUnsteadyComponent):
     """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter.
     “Diagonally Implicit Runge-Kutta Methods for Ordinary Differential Equations. A
     Review.” (2016). section 10"""
 
     def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
         self.options.declare("epsilon", types=float)
 
     def setup(self):
@@ -25,10 +24,8 @@ class KapsComponent1(om.ImplicitComponent):
         self.add_output("y_1_stage", val=1.0, tags=["y_1", "stage_output_var"])
 
     def apply_nonlinear(self, inputs, outputs, residuals):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
 
         epsilon = self.options["epsilon"]
 
@@ -46,10 +43,8 @@ class KapsComponent1(om.ImplicitComponent):
         )
 
     def solve_nonlinear(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
 
         epsilon = self.options["epsilon"]
 
@@ -65,10 +60,8 @@ class KapsComponent1(om.ImplicitComponent):
         )
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
 
         epsilon = self.options["epsilon"]
         if mode == "fwd":
@@ -113,10 +106,8 @@ class KapsComponent1(om.ImplicitComponent):
                     d_outputs["y_1"] -= (1 + 2 * epsilon) * d_residuals["y_1_stage"]
 
     def solve_linear(self, d_outputs, d_residuals, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
 
         epsilon = self.options["epsilon"]
 
@@ -140,15 +131,12 @@ class KapsComponent1(om.ImplicitComponent):
             )
 
 
-class KapsComponent2(om.ImplicitComponent):
+class KapsComponent2(ImplicitUnsteadyComponent):
     """A component for Kaps problem (see Kennedy, Christopher A. and Mark H. Carpenter.
     “Diagonally Implicit Runge-Kutta Methods for Ordinary Differential Equations. A
     Review.” (2016). section 10"""
 
     y_2: float
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("y_2_old", val=1.0, tags=["y_2", "step_input_var"])
@@ -160,10 +148,8 @@ class KapsComponent2(om.ImplicitComponent):
         self.add_output("y_2_stage", val=1.0, tags=["y_2", "stage_output_var"])
 
     def apply_nonlinear(self, inputs, outputs, residuals):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
 
         residuals["y_2"] = (
             inputs["y_2_old"]
@@ -177,10 +163,8 @@ class KapsComponent2(om.ImplicitComponent):
         )
 
     def solve_nonlinear(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element != 0.0:
             outputs["y_2_stage"] = -(
                 delta_t * inputs["y_2_accumulated_stages"]
@@ -217,10 +201,8 @@ class KapsComponent2(om.ImplicitComponent):
         self.y_2 = outputs["y_2"]
 
     def apply_linear(self, inputs, outputs, d_inputs, d_outputs, d_residuals, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if mode == "fwd":
             if "y_2" in d_residuals:
                 if "y_2_old" in d_inputs:
@@ -265,10 +247,8 @@ class KapsComponent2(om.ImplicitComponent):
                     d_outputs["y_2_stage"] -= d_residuals["y_2_stage"]
 
     def solve_linear(self, d_outputs, d_residuals, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
 
         if mode == "fwd":
             d_outputs["y_2_stage"] = (
@@ -321,21 +301,19 @@ class KapsGroup(om.Group):
     """Creates group out of the 2 Kaps components"""
 
     def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
         self.options.declare("epsilon", types=float)
 
     def setup(self):
         self.add_subsystem(
             "Kaps1",
             KapsComponent1(
-                integration_control=self.options["integration_control"],
                 epsilon=self.options["epsilon"],
             ),
             promotes=["*"],
         )
         self.add_subsystem(
             "Kaps2",
-            KapsComponent2(integration_control=self.options["integration_control"]),
+            KapsComponent2(),
             promotes=["*"],
         )
         self.nonlinear_solver = om.NewtonSolver(

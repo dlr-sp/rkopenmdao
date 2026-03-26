@@ -3,22 +3,18 @@ the time_stage_problem."""
 
 import openmdao.api as om
 
-from rkopenmdao.integration_control import (
-    IntegrationControl,
-    StepTerminationIntegrationControl,
-)
 from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk,
 )
+from rkopenmdao.components import ExplicitUnsteadyComponent
+from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
 
 
 # pylint: disable=arguments-differ
-class ComponentPart1(om.ExplicitComponent):
+class ComponentPart1(ExplicitUnsteadyComponent):
     """This component models x' = -y, part 2 models y' = x"""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("x_old", shape=1, tags=["x", "step_input_var"])
@@ -28,10 +24,8 @@ class ComponentPart1(om.ExplicitComponent):
         self.add_output("x_stage", shape=1)
 
     def compute(self, inputs, outputs):
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
+        delta_t = self.om_data_exchange.step_size
         outputs["x_stage"] = (
             inputs["x_old"]
             + delta_t * inputs["sx_i"]
@@ -40,10 +34,8 @@ class ComponentPart1(om.ExplicitComponent):
         outputs["kx_i"] = -inputs["y_stage"]
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
+        delta_t = self.om_data_exchange.step_size
 
         if mode == "fwd":
             d_outputs["x_stage"] += (
@@ -61,11 +53,8 @@ class ComponentPart1(om.ExplicitComponent):
             )
 
 
-class ComponentPart2(om.ExplicitComponent):
+class ComponentPart2(ExplicitUnsteadyComponent):
     """This component models y' = x, part 1 models x' = -y"""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("y_old", shape=1, tags=["y", "step_input_var"])
@@ -75,10 +64,8 @@ class ComponentPart2(om.ExplicitComponent):
         self.add_output("y_stage", shape=1)
 
     def compute(self, inputs, outputs):
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
+        delta_t = self.om_data_exchange.step_size
         outputs["y_stage"] = (
             inputs["y_old"]
             + delta_t * inputs["sy_i"]
@@ -87,10 +74,8 @@ class ComponentPart2(om.ExplicitComponent):
         outputs["ky_i"] = inputs["x_stage"]
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
+        delta_t = self.om_data_exchange.step_size
 
         if mode == "fwd":
             d_outputs["y_stage"] += (
@@ -110,14 +95,12 @@ class ComponentPart2(om.ExplicitComponent):
 
 if __name__ == "__main__":
     butcher_tableau = embedded_third_order_four_stage_esdirk
-    integration_control = StepTerminationIntegrationControl(0.1, 3, 0.0)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(3), 0.1)
     prob = om.Problem()
 
     par_group = om.ParallelGroup()
     first_group = om.Group()
-    first_group.add_subsystem(
-        "first", ComponentPart1(integration_control=integration_control), promotes=["*"]
-    )
+    first_group.add_subsystem("first", ComponentPart1(), promotes=["*"])
     first_indep = om.IndepVarComp()
     first_indep.add_output("x_old")
     first_indep.add_output("sx_i")
@@ -127,7 +110,7 @@ if __name__ == "__main__":
     second_group = om.Group()
     second_group.add_subsystem(
         "second",
-        ComponentPart2(integration_control=integration_control),
+        ComponentPart2(),
         promotes=["*"],
     )
     second_indep = om.IndepVarComp()
@@ -147,7 +130,7 @@ if __name__ == "__main__":
     rk_indep.add_output("y_initial", shape_by_conn=True, distributed=True)
     rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=prob,
-        integration_control=integration_control,
+        integration_config=integration_config,
         butcher_tableau=butcher_tableau,
         time_integration_quantities=(["x", "y"]),
     )

@@ -1,14 +1,10 @@
 import numpy as np
-import openmdao.api as om
 
-from rkopenmdao.integration_control import IntegrationControl
+from rkopenmdao.components import ExplicitUnsteadyComponent
 
 
-class SimpleLinearODE(om.ExplicitComponent):
+class SimpleLinearODE(ExplicitUnsteadyComponent):
     """Component modelling the ODE y' = -y , y(0) = 1 (by default)"""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("y_old", val=1.0, tags=["y", "step_input_var"])
@@ -18,19 +14,15 @@ class SimpleLinearODE(om.ExplicitComponent):
         self.add_output("y_stage", val=1.0, tags=["y", "stage_output_var"])
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         outputs["y_stage"] = -(
             inputs["y_old"] + delta_t * inputs["y_accumulated_stages"]
         ) / (1 + delta_t * butcher_diagonal_element)
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         factor = (1 + delta_t * butcher_diagonal_element) ** -1
         if mode == "fwd":
             d_outputs["y_stage"] -= factor * d_inputs["y_old"]
