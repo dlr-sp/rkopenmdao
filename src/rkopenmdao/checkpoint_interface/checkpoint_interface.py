@@ -20,20 +20,21 @@ class CheckpointInterface(ABC):
 
     Parameters
     ----------
-    # integration_control: IntegrationControl
-    #     IntegrationControl object for sharing data between ODE time discretization and
-    #     time integration.
+    termination_criterion: TerminationCriterion
+        Condition on when to stop the forward iteration.
     run_step_func: Callable[[int, TimeIntegrationState], TimeIntegrationState]
         Function for the computation of one step of the forward (primal) time
-        integration. Input is the state of the time integration at the start of the
-        step, return value the state at the end of the same step.
+        integration. Input is the current time step, as well as the state of the time
+        integration at the start of the step, return value the state at the end of the
+        same step.
     run_step_jacvec_rev_func: Callable[
         [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
     ]
         Function for the computation of one step of the reverse (linear) time
-        integration. Inputs are the state of the time integration during the step
-        acting as linearization point, as well as the perturbations for the end of the
-        time step. Return value is the perturbation for the start of the time step.
+        integration. Inputs are the current (reverse) step, the state of the time
+        integration during that step acting as linearization point, as well as the
+        perturbations coming from the end of the time step. Return value is the
+        perturbation for the start of the time step.
     state: TimeIntegrationState
         Time integration state on which all computations for the forward (primal) time
         integration are performed.

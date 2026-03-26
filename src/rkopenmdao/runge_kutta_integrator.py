@@ -3,7 +3,9 @@
 # pylint: disable=protected-access
 
 from __future__ import annotations
+from collections.abc import Callable
 from copy import deepcopy
+
 
 import numpy as np
 import openmdao.api as om
@@ -55,7 +57,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _cached_input: RungeKuttaDiscretizationState | None
 
     _integration_config: IntegrationConfig | None
-    _remaining_time_func: callable[[float], float] | None
+    _remaining_time_func: Callable[[float], float] | None
 
     _error_controller: ErrorController | None
     _error_measurer: ErrorMeasurer | None
@@ -117,11 +119,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options.declare(
             "integration_config",
             types=IntegrationConfig,
-            # desc="""Object used to exchange (meta)data between the inner and outer
-            # problems. In particular, this class modifies the (meta)data like the current
-            # diagonal element of the butcher tableau, or the current time step and stage,
-            # which then can be read by anyone else holding the same instance (like e.g.
-            # components in the time_stage_problem).""",
+            desc="""Configuration options for the checkpointed time integration.""",
         )
         self.options.declare(
             "file_writing_implementation",

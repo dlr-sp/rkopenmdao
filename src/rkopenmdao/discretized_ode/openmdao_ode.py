@@ -39,9 +39,6 @@ class OpenMDAOODE(DiscretizedODE):
     time_stage_problem: om.Problem
         OpenMDAO problem to be wrapped into a discretized ODE. Needs to be in a state
         where its final_setup() method has been called already.
-    # integration_control: IntegrationControl
-    #     Object for passing time related information between this class and the inner
-    #     OpenMDAO problem.
     time_integration_quantities: list
         Quantities to be time integrated that are searched for in the inner problem.
     independent_input_quantities: list
@@ -275,7 +272,10 @@ class OpenMDAOODE(DiscretizedODE):
                 self._time_stage_problem.model.get_source(
                     self.time_integration_metadata.time_variable
                 )
-            ][0] = (factor * time[0])
+            ] = (
+                time[0] * factor
+            )  # pylint: disable=superfluous-parens
+            # black introduces them, and black > pylint
         for quantity in self.time_integration_metadata.time_integration_quantity_list:
             if quantity.array_metadata.local:
                 start = quantity.array_metadata.start_index
