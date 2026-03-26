@@ -9,7 +9,7 @@
 - Changes time from being a "pseudo-constant" to a variable in the OpenMDAO ODE implementation and time integration in order to allow in the future for optimization scenarios with termination criteratia that need derivatives wrt. to eg initial or final time.
 - Add custom explicit and implicit component types for use with OpenMDAO-based time integration.
 - Removed heat equation example
-- Removed convergence test from `arc/rkopenmdao/utils`.
+- Removed convergence test from `src/rkopenmdao/utils`.
 
 ## Version 0.2
 
