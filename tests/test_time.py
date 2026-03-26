@@ -17,8 +17,8 @@ from rkopenmdao.integration_config import IntegrationConfig
 
 
 class DummyComponent(ExplicitUnsteadyComponent):
-    """Component that doesn't compute anything, and only checks for the expected times
-    in IntegrationControl."""
+    """Component that doesn't compute anything, and only checks that the expected times
+    are passed as input."""
 
     _recorded_times: list
 

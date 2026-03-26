@@ -110,6 +110,9 @@ def _assert_time_attrs(
 
 @pytest.fixture(name="initial_time")
 def initial_time_fixture():
+    """
+    Fixture for the initial time of the problems.
+    """
     return 1.0
 
 
@@ -371,8 +374,8 @@ def test_n_d_array(
 @pytest.mark.parametrize("write_out_distance", [1, 10])
 @pytest.mark.parametrize("shape", [(2,), (2, 2), (2, 2, 2)])
 def test_parallel_write_out(
-    parallel_problem,
-    integration_config,
+    parallel_problem: Tuple,
+    integration_config: IntegrationConfig,
     initial_time: float,
     write_out_distance: int,
     shape: Tuple[int, ...],
@@ -386,7 +389,6 @@ def test_parallel_write_out(
     """
 
     prob, _ = parallel_problem
-    # integration_control = StepTerminationIntegrationControl(0.01, 100, 1.0)
 
     # Build the RK problem that writes to a temporary file.
     # Use the core driver when available – it creates an in‑memory file on each rank.

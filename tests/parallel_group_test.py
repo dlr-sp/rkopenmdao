@@ -379,6 +379,7 @@ def ode_system_solution(time: float, initial_values: np.ndarray):
 
 
 def setup_integration_config(num_steps: int, delta_t: float) -> IntegrationConfig:
+    """Sets up the configuration for the majority of time integrations."""
     return IntegrationConfig(False, PredefinedNumberOfSteps(num_steps), delta_t)
 
 

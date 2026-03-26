@@ -312,6 +312,7 @@ def setup_time_integration_problem(
 
 
 def setup_integration_config(delta_t: float, num_steps: int):
+    """Sets up the configuration for the majority of time integrations."""
     return IntegrationConfig(False, PredefinedNumberOfSteps(num_steps), delta_t)
 
 

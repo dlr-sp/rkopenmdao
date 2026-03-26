@@ -6,7 +6,6 @@ test_components.py"""
 from itertools import product
 
 import openmdao.api as om
-from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 import numpy as np
 

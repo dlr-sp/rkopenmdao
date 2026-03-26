@@ -336,6 +336,7 @@ def test_metadata_non_parallel_incorrect(
 
 
 def test_metadata_time_correct():
+    """Test for the correct addition of a time variable."""
     prob = basic_test_problem()
     prob.model.add_subsystem(
         "time_comp",
@@ -358,6 +359,7 @@ def test_metadata_time_correct():
     ],
 )
 def test_metadata_time_incorrect(time_var_dict: dict, error_message: str):
+    """Test for the incorrect addition of a time variable."""
     prob = basic_test_problem()
     prob.model.add_subsystem(
         "time_comp",

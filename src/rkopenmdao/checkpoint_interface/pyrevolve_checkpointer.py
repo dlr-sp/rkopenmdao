@@ -70,9 +70,9 @@ class PyrevolveCheckpointer(CheckpointInterface):
         else:
             raise TypeError(
                 """
-            Does not support online checkpointing yet:
-            IntegrationControl must be of type StepTerminationIntegrationControl
-            """
+                Does not support online checkpointing yet:
+                Termination criterion must be of type PredefinedNumberOfSteps.
+                """
             )
         for key, value in self.revolver_options.items():
             if self.revolver_type == "MultiLevel" and key == "storage_list":
