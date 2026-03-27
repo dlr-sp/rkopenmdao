@@ -6,12 +6,11 @@ test_components.py"""
 from itertools import product
 
 import openmdao.api as om
-from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 import numpy as np
 
 from rkopenmdao.error_controller import ErrorControllerConfig
-from rkopenmdao.integration_control import TimeTerminationIntegrationControl
+
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk as two_stage_dirk,
@@ -34,6 +33,9 @@ from rkopenmdao.error_controllers import (
     h0_321,
 )
 from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
+from rkopenmdao.integration_config import IntegrationConfig
+from rkopenmdao.termination_criterion import PredefinedFinalTime
+
 from .test_components import (
     TestComp1,
     TestComp2,
@@ -83,8 +85,6 @@ times = np.linspace(1.0, 9.0, 3)
 butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, test_functor, initial_time, initial_values",
     (
@@ -130,13 +130,13 @@ def test_component_integration(
     test_controller,
 ):
     """Tests the time integration of the different components."""
-    integration_control = TimeTerminationIntegrationControl(
-        0.01, initial_time + 0.01, initial_time
+    integration_config = IntegrationConfig(
+        use_adaptive_time_stepping=True,
+        termination_criterion=PredefinedFinalTime(initial_time + 0.01),
+        initial_step_size=0.01,
     )
     time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
+    time_integration_prob.model.add_subsystem("test_comp", test_class())
     time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True
     )
@@ -148,16 +148,16 @@ def test_component_integration(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control,
+            integration_config=integration_config,
             time_integration_quantities=quantities,
             error_controller=[test_controller, integral],
             error_measurer=test_measurer,
-            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
 
     runge_kutta_prob.setup()
+    runge_kutta_prob["time_initial"] = initial_time
     for i, quantity in enumerate(quantities):
         runge_kutta_prob[quantity + "_initial"] = initial_values[i]
 
@@ -165,7 +165,7 @@ def test_component_integration(
 
     result = np.zeros_like(initial_values)
     for i, quantity in enumerate(quantities):
-        result[i] = runge_kutta_prob[quantity + "_final"]
+        result[i] = runge_kutta_prob[quantity + "_final"][0]
 
     # relatively coarse, but this isn't supposed to test the accuracy,
     # it's just to make sure the solution is in the right region
@@ -176,8 +176,6 @@ def test_component_integration(
     ) == pytest.approx(result, rel=1e-4)
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, initial_time",
     list(
@@ -213,13 +211,13 @@ def test_time_integration_partials(
     checkpointing_implementation,
 ):
     """Tests the partials of the time integration of the different components."""
-    integration_control = TimeTerminationIntegrationControl(
-        0.01, initial_time + 0.01, initial_time
+    integration_config = IntegrationConfig(
+        use_adaptive_time_stepping=True,
+        termination_criterion=PredefinedFinalTime(initial_time + 0.01),
+        initial_step_size=0.01,
     )
     time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
+    time_integration_prob.model.add_subsystem("test_comp", test_class())
 
     time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True
@@ -232,18 +230,18 @@ def test_time_integration_partials(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control,
+            integration_config=integration_config,
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
             error_controller=[integral],
             error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
             error_measurer=SimpleErrorMeasurer(),
-            adaptive_time_stepping=True,
         ),
         promotes=["*"],
     )
 
     runge_kutta_prob.setup()
+    runge_kutta_prob["time_initial"] = initial_time
 
     runge_kutta_prob.run_model()
     if checkpointing_implementation == NoCheckpointer:
@@ -252,10 +250,10 @@ def test_time_integration_partials(
 
     else:
         data = runge_kutta_prob.check_partials()
-        assert_check_partials(data)
+        check_partials_wo_fd(data)
 
 
-def check_partials_wo_fd(jac_data, tol=1e-6):
+def check_partials_wo_fd(jac_data: dict, tol: float = 1e-6):
     """
     Since FD by the Openmdao and fwd/rev are not comparable for adaptive schemes, a
     function excluding fd is necessary. The fd of OpenMDAO perturbs the inputs/initial
@@ -265,10 +263,8 @@ def check_partials_wo_fd(jac_data, tol=1e-6):
     (see 1. https://doi.org/10.1016/j.cam.2009.08.109 and
     2. http://dx.doi.org/10.1090/S0025-5718-99-01027-3
     """
-    for i in ["x_initial", "b"]:
-        fwd = jac_data["rk_integrator"][("x_final", i)]["J_fwd"][0]
-        rev = jac_data["rk_integrator"][("x_final", i)]["J_rev"][0]
+    for pair in jac_data["rk_integrator"]:
+        fwd = jac_data["rk_integrator"][pair]["J_fwd"]
+        rev = jac_data["rk_integrator"][pair]["J_rev"]
         # Absolute :
-        assert np.abs(fwd - rev) < tol
-        # Relative
-        assert np.abs(fwd - rev) / min(np.abs(fwd), np.abs(rev)) < tol
+        assert rev == pytest.approx(fwd, rel=tol, abs=tol)

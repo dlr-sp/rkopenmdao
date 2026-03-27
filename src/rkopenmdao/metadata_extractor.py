@@ -80,6 +80,7 @@ class TimeIndependentQuantity(Quantity):
 class TimeIntegrationMetadata:
     """Collection of metadata over all quantities of a time integration."""
 
+    time_variable: str = None
     time_integration_array_size: int = 0
     time_independent_input_size: int = 0
     time_integration_quantity_list: list[TimeIntegrationQuantity] = field(
@@ -137,10 +138,37 @@ def extract_time_integration_metadata(
             )
         quantity_list.append(quantity)
     runge_kutta_metadata = TimeIntegrationMetadata(
+        time_variable=_search_for_time_variable(stage_problem),
         time_integration_array_size=array_size,
         time_integration_quantity_list=quantity_list,
     )
     return runge_kutta_metadata
+
+
+def _search_for_time_variable(stage_problem: om.Problem) -> str | None:
+    local_quantities = stage_problem.model.get_io_metadata(
+        iotypes="input",
+        metadata_keys=["tags"],
+        tags=["time_variable"],
+        get_remote=False,
+    )
+    global_quantities = stage_problem.model.get_io_metadata(
+        iotypes="input",
+        metadata_keys=["tags", "global_shape"],
+        tags=["time_variable"],
+        get_remote=True,
+    )
+    if len(local_quantities) == 1 and len(global_quantities) == 1:
+        time_variable = next(iter(global_quantities.keys()))
+        if np.prod(global_quantities[time_variable]["global_shape"]) != 1:
+            raise SetupError("Variable with tag 'time_variable' is not a scalar.")
+
+    elif len(local_quantities) == 0 and len(global_quantities) == 0:
+        time_variable = None
+    else:
+        raise SetupError("More than one variable with tag 'time_variable found'.")
+
+    return time_variable
 
 
 def _create_local_array_metadata(

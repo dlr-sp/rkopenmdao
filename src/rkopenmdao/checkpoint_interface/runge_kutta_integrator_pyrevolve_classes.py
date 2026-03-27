@@ -9,7 +9,6 @@ import pyrevolve as pr
 import numpy as np
 
 from rkopenmdao.time_integration_state import TimeIntegrationState
-from rkopenmdao.integration_control import IntegrationControl
 
 
 class RungeKuttaCheckpoint(pr.Checkpoint):
@@ -159,15 +158,12 @@ class RungeKuttaForwardOperator(pr.Operator):
     ----------
     time_integration_state: TimeIntegrationState
         State on which internal calculations are performed.
-    fwd_operation: Callable[[TimeIntegrationState], TimeIntegrationState]
+    fwd_operation: Callable[[int, TimeIntegrationState], TimeIntegrationState]
         Function applying one single step of time integration.
-    integration_control: IntegrationControl
-        Object for sharing data between ODE, time discretization and time integration.
     """
 
     time_integration_state: TimeIntegrationState
-    fwd_operation: Callable[[TimeIntegrationState], TimeIntegrationState]
-    integration_control: IntegrationControl
+    fwd_operation: Callable[[int, TimeIntegrationState], TimeIntegrationState]
 
     def apply(self, **kwargs):
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
@@ -182,15 +178,10 @@ class RungeKuttaForwardOperator(pr.Operator):
         t_end: int
             Last integration time step shifted by one.
         """
-        self.integration_control.step = kwargs["t_start"] + 1
-        self.integration_control.step_time = (
-            self.time_integration_state.discretization_state.final_time[0]
-        )
-        t_end = kwargs["t_end"]
-
-        while self.integration_control.termination_condition_status(t_end + 1):
+        for step in range(kwargs["t_start"] + 1, kwargs["t_end"] + 1):
+            # TODO?: Add iteration to fwd_op
             self.time_integration_state.set(
-                self.fwd_operation(self.time_integration_state)
+                self.fwd_operation(step, self.time_integration_state)
             )
 
 
@@ -206,19 +197,16 @@ class RungeKuttaReverseOperator(pr.Operator):
     time_integration_state_perturbations: TimeIntegrationState
         Perturbation state on which internal calculations are performed.
     rev_operation: Callable[
-        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
     ]
         Function applying one single reverse step of time integration.
-    integration_control: IntegrationControl
-        Object for sharing data between ODE, time discretization and time integration.
     """
 
     time_integration_state: TimeIntegrationState
     time_integration_state_perturbations: TimeIntegrationState
     rev_operation: Callable[
-        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
     ]
-    integration_control: IntegrationControl
 
     def apply(self, **kwargs):
         """
@@ -233,14 +221,11 @@ class RungeKuttaReverseOperator(pr.Operator):
         """
         # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
         # how it is.
-        t_start = kwargs["t_start"]
-        t_end = kwargs["t_end"]
-        for step in reversed(range(t_start + 2, t_end + 2)):
-            self.integration_control.step = step
+        for step in reversed(range(kwargs["t_start"] + 2, kwargs["t_end"] + 2)):
             self.time_integration_state_perturbations.set(
                 self.rev_operation(
+                    step,
                     self.time_integration_state,
                     self.time_integration_state_perturbations,
                 )
             )
-            self.integration_control.decrement_step()

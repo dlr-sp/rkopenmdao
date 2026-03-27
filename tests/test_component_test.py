@@ -9,7 +9,8 @@ from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 import numpy as np
 
-from rkopenmdao.integration_control import StepTerminationIntegrationControl
+from rkopenmdao.integration_config import IntegrationConfig
+from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
@@ -57,29 +58,24 @@ times = np.linspace(1.0, 9.0, 3)
 butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize("test_class", test_comp_class_list)
 @pytest.mark.parametrize("time", times)
 @pytest.mark.parametrize("butcher_diagonal_element", butcher_diagonal_elements)
 def test_component_partials(test_class, time, butcher_diagonal_element):
     """Tests whether the components itself produce the right partials"""
-    integration_control = StepTerminationIntegrationControl(0.1, 1, 0.0)
-    integration_control.stage_time = time
-    integration_control.butcher_diagonal_element = butcher_diagonal_element
     test_prob = om.Problem()
-    test_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
+    test_comp = test_class()
+    test_comp.om_data_exchange.stage_factor = butcher_diagonal_element
+    test_prob.model.add_subsystem("test_comp", test_class())
 
     test_prob.setup()
+    if test_class in [TestComp2, TestComp3, TestComp7]:
+        test_prob["test_comp.time"] = time
     test_prob.run_model()
     data = test_prob.check_partials()
     assert_check_partials(data)
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, test_functor, initial_time, initial_values",
     (
@@ -107,11 +103,9 @@ def test_component_integration(
     test_class, test_functor, initial_time, initial_values, butcher_tableau, quantities
 ):
     """Tests the time integration of the different components."""
-    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.001)
     time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
+    time_integration_prob.model.add_subsystem("test_comp", test_class())
 
     time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True
@@ -124,13 +118,14 @@ def test_component_integration(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control,
+            integration_config=integration_config,
             time_integration_quantities=quantities,
         ),
         promotes=["*"],
     )
 
     runge_kutta_prob.setup()
+    runge_kutta_prob["time_initial"] = initial_time
     for i, quantity in enumerate(quantities):
         runge_kutta_prob[quantity + "_initial"] = initial_values[i]
 
@@ -138,19 +133,20 @@ def test_component_integration(
 
     result = np.zeros_like(initial_values)
     for i, quantity in enumerate(quantities):
-        result[i] = runge_kutta_prob[quantity + "_final"]
+        result[i] = runge_kutta_prob[quantity + "_final"][0]
 
     # relatively coarse, but this isn't supposed to test the accuracy,
     # it's just to make sure the solution is in the right region
-    assert test_functor(
-        initial_time + 0.01,
-        initial_values,
-        initial_time,
-    ) == pytest.approx(result, rel=1e-4)
+    assert (
+        test_functor(
+            initial_time + 0.01,
+            initial_values,
+            initial_time,
+        )
+        == pytest.approx(result, rel=1e-4)
+    ) and (runge_kutta_prob["time_final"][0] == pytest.approx(initial_time + 0.01))
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, test_functor, initial_time, initial_values",
     (
@@ -173,11 +169,9 @@ def test_component_integration_with_parameter(
     quantities,
 ):
     """Tests the time integration of the different components."""
-    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.001)
     time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
+    time_integration_prob.model.add_subsystem("test_comp", test_class())
 
     time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True
@@ -190,7 +184,7 @@ def test_component_integration_with_parameter(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control,
+            integration_config=integration_config,
             time_integration_quantities=quantities,
             time_independent_input_quantities=["b"],
         ),
@@ -198,6 +192,7 @@ def test_component_integration_with_parameter(
     )
 
     runge_kutta_prob.setup()
+    runge_kutta_prob["time_initial"] = initial_time
     for i, quantity in enumerate(quantities):
         runge_kutta_prob[quantity + "_initial"] = initial_values[i]
     runge_kutta_prob["b"] = parameter
@@ -205,17 +200,17 @@ def test_component_integration_with_parameter(
 
     result = np.zeros_like(initial_values)
     for i, quantity in enumerate(quantities):
-        result[i] = runge_kutta_prob[quantity + "_final"]
+        result[i] = runge_kutta_prob[quantity + "_final"][0]
 
     # relatively coarse, but this isn't supposed to test the accuracy,
     # it's just to make sure the solution is in the right region
     assert test_functor(
         initial_time + 0.01, initial_values, initial_time, parameter
-    ) == pytest.approx(result, rel=1e-4)
+    ) == pytest.approx(result, rel=1e-4) and (
+        runge_kutta_prob["time_final"][0] == pytest.approx(initial_time + 0.01)
+    )
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize("initial_values", [[1.0, 1.0]])
 @pytest.mark.parametrize(
@@ -224,23 +219,20 @@ def test_component_integration_with_parameter(
 def test_component_splitting(initial_time, initial_values, butcher_tableau):
     """Tests the time integration of the problem that is split over multiple
     components."""
-    integration_control_1 = StepTerminationIntegrationControl(0.001, 10, initial_time)
-    integration_control_2 = StepTerminationIntegrationControl(0.001, 10, initial_time)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.001)
 
     time_integration_prob_1 = om.Problem()
-    time_integration_prob_1.model.add_subsystem(
-        "single_comp", TestComp4(integration_control=integration_control_1)
-    )
+    time_integration_prob_1.model.add_subsystem("single_comp", TestComp4())
 
     time_integration_prob_2 = om.Problem()
     time_integration_prob_2.model.add_subsystem(
         "first_comp",
-        Testcomp51(integration_control=integration_control_2),
+        Testcomp51(),
         promotes=["x_stage", "y_stage"],
     )
     time_integration_prob_2.model.add_subsystem(
         "second_comp",
-        Testcomp52(integration_control=integration_control_2),
+        Testcomp52(),
         promotes=["x_stage", "y_stage"],
     )
 
@@ -250,12 +242,13 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob_1,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control_1,
+            integration_config=integration_config,
             time_integration_quantities=["x"],
         ),
         promotes=["*"],
     )
     runge_kutta_prob_1.setup()
+    runge_kutta_prob_1["time_initial"] = initial_time
     runge_kutta_prob_1["x_initial"] = initial_values
     runge_kutta_prob_1.run_model()
 
@@ -267,25 +260,24 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob_2,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control_2,
+            integration_config=integration_config,
             time_integration_quantities=["x", "y"],
         ),
         promotes=["*"],
     )
 
     runge_kutta_prob_2.setup()
+    runge_kutta_prob_2["time_initial"] = initial_time
     runge_kutta_prob_2["x_initial"] = initial_values[0]
     runge_kutta_prob_2["y_initial"] = initial_values[1]
     runge_kutta_prob_2.run_model()
     result_2 = np.zeros_like(initial_values)
-    result_2[0] = runge_kutta_prob_2["x_final"]
-    result_2[1] = runge_kutta_prob_2["y_final"]
+    result_2[0] = runge_kutta_prob_2["x_final"][0]
+    result_2[1] = runge_kutta_prob_2["y_final"][0]
 
     assert result_1 == pytest.approx(result_2)
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, initial_time",
     list(
@@ -309,14 +301,12 @@ def test_time_integration_partials(
     test_class, initial_time, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the time integration of the different components."""
-    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.001)
     time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
+    time_integration_prob.model.add_subsystem("test_comp", test_class())
 
     time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=True
+        solve_subsystems=True, iprint=2
     )
     time_integration_prob.model.linear_solver = om.ScipyKrylov()
 
@@ -326,7 +316,7 @@ def test_time_integration_partials(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control,
+            integration_config=integration_config,
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
         ),
@@ -334,7 +324,7 @@ def test_time_integration_partials(
     )
 
     runge_kutta_prob.setup()
-
+    runge_kutta_prob["time_initial"] = initial_time
     runge_kutta_prob.run_model()
     if checkpointing_implementation == NoCheckpointer:
         with pytest.raises(NotImplementedError):
@@ -342,11 +332,12 @@ def test_time_integration_partials(
 
     else:
         data = runge_kutta_prob.check_partials()
-        assert_check_partials(data)
+        # There are cases where analytical derivatives report 0, but fd reports some
+        # small error. This makes rtol explode. So innstead only check for very tight
+        # absolute tolerance.
+        assert_check_partials(data, rtol=1.0, atol=1e-8)
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize(
     "test_class, initial_time",
     (
@@ -375,11 +366,9 @@ def test_time_integration_with_parameter_partials(
     test_class, initial_time, parameter, butcher_tableau, checkpointing_implementation
 ):
     """Tests the partials of the time integration of the different components."""
-    integration_control = StepTerminationIntegrationControl(0.001, 10, initial_time)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.001)
     time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem(
-        "test_comp", test_class(integration_control=integration_control)
-    )
+    time_integration_prob.model.add_subsystem("test_comp", test_class())
 
     time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
         solve_subsystems=True
@@ -392,7 +381,7 @@ def test_time_integration_with_parameter_partials(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control,
+            integration_config=integration_config,
             time_integration_quantities=["x"],
             time_independent_input_quantities=["b"],
             checkpointing_type=checkpointing_implementation,
@@ -402,6 +391,7 @@ def test_time_integration_with_parameter_partials(
 
     runge_kutta_prob.setup()
     runge_kutta_prob["b"] = parameter
+    runge_kutta_prob["time_initial"] = initial_time
     runge_kutta_prob.run_model()
     if checkpointing_implementation == NoCheckpointer:
         with pytest.raises(NotImplementedError):
@@ -411,8 +401,6 @@ def test_time_integration_with_parameter_partials(
         assert_check_partials(data)
 
 
-@pytest.mark.rk
-@pytest.mark.rk_openmdao
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize(
     "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
@@ -426,23 +414,20 @@ def test_component_splitting_partials(
 ):
     """Tests the partials of the time integration of the problem that is split into
     multiple components."""
-    integration_control_1 = StepTerminationIntegrationControl(0.001, 10, initial_time)
-    integration_control_2 = StepTerminationIntegrationControl(0.001, 10, initial_time)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.001)
 
     time_integration_prob_1 = om.Problem()
-    time_integration_prob_1.model.add_subsystem(
-        "single_comp", TestComp4(integration_control=integration_control_1)
-    )
+    time_integration_prob_1.model.add_subsystem("single_comp", TestComp4())
 
     time_integration_prob_2 = om.Problem()
     time_integration_prob_2.model.add_subsystem(
         "first_comp",
-        Testcomp51(integration_control=integration_control_2),
+        Testcomp51(),
         promotes=["*"],
     )
     time_integration_prob_2.model.add_subsystem(
         "second_comp",
-        Testcomp52(integration_control=integration_control_2),
+        Testcomp52(),
         promotes=["*"],
     )
 
@@ -457,13 +442,14 @@ def test_component_splitting_partials(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob_1,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control_1,
+            integration_config=integration_config,
             time_integration_quantities=["x"],
             checkpointing_type=checkpointing_implementation,
         ),
         promotes=["*"],
     )
     runge_kutta_prob_1.setup()
+    runge_kutta_prob_1["time_initial"] = initial_time
     runge_kutta_prob_1.run_model()
 
     data_1 = runge_kutta_prob_1.check_partials()
@@ -474,7 +460,7 @@ def test_component_splitting_partials(
         RungeKuttaIntegrator(
             time_stage_problem=time_integration_prob_2,
             butcher_tableau=butcher_tableau,
-            integration_control=integration_control_2,
+            integration_config=integration_config,
             time_integration_quantities=["x", "y"],
             checkpointing_type=checkpointing_implementation,
         ),
@@ -482,6 +468,7 @@ def test_component_splitting_partials(
     )
 
     runge_kutta_prob_2.setup()
+    runge_kutta_prob_2["time_initial"] = initial_time
     runge_kutta_prob_2.run_model()
 
     data_2 = runge_kutta_prob_2.check_partials()

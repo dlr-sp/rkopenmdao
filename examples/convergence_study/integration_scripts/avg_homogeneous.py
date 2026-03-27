@@ -1,13 +1,11 @@
 import h5py
 
 from .constants import PROBLEM, BUTCHER_TABLEAUX
-from rkopenmdao.error_controller import ErrorControllerConfig
 from rkopenmdao.error_controllers import pseudo
-from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
-from rkopenmdao.integration_control import (
-    TimeTerminationIntegrationControl,
-)
-from rkopenmdao.utils.problems import Problem, IntegrationConfig
+from rkopenmdao.error_measurer import SimpleErrorMeasurer
+from rkopenmdao.integration_config import IntegrationConfig
+from rkopenmdao.termination_criterion import PredefinedFinalTime
+from rkopenmdao.utils.problems import Problem, ProblemConfig
 
 
 def count_keys(path: str):
@@ -19,8 +17,8 @@ def count_keys(path: str):
 
 def avg_homogeneous_simulation(problem: Problem, butcher_tableaux: dict):
     """Execute homogeneous integration for each Butcher tableau with the average step size of the adaptive runs."""
-    integration_config = IntegrationConfig(
-        TimeTerminationIntegrationControl(0, problem.time_objective, 0.0),
+    problem_config = ProblemConfig(
+        IntegrationConfig(True, PredefinedFinalTime(problem.time_objective), 0.0),
         [pseudo],
         SimpleErrorMeasurer(),
     )
@@ -33,14 +31,12 @@ def avg_homogeneous_simulation(problem: Problem, butcher_tableaux: dict):
         step_size = problem.time_objective / steps
         print(f"{butcher_tableau.name}: {step_size}")
         # update the integration control with the new step size
-        integration_config.integration_control = TimeTerminationIntegrationControl(
-            step_size, problem.time_objective, 0.0
-        )
+        problem_config.integration_config.initial_step_size = step_size
         # update the file path of the output file
-        integration_config.write_file = problem.get_file_path(
+        problem_config.write_file = problem.get_file_path(
             butcher_tableau.name, "avg_homogeneous"
         )[1]
-        problem.execute(butcher_tableau, integration_config)
+        problem.execute(butcher_tableau, problem_config)
 
 
 if __name__ == "__main__":

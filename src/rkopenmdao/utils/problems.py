@@ -12,7 +12,7 @@ import openmdao.api as om
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.error_measurer import ErrorMeasurer
 from rkopenmdao.file_writer import read_last_local_error
-from rkopenmdao.integration_control import TimeTerminationIntegrationControl
+from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.odes.kaps import KapsGroup
 from rkopenmdao.odes.prothero_robinson_ode import ProtheroRobinson
@@ -30,10 +30,10 @@ def generate_path(path: str):
 
 
 @dataclass
-class IntegrationConfig:
+class ProblemConfig:
     """A class to hold the integration configuration parameters."""
 
-    integration_control: TimeTerminationIntegrationControl
+    integration_config: IntegrationConfig
     error_controller: list[Callable[[], None]]
     error_measurer: ErrorMeasurer
     write_file: pathlib.Path = field(
@@ -51,7 +51,7 @@ class Problem:
     time_objective: float
     stiffness_coef: dict
     folder_path: pathlib.Path
-    problem: System
+    problem: type[System]
     solution: Callable[[float], Union[float, np.ndarray]]
 
     def get_file_path(
@@ -94,7 +94,7 @@ class Problem:
     def execute(
         self,
         butcher_tableau: ButcherTableau,
-        integration_config: IntegrationConfig,
+        problem_config: ProblemConfig,
     ) -> None:
         """execute the RK-integration for a given problem, a Butcher tableau and integration configuration."""
         # initialize the OpenMDAO problem for the time integration model
@@ -103,7 +103,6 @@ class Problem:
         time_integration_prob.model.add_subsystem(
             "test_comp",
             self.problem(
-                integration_control=integration_config.integration_control,
                 **self.stiffness_coef,
             ),
         )
@@ -115,13 +114,12 @@ class Problem:
             RungeKuttaIntegrator(
                 time_stage_problem=time_integration_prob,
                 butcher_tableau=butcher_tableau,
-                integration_control=integration_config.integration_control,
+                integration_config=problem_config.integration_config,
                 time_integration_quantities=self.quantities,
-                adaptive_time_stepping=True,
-                error_controller=integration_config.error_controller,
-                error_controller_options=integration_config.options,
-                error_measurer=integration_config.error_measurer,
-                write_file=generate_path(str(integration_config.write_file)),
+                error_controller=problem_config.error_controller,
+                error_controller_options=problem_config.options,
+                error_measurer=problem_config.error_measurer,
+                write_file=generate_path(str(problem_config.write_file)),
                 write_out_distance=1,
             ),
             promotes=["*"],

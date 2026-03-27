@@ -12,7 +12,7 @@ from rkopenmdao.checkpoint_interface.runge_kutta_integrator_pyrevolve_classes im
     RungeKuttaForwardOperator,
     RungeKuttaReverseOperator,
 )
-from rkopenmdao.integration_control import StepTerminationIntegrationControl
+from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
 from rkopenmdao.time_integration_state import TimeIntegrationState
 
 
@@ -24,20 +24,21 @@ class PyrevolveCheckpointer(CheckpointInterface):
 
     Parameters
     ----------
-    integration_control: IntegrationControl
-        IntegrationControl object for sharing data between ODE time discretization and
-        time integration.
-    run_step_func: Callable[[TimeIntegrationState], TimeIntegrationState]
+    termination_criterion: TerminationCriterion
+        Condition on when to stop the forward iteration.
+    run_step_func: Callable[[int, TimeIntegrationState], TimeIntegrationState]
         Function for the computation of one step of the forward (primal) time
-        integration. Input is the state of the time integration at the start of the
-        step, return value the state at the end of the same step.
+        integration. Input is the current time step, as well as the state of the time
+        integration at the start of the step, return value the state at the end of the
+        same step.
     run_step_jacvec_rev_func: Callable[
-        [TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
+        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
     ]
         Function for the computation of one step of the reverse (linear) time
-        integration. Inputs are the state of the time integration during the step
-        acting as linearization point, as well as the perturbations for the end of the
-        time step. Return value is the perturbation for the start of the time step.
+        integration. Inputs are the current (reverse) step, the state of the time
+        integration during that step acting as linearization point, as well as the
+        perturbations coming from the end of the time step. Return value is the
+        perturbation for the start of the time step.
     state: TimeIntegrationState
         Time integration state on which all computations for the forward (primal) time
         integration are performed.
@@ -64,13 +65,15 @@ class PyrevolveCheckpointer(CheckpointInterface):
         checkpoint = RungeKuttaCheckpoint(self.state)
 
         self._revolver_class_type = self._setup_revolver_class_type(self.revolver_type)
-        if isinstance(self.integration_control, StepTerminationIntegrationControl):
-            num_steps = self.integration_control.num_steps
+        if isinstance(self.termination_criterion, PredefinedNumberOfSteps):
+            num_steps = self.termination_criterion.number_of_steps
         else:
-            raise TypeError("""
-            Does not support online checkpointing yet:
-            IntegrationControl must be of type StepTerminationIntegrationControl
-            """)
+            raise TypeError(
+                """
+                Does not support online checkpointing yet:
+                Termination criterion must be of type PredefinedNumberOfSteps.
+                """
+            )
         for key, value in self.revolver_options.items():
             if self.revolver_type == "MultiLevel" and key == "storage_list":
                 storage_list = []
@@ -94,13 +97,11 @@ class PyrevolveCheckpointer(CheckpointInterface):
         self.revolver_options["fwd_operator"] = RungeKuttaForwardOperator(
             self.state,
             self.run_step_func,
-            self.integration_control,
         )
         self.revolver_options["rev_operator"] = RungeKuttaReverseOperator(
             self.state,
             self.state_perturbation,
             self.run_step_jacvec_rev_func,
-            self.integration_control,
         )
         self._revolver = None
 

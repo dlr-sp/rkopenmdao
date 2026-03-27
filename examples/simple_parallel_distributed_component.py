@@ -3,23 +3,18 @@ components in the time_stage_problem"""
 
 import openmdao.api as om
 import numpy as np
-from rkopenmdao.integration_control import (
-    IntegrationControl,
-    StepTerminationIntegrationControl,
-)
-from rkopenmdao.butcher_tableaux import (
-    embedded_third_order_four_stage_esdirk,
-)
+
+from rkopenmdao.butcher_tableaux import embedded_third_order_four_stage_esdirk
+from rkopenmdao.components import ExplicitUnsteadyComponent
+from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
 
 
 # pylint: disable=arguments-differ
-class SimpleDistributedComponent(om.ExplicitComponent):
+class SimpleDistributedComponent(ExplicitUnsteadyComponent):
     """Component for the ODE system x' = -y, y' = x. The equations are distributed over
     two ranks."""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("x_old", shape=1, distributed=True, tags=["x", "step_input_var"])
@@ -31,10 +26,8 @@ class SimpleDistributedComponent(om.ExplicitComponent):
         )
 
     def compute(self, inputs, outputs):
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
+        delta_t = self.om_data_exchange.step_size
         own_influence = inputs["x_old"] + delta_t * inputs["s_i"]
         other_influence = np.zeros(1)
         if self.comm.rank == 0:
@@ -52,10 +45,8 @@ class SimpleDistributedComponent(om.ExplicitComponent):
             ) / ((delta_t * butcher_diagonal_element) ** 2 + 1)
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
-        delta_t = self.options["integration_control"].delta_t
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
+        delta_t = self.om_data_exchange.step_size
         if mode == "fwd":
             own_influence = d_inputs["x_old"] + delta_t * d_inputs["s_i"]
             other_influence = np.zeros(1)
@@ -112,12 +103,12 @@ class SimpleDistributedComponent(om.ExplicitComponent):
 
 if __name__ == "__main__":
     butcher_tableau = embedded_third_order_four_stage_esdirk
-    integration_control = StepTerminationIntegrationControl(0.1, 3, 0.0)
+    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(3), 0.1)
     prob = om.Problem()
 
     prob.model.add_subsystem(
         "parallel_comp",
-        SimpleDistributedComponent(integration_control=integration_control),
+        SimpleDistributedComponent(),
         promotes=["*"],
     )
     indep = om.IndepVarComp()
@@ -135,7 +126,7 @@ if __name__ == "__main__":
     outer_prob = om.Problem()
     rk_integrator = RungeKuttaIntegrator(
         time_stage_problem=prob,
-        integration_control=integration_control,
+        integration_config=integration_config,
         butcher_tableau=butcher_tableau,
         time_integration_quantities=["x"],
         write_out_distance=0,

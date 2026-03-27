@@ -3,7 +3,9 @@
 # pylint: disable=protected-access
 
 from __future__ import annotations
+from collections.abc import Callable
 from copy import deepcopy
+
 
 import numpy as np
 import openmdao.api as om
@@ -20,13 +22,16 @@ from rkopenmdao.time_discretization.runge_kutta_discretization_state import (
     EmbeddedRungeKuttaDiscretizationState,
 )
 from rkopenmdao.time_integration_state import TimeIntegrationState
-from .butcher_tableau import ButcherTableau
-from .discretized_ode.openmdao_ode import OpenMDAOODE
-from .integration_control import IntegrationControl
-from .error_controller import ErrorController
-from .error_controllers import integral
-from .checkpoint_interface.checkpoint_interface import CheckpointInterface
-from .checkpoint_interface.no_checkpointer import NoCheckpointer
+from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
+
+# from .integration_control import IntegrationControl
+from rkopenmdao.error_controller import ErrorController
+from rkopenmdao.error_controllers import integral
+from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInterface
+from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
+
+from rkopenmdao.integration_config import IntegrationConfig
 
 from .file_writer import FileWriterInterface, Hdf5FileWriter
 
@@ -51,6 +56,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     _cached_input: RungeKuttaDiscretizationState | None
 
+    _integration_config: IntegrationConfig | None
+    _remaining_time_func: Callable[[float], float] | None
+
     _error_controller: ErrorController | None
     _error_measurer: ErrorMeasurer | None
 
@@ -70,6 +78,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._time_integration_state_perturbations = None
 
         self._cached_input = None
+
+        self._integration_config = None
+        self._remaining_time_func = None
 
         self._error_controller = None
         self._error_measurer = None
@@ -106,13 +117,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             matrix).""",
         )
         self.options.declare(
-            "integration_control",
-            types=IntegrationControl,
-            desc="""Object used to exchange (meta)data between the inner and outer
-            problems. In particular, this class modifies the (meta)data like the current
-            diagonal element of the butcher tableau, or the current time step and stage,
-            which then can be read by anyone else holding the same instance (like e.g.
-            components in the time_stage_problem).""",
+            "integration_config",
+            types=IntegrationConfig,
+            desc="""Configuration options for the checkpointed time integration.""",
         )
         self.options.declare(
             "file_writing_implementation",
@@ -212,13 +219,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             desc="""ErrorMeasurer used for error control.""",
         )
 
-        self.options.declare(
-            "adaptive_time_stepping",
-            types=bool,
-            default=False,
-            desc="A flag that indicates whether to use the adaptive scheme.",
-        )
-
     @staticmethod
     def check_checkpointing_type(name, value):
         """Checks whether the passed checkpointing type for the options is an actual
@@ -255,6 +255,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def setup(self):
         if self.comm.rank == 0:
             print("\n" + "=" * 33 + " setup starts " + "=" * 33 + "\n")
+        self._integration_config = self.options["integration_config"]
+        if hasattr(self._integration_config.termination_criterion, "remaining_time"):
+            self._remaining_time_func = (
+                self._integration_config.termination_criterion.remaining_time
+            )
+        else:
+            self._remaining_time_func = lambda x: np.inf
         self._setup_ode()
         self._setup_wrt_and_of_vars()
         self._add_inputs_and_outputs()
@@ -271,7 +278,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self.options["time_stage_problem"].final_setup()
         self._ode = OpenMDAOODE(
             self.options["time_stage_problem"],
-            self.options["integration_control"],
             self.options["time_integration_quantities"],
             self.options["time_independent_input_quantities"],
         )
@@ -282,6 +288,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _add_time_integration_inputs_and_outputs(self):
         time_stage_problem: om.Problem = self.options["time_stage_problem"]
+        self.add_input("time_initial", shape=1, val=0.0)
+        self.add_output("time_final", shape=1)
         for (
             quantity
         ) in self._ode.time_integration_metadata.time_integration_quantity_list:
@@ -382,7 +390,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._runge_kutta_discretization.create_empty_discretization_state(
                 self._ode
             ),
-            np.array([self.options["integration_control"].delta_t]),
+            np.array([self._integration_config.initial_step_size]),
             # FIXME: The error controller should report how far back time steps and
             # error estimates need to be provided, currently this is hardcoded to two
             # for both.
@@ -409,7 +417,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
     def _setup_checkpointing(self):
         self._checkpointer = self.options["checkpointing_type"](
-            integration_control=self.options["integration_control"],
+            termination_criterion=self._integration_config.termination_criterion,
             run_step_func=self._run_step,
             run_step_jacvec_rev_func=self._run_step_jacvec_rev,
             state=self._time_integration_state,
@@ -428,22 +436,22 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._from_numpy_array_time_integration(
             self._time_integration_state.discretization_state.final_state, outputs
         )
+        outputs["time_final"] = (
+            self._time_integration_state.discretization_state.final_time[0]
+        )
         if self.comm.rank == 0:
             print("\n" + "=" * 33 + " compute ends " + "=" * 33 + "\n")
 
     def _compute_preparation_phase(
         self, inputs: OMVector, integration_state: TimeIntegrationState
     ):
-        self.options["integration_control"].reset()
         self._to_numpy_array_time_integration(
             inputs, integration_state.discretization_state.final_state
         )
         self._to_numpy_array_independent_inputs(
             inputs, integration_state.discretization_state.independent_inputs
         )
-        integration_state.discretization_state.final_time[0] = self.options[
-            "integration_control"
-        ].initial_time
+        integration_state.discretization_state.final_time[0] = inputs["time_initial"][0]
         self._cached_input = deepcopy(integration_state.discretization_state)
 
         self._reset_error_control(integration_state)
@@ -451,7 +459,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._write_out(
             0,
-            self.options["integration_control"].initial_time,
+            inputs["time_initial"][0],
             self._time_integration_state.discretization_state.final_state,
         )
 
@@ -535,40 +543,36 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 )
 
     def _run_step(
-        self, time_integration_state: TimeIntegrationState
+        self, step: int, time_integration_state: TimeIntegrationState
     ) -> TimeIntegrationState:
-        step = self.options["integration_control"].step
         if self.comm.rank == 0:
             print(
                 f"\nStarting step <{step}> of compute "
-                f"at {self.options['integration_control'].step_time:.5f}.\n"
+                f"at {time_integration_state.discretization_state.final_time[0]:.5f}.\n"
             )
         time_integration_state.set(self._iterate_on_step(time_integration_state))
-        self.options["integration_control"].step_time = (
-            time_integration_state.discretization_state.final_time[0]
+        self._run_step_write_out_phase(
+            step,
+            time_integration_state.discretization_state.final_time[0],
+            time_integration_state,
         )
-        self._run_step_write_out_phase(time_integration_state)
         if self.comm.rank == 0:
             print(f"\nFinishing step <{step}> of compute.\n")
         return time_integration_state
 
     def _reset_error_control(self, integration_state: TimeIntegrationState):
-        if (
-            self.options["integration_control"].step
-            == self.options["integration_control"].initial_step
-        ):
-            integration_state.step_size_history.fill(0.0)
-            integration_state.error_history.fill(self._error_controller.config.tol)
-            integration_state.step_size_suggestion[0] = self.options[
-                "integration_control"
-            ].initial_delta_t
+        integration_state.step_size_history.fill(0.0)
+        integration_state.error_history.fill(self._error_controller.config.tol)
+        integration_state.step_size_suggestion[0] = (
+            self._integration_config.initial_step_size
+        )
 
     def _iterate_on_step(
         self, time_integration_state: TimeIntegrationState, i: int = 0
     ):
         """Iterates on the a step until a time step that
         complies with the norm's tolerance"""
-        if self.options["adaptive_time_stepping"]:
+        if self._integration_config.use_adaptive_time_stepping:
             if self.comm.rank == 0:
                 print(
                     f"Start Iteration {i}: Trying with "
@@ -582,11 +586,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             temp_discretization_state,
             time_integration_state.step_size_suggestion[0],
         )
-        if self.options["adaptive_time_stepping"]:
+        if self._integration_config.use_adaptive_time_stepping:
             error_measure = self._get_error_measure(temp_discretization_state)
-            remaining_time = self.options["integration_control"].remaining_time(
+
+            remaining_time = self._remaining_time_func(
                 temp_discretization_state.final_time
             )
+
             error_controller_status = self._error_controller(
                 error_measure,
                 time_integration_state.step_size_suggestion[0],
@@ -596,13 +602,15 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
             if self.comm.rank == 0:
                 nl = "\n"
-                print(f"""End Iteration {i}: {
-                    self.options['integration_control'].delta_t} {f'succeeded. {nl}'
+                print(
+                    f"""End Iteration {i}: {
+                    time_integration_state.step_size_suggestion[0]} {f'succeeded. {nl}'
                     'Estimation for next step is:' 
                     if error_controller_status.acceptance else f'failed. {nl}' 
                     'retrying with:'
                     } {error_controller_status.step_size_suggestion}
-                    """)
+                    """
+                )
             if error_controller_status.acceptance:
                 new_step_size_history = np.roll(
                     time_integration_state.step_size_history, 1
@@ -650,12 +658,14 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
         return self._error_measurer.get_measure(state_error_estimate, state, self._ode)
 
-    def _run_step_write_out_phase(self, integration_state: TimeIntegrationState):
-        step = self.options["integration_control"].step
-        time = self.options["integration_control"].step_time
+    def _run_step_write_out_phase(
+        self, step: int, time: float, integration_state: TimeIntegrationState
+    ):
         if not self._disable_write_out and (
             step % self.options["write_out_distance"] == 0
-            or self.options["integration_control"].is_last_time_step()
+            or self._integration_config.termination_criterion.is_iteration_finished(
+                step, integration_state
+            )
         ):
             self._write_out(
                 step,
@@ -696,6 +706,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._time_integration_state_perturbations.discretization_state.final_state,
             d_outputs,
         )
+        d_outputs[
+            "time_final"
+        ] += self._time_integration_state_perturbations.discretization_state.final_time[
+            0
+        ]
         if self.comm.rank == 0:
             print(
                 "\n\n" + "=" * 25 + " fwd-mode jacvec product ends " + "=" * 25 + "\n"
@@ -708,7 +723,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         integration_state: TimeIntegrationState,
         integration_state_perturbations: TimeIntegrationState,
     ):
-        self.options["integration_control"].reset()
         self._to_numpy_array_time_integration(
             inputs, integration_state.discretization_state.final_state
         )
@@ -722,9 +736,10 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             d_inputs,
             integration_state_perturbations.discretization_state.independent_inputs,
         )
-        integration_state.discretization_state.final_time[0] = self.options[
-            "integration_control"
-        ].initial_time
+        integration_state.discretization_state.final_time[0] = inputs["time_initial"][0]
+        integration_state_perturbations.discretization_state.final_time[0] = d_inputs[
+            "time_initial"
+        ][0]
         self._reset_error_control(integration_state)
 
     def _compute_jacvec_fwd_run_steps(
@@ -732,29 +747,30 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         time_integration_state: TimeIntegrationState,
         time_integration_state_perturbations: TimeIntegrationState,
     ) -> TimeIntegrationState:
-        while self.options["integration_control"].termination_condition_status():
+        iteration = 0
+        while not self._integration_config.termination_criterion.is_iteration_finished(
+            iteration, time_integration_state
+        ):
+            iteration += 1
             time_integration_state, time_integration_state_perturbations = (
                 self._run_step_jacvec_fwd(
-                    time_integration_state, time_integration_state_perturbations
+                    iteration,
+                    time_integration_state,
+                    time_integration_state_perturbations,
                 )
             )
         return time_integration_state_perturbations
 
     def _run_step_jacvec_fwd(
         self,
+        step: int,
         time_integration_state: TimeIntegrationState,
         time_integration_state_perturbation: TimeIntegrationState,
     ) -> TimeIntegrationState:
         if self.comm.rank == 0:
-            print(
-                f"\nStarting step {self.options['integration_control'].step} "
-                f"of fwd-mode jacvec product."
-            )
+            print(f"\nStarting step {step} " f"of fwd-mode jacvec product.")
 
         time_integration_state.set(self._iterate_on_step(time_integration_state))
-        self.options["integration_control"].step_time = (
-            time_integration_state.discretization_state.final_time[0]
-        )
         time_integration_state_perturbation.discretization_state.set(
             self._runge_kutta_discretization.compute_step_derivative(
                 self._ode,
@@ -764,10 +780,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
         )
         if self.comm.rank == 0:
-            print(
-                f"\nFinished step {self.options['integration_control'].step} "
-                f"of fwd-mode jacvec product.\n"
-            )
+            print(f"\nFinished step {step} " f"of fwd-mode jacvec product.\n")
         return time_integration_state, time_integration_state_perturbation
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
@@ -793,6 +806,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             integration_state_perturbations.discretization_state.independent_inputs,
             d_inputs,
         )
+        d_inputs[
+            "time_initial"
+        ] += integration_state_perturbations.discretization_state.final_time[0]
         self._configure_write_out()
 
         # using the checkpoints invalidates the checkpointer in general
@@ -814,7 +830,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             self._runge_kutta_discretization.create_empty_discretization_state(
                 self._ode
             ),
-            np.array([self.options["integration_control"].delta_t]),
+            np.array([self._integration_config.initial_step_size]),
             np.zeros(0),
             np.zeros(0),
         )
@@ -824,9 +840,9 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._to_numpy_array_independent_inputs(
             inputs, temporary_integration_state.discretization_state.independent_inputs
         )
-        temporary_integration_state.discretization_state.final_time[0] = self.options[
-            "integration_control"
-        ].initial_time
+        temporary_integration_state.discretization_state.final_time[0] = inputs[
+            "time_initial"
+        ][0]
         if self._cached_input is None or not (
             np.array_equal(
                 self._cached_input.final_state,
@@ -848,13 +864,16 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         integration_state_perturbations.discretization_state.independent_inputs.fill(
             0.0
         )
+        integration_state_perturbations.discretization_state.final_time[0] = d_outputs[
+            "time_final"
+        ][0]
 
     def _run_step_jacvec_rev(
         self,
+        step: int,
         time_integration_state: TimeIntegrationState,
         time_integration_state_perturbations: TimeIntegrationState,
     ) -> TimeIntegrationState:
-        step = self.options["integration_control"].step
         if self.comm.rank == 0:
             print(f"\nStarting step <{step}> of rev-mode jacvec product.")
         time_integration_state_perturbations.discretization_state.set(

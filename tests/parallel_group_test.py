@@ -6,18 +6,18 @@ import pytest
 import numpy as np
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.integration_control import (
-    IntegrationControl,
-    StepTerminationIntegrationControl,
-)
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     embedded_second_order_three_stage_esdirk,
 )
 from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.components import ExplicitUnsteadyComponent
+from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInterface
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+from rkopenmdao.integration_config import IntegrationConfig
+from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
 
 # pylint: disable = arguments-differ, too-many-branches
 
@@ -29,11 +29,8 @@ from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveChec
 #   a' = a + b + c
 
 
-class FirstComponent(om.ExplicitComponent):
+class FirstComponent(ExplicitUnsteadyComponent):
     """Models the first equation of the above system."""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("d_old", shape=1, tags=["d", "step_input_var"])
@@ -44,10 +41,8 @@ class FirstComponent(om.ExplicitComponent):
         self.add_output("d_state", shape=1)
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element == 0.0:
             factor = 1.0
         else:
@@ -57,10 +52,8 @@ class FirstComponent(om.ExplicitComponent):
         outputs["d_state"] = factor * old_influence
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element == 0.0:
             factor = 1.0
         else:
@@ -97,11 +90,8 @@ class FirstComponent(om.ExplicitComponent):
                     )
 
 
-class SecondComponent1(om.ExplicitComponent):
+class SecondComponent1(ExplicitUnsteadyComponent):
     """Models the second equation of the above system."""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("c_old", shape=1, tags=["c", "step_input_var"])
@@ -113,10 +103,8 @@ class SecondComponent1(om.ExplicitComponent):
         self.add_output("c_state", shape=1)
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         old_influence = inputs["c_old"] + delta_t * inputs["c_accumulated_stages"]
         if butcher_diagonal_element != 0.0:
             outputs["c_update"] = (old_influence - inputs["d"]) / (
@@ -130,10 +118,8 @@ class SecondComponent1(om.ExplicitComponent):
             outputs["c_state"] = old_influence
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element != 0.0:
             factor = 1.0 / (1 - butcher_diagonal_element * delta_t)
         else:
@@ -189,11 +175,8 @@ class SecondComponent1(om.ExplicitComponent):
                         )
 
 
-class SecondComponent2(om.ExplicitComponent):
+class SecondComponent2(ExplicitUnsteadyComponent):
     """Models the third equation of the above system."""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("b_old", shape=1, tags=["b", "step_input_var"])
@@ -205,10 +188,8 @@ class SecondComponent2(om.ExplicitComponent):
         self.add_output("b_state", shape=1)
 
     def compute(self, inputs, outputs):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         old_influence = inputs["b_old"] + delta_t * inputs["b_accumulated_stages"]
         if butcher_diagonal_element != 0.0:
             outputs["b_update"] = (old_influence + inputs["d"]) / (
@@ -222,10 +203,8 @@ class SecondComponent2(om.ExplicitComponent):
             outputs["b_state"] = old_influence
 
     def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element != 0.0:
             factor = 1.0 / (1 - butcher_diagonal_element * delta_t)
         else:
@@ -281,11 +260,8 @@ class SecondComponent2(om.ExplicitComponent):
                         )
 
 
-class ThirdComponent(om.ExplicitComponent):
+class ThirdComponent(ExplicitUnsteadyComponent):
     """Models the fourth equation of the above system."""
-
-    def initialize(self):
-        self.options.declare("integration_control", types=IntegrationControl)
 
     def setup(self):
         self.add_input("a_old", shape=1, tags=["a", "step_input_var"])
@@ -298,10 +274,8 @@ class ThirdComponent(om.ExplicitComponent):
         self.add_output("a_state", shape=1)
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element != 0.0:
             factor = 1 / (1 - butcher_diagonal_element * delta_t)
         else:
@@ -316,10 +290,8 @@ class ThirdComponent(om.ExplicitComponent):
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
     ):
-        delta_t = self.options["integration_control"].delta_t
-        butcher_diagonal_element = self.options[
-            "integration_control"
-        ].butcher_diagonal_element
+        delta_t = self.om_data_exchange.step_size
+        butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element != 0.0:
             factor = 1 / (1 - butcher_diagonal_element * delta_t)
         else:
@@ -406,16 +378,15 @@ def ode_system_solution(time: float, initial_values: np.ndarray):
     )
 
 
-def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tableau):
+def setup_integration_config(num_steps: int, delta_t: float) -> IntegrationConfig:
+    """Sets up the configuration for the majority of time integrations."""
+    return IntegrationConfig(False, PredefinedNumberOfSteps(num_steps), delta_t)
+
+
+def setup_stage_problem() -> om.Problem:
     """Setup for the stage problem in the following test cases."""
     prob = om.Problem()
-    integration_control = StepTerminationIntegrationControl(delta_t, num_steps, 0.0)
-    integration_control.butcher_diagonal_element = butcher_tableau.butcher_matrix[
-        -1, -1
-    ]
-    prob.model.add_subsystem(
-        "First", FirstComponent(integration_control=integration_control)
-    )
+    prob.model.add_subsystem("First", FirstComponent())
     par_group = om.ParallelGroup()
     group_1 = om.Group()
     ivc21 = om.IndepVarComp()
@@ -424,7 +395,7 @@ def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tabl
     group_1.add_subsystem("ivc21", ivc21, promotes=["*"])
     group_1.add_subsystem(
         "comp_21",
-        SecondComponent1(integration_control=integration_control),
+        SecondComponent1(),
         promotes=["*"],
     )
     par_group.add_subsystem("Second_1", group_1)
@@ -436,14 +407,12 @@ def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tabl
     group_1.add_subsystem("ivc22", ivc22, promotes=["*"])
     group_2.add_subsystem(
         "comp_22",
-        SecondComponent2(integration_control=integration_control),
+        SecondComponent2(),
         promotes=["*"],
     )
     par_group.add_subsystem("Second_2", group_2)
     prob.model.add_subsystem("Second", par_group)
-    prob.model.add_subsystem(
-        "Third", ThirdComponent(integration_control=integration_control)
-    )
+    prob.model.add_subsystem("Third", ThirdComponent())
     prob.model.connect("First.d_state", "Second.Second_1.d")
     prob.model.connect("First.d_state", "Second.Second_2.d")
     prob.model.connect("Second.Second_1.c_state", "Third.c")
@@ -451,15 +420,15 @@ def setup_stage_problem_and_integration_control(num_steps, delta_t, butcher_tabl
 
     prob.setup()
 
-    return prob, integration_control
+    return prob
 
 
 def setup_time_integration_problem(
-    stage_prob,
-    integration_control,
-    butcher_tableau,
-    test_direction="auto",
-    checkpointing_implementation=NoCheckpointer,
+    stage_prob: om.Problem,
+    integration_config: IntegrationConfig,
+    butcher_tableau: ButcherTableau,
+    test_direction: str = "auto",
+    checkpointing_implementation: type[CheckpointInterface] = NoCheckpointer,
 ):
     """Setup for the time integrator in the following test cases."""
     time_integration_prob = om.Problem()
@@ -474,7 +443,7 @@ def setup_time_integration_problem(
         RungeKuttaIntegrator(
             time_stage_problem=stage_prob,
             time_integration_quantities=["a", "b", "c", "d"],
-            integration_control=integration_control,
+            integration_config=integration_config,
             butcher_tableau=butcher_tableau,
             checkpointing_type=checkpointing_implementation,
         ),
@@ -490,6 +459,7 @@ def set_time_integration_initial_values(
     time_integration_prob: om.Problem, initial_values: list
 ) -> None:
     """Convenience function for setting the inputs if the time integration."""
+    time_integration_prob["time_initial"][0] = 0.0
     time_integration_prob["d_initial"] = np.array([initial_values[0]])
     if time_integration_prob.comm.rank == 0:
         time_integration_prob["b_initial"] = np.zeros(0)
@@ -511,14 +481,13 @@ def test_parallel_group_time_integration(
 ):
     """Tests the time integration for a problem with parallel groups."""
     delta_t = 0.0001
-    prob, integration_control = setup_stage_problem_and_integration_control(
-        num_steps, delta_t, butcher_tableau
-    )
+    integration_config = setup_integration_config(num_steps, delta_t)
+    prob = setup_stage_problem()
     prob.run_model()
 
     time_integration_prob = setup_time_integration_problem(
         prob,
-        integration_control,
+        integration_config,
         butcher_tableau,
     )
     set_time_integration_initial_values(time_integration_prob, initial_values)
@@ -557,16 +526,15 @@ def test_parallel_group_time_integration_totals(
 ):
     """Tests the totals of the time integration for a problem with parallel groups."""
     delta_t = 0.1
-    prob, integration_control = setup_stage_problem_and_integration_control(
-        num_steps, delta_t, butcher_tableau
-    )
+    integration_config = setup_integration_config(num_steps, delta_t)
+    prob = setup_stage_problem()
     prob.run_model()
     data = prob.check_partials()
     assert_check_partials(data)
 
     time_integration_prob = setup_time_integration_problem(
         prob,
-        integration_control,
+        integration_config,
         butcher_tableau,
         test_direction,
         checkpointing_implementation=checkpointing_implementation,
