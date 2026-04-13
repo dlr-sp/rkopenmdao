@@ -1,6 +1,5 @@
 """Defines interface for file writers, as well as the HDF5 file writer."""
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Tuple
 
@@ -68,8 +67,8 @@ class OpenMDAOHDF5Callback(Callback):
         ode: OpenMDAOODE
             OpenMDAO ODE implementation that represents a multidisciplinary problem.
         discretization_scheme: TimeDiscretizationSchemeInterface
-            Currently unused. Probably will be necessary to be used once the use of arbitrary
-            time discretizations is fully supported by the time integration.
+            Currently unused. Probably will be necessary to be used once the use of
+            arbitrary time discretizations is fully supported by the time integration.
         """
         mode = "w" if iteration == 1 else "r+"
         iter_strs = []
@@ -122,8 +121,8 @@ class OpenMDAOHDF5Callback(Callback):
         ode: OpenMDAOODE
             OpenMDAO ODE implementation that represents a multidisciplinary problem.
         discretization_scheme: TimeDiscretizationSchemeInterface
-            Currently unused. Probably will be necessary to be used once the use of arbitrary
-            time discretizations is fully supported by the time integration.
+            Currently unused. Probably will be necessary to be used once the use of
+            arbitrary time discretizations is fully supported by the time integration.
         """
         with h5py.File(self.filename, mode="r+", driver="mpio", comm=self.comm) as hf:
             # Write out initial values.
