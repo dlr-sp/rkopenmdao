@@ -10,8 +10,9 @@ from openmdao.core.system import System
 import openmdao.api as om
 
 from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.callback import IterationLogging
 from rkopenmdao.error_measurer import ErrorMeasurer
-from rkopenmdao.file_writer import read_last_local_error
+from rkopenmdao.file_writer import read_last_local_error, OpenMDAOHDF5Callback
 from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.odes.kaps import KapsGroup
@@ -119,8 +120,12 @@ class Problem:
                 error_controller=problem_config.error_controller,
                 error_controller_options=problem_config.options,
                 error_measurer=problem_config.error_measurer,
-                write_file=generate_path(str(problem_config.write_file)),
-                write_out_distance=1,
+                compute_callbacks=[
+                    IterationLogging("compute"),
+                    OpenMDAOHDF5Callback(
+                        generate_path(str(problem_config.write_file)), 1
+                    ),
+                ],
             ),
             promotes=["*"],
         )

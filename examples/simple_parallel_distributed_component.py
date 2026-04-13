@@ -129,7 +129,6 @@ if __name__ == "__main__":
         integration_config=integration_config,
         butcher_tableau=butcher_tableau,
         time_integration_quantities=["x"],
-        write_out_distance=0,
     )
 
     outer_prob.model.add_subsystem(
