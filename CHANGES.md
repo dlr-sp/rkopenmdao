@@ -10,6 +10,10 @@
 - Add custom explicit and implicit component types for use with OpenMDAO-based time integration.
 - Removed heat equation example
 - Removed convergence test from `src/rkopenmdao/utils`.
+- Added interface for Callbacks.
+- Logging of time step now works as a callback.
+- Changed current file writing implementation to use callbacks.
+- Added callback to measure wall-clock time of time integration steps.
 
 ## Version 0.2
 

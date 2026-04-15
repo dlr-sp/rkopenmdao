@@ -6,11 +6,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from copy import deepcopy
 
-
 import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
 
+from rkopenmdao.callback import Callback, IterationLogging, WallClockMeasurement
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
 from rkopenmdao.error_measurer import ErrorMeasurer, SimpleErrorMeasurer
 from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization import (
@@ -32,8 +32,6 @@ from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInter
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 
 from rkopenmdao.integration_config import IntegrationConfig
-
-from .file_writer import FileWriterInterface, Hdf5FileWriter
 
 
 class RungeKuttaIntegrator(om.ExplicitComponent):
@@ -62,10 +60,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     _error_controller: ErrorController | None
     _error_measurer: ErrorMeasurer | None
 
-    _disable_write_out: bool
-    _file_writer: FileWriterInterface | None
-
     _checkpointer: CheckpointInterface | None
+
+    _compute_callbacks: list[Callback]
+    _compute_jacvec_product_fwd_callbacks: list[Callback]
+    _compute_jacvec_product_rev_callbacks: list[Callback]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -84,9 +83,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self._error_controller = None
         self._error_measurer = None
-
-        self._disable_write_out = False
-        self._file_writer = None
 
         self._checkpointer = None
 
@@ -120,32 +116,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             "integration_config",
             types=IntegrationConfig,
             desc="""Configuration options for the checkpointed time integration.""",
-        )
-        self.options.declare(
-            "file_writing_implementation",
-            default=Hdf5FileWriter,
-            check_valid=self.check_file_writer_type,
-            desc="Defines what kind of file writing should be used.",
-        )
-
-        self.options.declare(
-            "write_out_distance",
-            types=int,
-            default=0,
-            desc="""Toggles the write out of data of the quantities. If
-            write_out_distance == 0, no data is written out. Else, every
-            "write_out_distance"th time step the data of the quantities are written out
-            to the write_file, starting with the initial values. The data at the end of
-            the last time step is written out even if the last time step is not a
-            "write_out_distance"th time step.""",
-        )
-
-        self.options.declare(
-            "write_file",
-            types=str,
-            default="data.h5",
-            desc="""The file where the results of each time steps are written if
-            write_out_distance != 0.""",
         )
 
         self.options.declare(
@@ -219,6 +189,39 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             desc="""ErrorMeasurer used for error control.""",
         )
 
+        self.options.declare(
+            "compute_callbacks",
+            default=None,
+            types=list,
+            allow_none=True,
+            desc="Callbacks used in the primal compute function. By default (None), "
+            "has callbacks for iteration logging and wall clock measurement of single "
+            "iterations. For providing own versions, see the interface of"
+            "`Callback`.",
+        )
+
+        self.options.declare(
+            "compute_jacvec_product_fwd_callbacks",
+            default=None,
+            types=list,
+            allow_none=True,
+            desc="Callbacks used in the forward mode of the compute_jacvec_product"
+            "function. By default (None), has callbacks for iteration logging and wall"
+            " clock measurement of single iterations. For providing own versions, see "
+            "the interface of `Callback`.",
+        )
+
+        self.options.declare(
+            "compute_jacvec_product_rev_callbacks",
+            default=None,
+            types=list,
+            allow_none=True,
+            desc="Callbacks used in the reverse mode of the compute_jacvec_product"
+            "function.By default (None), has callbacks for iteration logging and wall"
+            " clock measurement of single iterations. For providing own versions, see "
+            "the interface of `Callback`.",
+        )
+
     @staticmethod
     def check_checkpointing_type(name, value):
         """Checks whether the passed checkpointing type for the options is an actual
@@ -227,15 +230,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         # OpenMDAO needs that specific interface, even if we don't need it fully.
         if not issubclass(value, CheckpointInterface):
             raise TypeError(f"{value} is not a subclass of CheckpointInterface")
-
-    @staticmethod
-    def check_file_writer_type(name, value):
-        """Checks whether the passed file writing type for the options is an actual
-        subclass of FileWriterInterface"""
-        # pylint: disable=unused-argument
-        # OpenMDAO needs that specific interface, even if we don't need it fully.
-        if not issubclass(value, FileWriterInterface):
-            raise TypeError(f"{value} is not a subclass of FileWriterInterface")
 
     @staticmethod
     def check_error_controller(name, value):
@@ -268,8 +262,31 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_runge_kutta_discretization()
         self._setup_error_controller()
         self._setup_integration_states()
-        self._configure_write_out()
         self._setup_checkpointing()
+        for func_name, callback_option in [
+            ("compute", self.options["compute_callbacks"]),
+            (
+                "compute_jacvec_product_fwd",
+                self.options["compute_jacvec_product_fwd_callbacks"],
+            ),
+            (
+                "compute_jacvec_product_rev",
+                self.options["compute_jacvec_product_rev_callbacks"],
+            ),
+        ]:
+            if callback_option is not None:
+                setattr(self, f"_{func_name}_callbacks", callback_option)
+            elif self.comm.rank == 0:
+                setattr(
+                    self,
+                    f"_{func_name}_callbacks",
+                    [
+                        IterationLogging(func_name),
+                        WallClockMeasurement(),
+                    ],
+                )
+            else:
+                setattr(self, f"_{func_name}_callbacks", [])
         if self.comm.rank == 0:
             print("\n" + "=" * 34 + " setup ends " + "=" * 34 + "\n")
 
@@ -406,15 +423,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             np.zeros(0),
         )
 
-    def _configure_write_out(self):
-        self._disable_write_out = self.options["write_out_distance"] == 0
-        if not self._disable_write_out:
-            self._file_writer = self.options["file_writing_implementation"](
-                self.options["write_file"],
-                self._ode.time_integration_metadata,
-                self.comm,
-            )
-
     def _setup_checkpointing(self):
         self._checkpointer = self.options["checkpointing_type"](
             termination_criterion=self._integration_config.termination_criterion,
@@ -457,12 +465,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._reset_error_control(integration_state)
         integration_state.discretization_state.linearization_points.fill(0.0)
 
-        self._write_out(
-            0,
-            inputs["time_initial"][0],
-            self._time_integration_state.discretization_state.final_state,
-        )
-
     def _to_numpy_array_time_integration(
         self, om_vector: OMVector, np_array: np.ndarray
     ):
@@ -493,21 +495,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 start = quantity.array_metadata.start_index
                 end = quantity.array_metadata.end_index
                 np_array[start:end] = om_vector[quantity.name].flatten()
-
-    def _write_out(
-        self,
-        step: int,
-        time: float,
-        serialized_state: np.ndarray,
-        error_measure: float = None,
-    ):
-        if self._file_writer is not None:
-            self._file_writer.write_step(
-                step,
-                time,
-                serialized_state,
-                error_measure,
-            )
 
     def _from_numpy_array_time_integration(
         self, np_array: np.ndarray, om_vector: OMVector
@@ -545,19 +532,21 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     def _run_step(
         self, step: int, time_integration_state: TimeIntegrationState
     ) -> TimeIntegrationState:
-        if self.comm.rank == 0:
-            print(
-                f"\nStarting step <{step}> of compute "
-                f"at {time_integration_state.discretization_state.final_time[0]:.5f}.\n"
+        for callback in self._compute_callbacks:
+            callback.before_iteration(
+                step,
+                time_integration_state,
+                self._ode,
+                self._runge_kutta_discretization,
             )
         time_integration_state.set(self._iterate_on_step(time_integration_state))
-        self._run_step_write_out_phase(
-            step,
-            time_integration_state.discretization_state.final_time[0],
-            time_integration_state,
-        )
-        if self.comm.rank == 0:
-            print(f"\nFinishing step <{step}> of compute.\n")
+        for callback in self._compute_callbacks:
+            callback.after_iteration(
+                step,
+                time_integration_state,
+                self._ode,
+                self._runge_kutta_discretization,
+            )
         return time_integration_state
 
     def _reset_error_control(self, integration_state: TimeIntegrationState):
@@ -658,26 +647,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         )
         return self._error_measurer.get_measure(state_error_estimate, state, self._ode)
 
-    def _run_step_write_out_phase(
-        self, step: int, time: float, integration_state: TimeIntegrationState
-    ):
-        if not self._disable_write_out and (
-            step % self.options["write_out_distance"] == 0
-            or self._integration_config.termination_criterion.is_iteration_finished(
-                step, integration_state
-            )
-        ):
-            self._write_out(
-                step,
-                time,
-                integration_state.discretization_state.final_state,
-                (
-                    integration_state.error_history[0]
-                    if self.options["butcher_tableau"].is_embedded
-                    else None
-                ),
-            )
-
     def compute_jacvec_product(
         self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
     ):  # pylint: disable = arguments-differ
@@ -767,9 +736,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         time_integration_state: TimeIntegrationState,
         time_integration_state_perturbation: TimeIntegrationState,
     ) -> TimeIntegrationState:
-        if self.comm.rank == 0:
-            print(f"\nStarting step {step} " f"of fwd-mode jacvec product.")
-
+        for callback in self._compute_jacvec_product_fwd_callbacks:
+            callback.before_iteration(
+                step,
+                time_integration_state,
+                self._ode,
+                self._runge_kutta_discretization,
+            )
         time_integration_state.set(self._iterate_on_step(time_integration_state))
         time_integration_state_perturbation.discretization_state.set(
             self._runge_kutta_discretization.compute_step_derivative(
@@ -779,8 +752,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 time_integration_state.step_size_history[0],
             )
         )
-        if self.comm.rank == 0:
-            print(f"\nFinished step {step} " f"of fwd-mode jacvec product.\n")
+        for callback in self._compute_jacvec_product_fwd_callbacks:
+            callback.after_iteration(
+                step,
+                time_integration_state,
+                self._ode,
+                self._runge_kutta_discretization,
+            )
         return time_integration_state, time_integration_state_perturbation
 
     def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
@@ -809,7 +787,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         d_inputs[
             "time_initial"
         ] += integration_state_perturbations.discretization_state.final_time[0]
-        self._configure_write_out()
 
         # using the checkpoints invalidates the checkpointer in general
         self._cached_input = None
@@ -825,7 +802,6 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         d_outputs: OMVector,
         integration_state_perturbations: TimeIntegrationState,
     ):
-        self._disable_write_out = True
         temporary_integration_state = TimeIntegrationState(
             self._runge_kutta_discretization.create_empty_discretization_state(
                 self._ode
@@ -874,8 +850,13 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         time_integration_state: TimeIntegrationState,
         time_integration_state_perturbations: TimeIntegrationState,
     ) -> TimeIntegrationState:
-        if self.comm.rank == 0:
-            print(f"\nStarting step <{step}> of rev-mode jacvec product.")
+        for callback in self._compute_jacvec_product_rev_callbacks:
+            callback.before_iteration(
+                step,
+                time_integration_state,
+                self._ode,
+                self._runge_kutta_discretization,
+            )
         time_integration_state_perturbations.discretization_state.set(
             self._runge_kutta_discretization.compute_step_adjoint_derivative(
                 self._ode,
@@ -884,8 +865,11 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                 time_integration_state.step_size_history[0],
             )
         )
-
-        if self.comm.rank == 0:
-            print(f"\nFinishing step <{step}> of rev-mode jacvec product.")
-
+        for callback in self._compute_jacvec_product_rev_callbacks:
+            callback.after_iteration(
+                step,
+                time_integration_state,
+                self._ode,
+                self._runge_kutta_discretization,
+            )
         return time_integration_state_perturbations

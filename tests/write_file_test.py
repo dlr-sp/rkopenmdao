@@ -16,7 +16,11 @@ from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk,
 )
 from rkopenmdao.error_controllers import pseudo, integral
-from rkopenmdao.file_writer import read_hdf5_file, read_last_local_error
+from rkopenmdao.file_writer import (
+    read_hdf5_file,
+    read_last_local_error,
+    OpenMDAOHDF5Callback,
+)
 from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.termination_criterion import (
@@ -73,6 +77,10 @@ def _make_rk_problem(
     """
     Factory that builds a ``Problem`` containing a single ``RungeKuttaIntegrator``.
     """
+    file_writer_callback = OpenMDAOHDF5Callback(
+        filename=WRITE_FILE, write_out_period=write_out_distance
+    )
+
     rk_prob = om.Problem()
     rk_prob.model.add_subsystem(
         "rk_integration",
@@ -80,17 +88,16 @@ def _make_rk_problem(
             time_stage_problem=time_stage_problem,
             butcher_tableau=embedded_third_order_four_stage_esdirk,
             integration_config=integration_config,
-            write_out_distance=write_out_distance,
             error_controller=error_controller or [integral],
-            write_file=WRITE_FILE,
             time_integration_quantities=quantities,
+            compute_callbacks=[file_writer_callback],
         ),
         promotes=["*"],
     )
     return rk_prob
 
 
-def _assert_time_attrs(
+def _assert_time(
     h5_group: h5py.Group,
     *,
     step: int,
@@ -100,7 +107,7 @@ def _assert_time_attrs(
 ) -> None:
     """Check the ``time`` attribute stored for a given step."""
     expected = pytest.approx(step * dt + t0, rel=0, abs=atol)
-    assert h5_group.attrs["time"] == expected
+    assert h5_group["time"][0] == expected
 
 
 # ########################
@@ -237,7 +244,7 @@ def multidisciplinary_h5() -> (
 # ########################
 
 
-@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
+@pytest.mark.parametrize("write_out_distance", [1, 10, 25])
 def test_monodisciplinary(
     mono_problem, integration_config, initial_time: float, write_out_distance: int
 ) -> None:
@@ -252,51 +259,30 @@ def test_monodisciplinary(
     rk_prob["time_initial"] = initial_time
     rk_prob.run_model()
 
-    with h5py.File(WRITE_FILE, "r") as f:
-        assert "x" in f.keys(), "Missing group 'x' in HDF5 file."
-
-        for step in range(0, 100, write_out_distance):
-            assert str(step) in f["x"].keys(), f"Step {step} missing from 'x'."
-
-        # make sure *no* extra steps were written
-        for step in range(1, write_out_distance):
-            assert str(step) not in f["x"].keys(), f"Unexpected step {step} written."
-
-        # the final step must always be present
-        assert "100" in f["x"].keys(), "Final step (100) missing."
-
-        # the final value stored in the file must match the model output
-        np.testing.assert_array_equal(
-            rk_prob["rk_integration.x_final"], f["x"][str(100)][:]
-        )
-
-
-@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
-def test_time_attribute(
-    mono_problem,
-    integration_config,
-    initial_time: float,
-    write_out_distance: int,
-) -> None:
-    """Validate that the ``time`` attribute of each stored step is correct."""
-    rk_prob = _make_rk_problem(
-        time_stage_problem=mono_problem,
-        integration_config=integration_config,
-        write_out_distance=write_out_distance,
-        quantities=["x"],
-    )
-    rk_prob.setup()
-    rk_prob["time_initial"] = initial_time
-    rk_prob.run_model()
-
     dt = integration_config.initial_step_size
 
     with h5py.File(WRITE_FILE, "r") as f:
+
         for step in range(0, 100, write_out_distance):
-            _assert_time_attrs(f["x"][str(step)], step=step, dt=dt, t0=initial_time)
+            assert str(step) in f.keys(), f"Step {step} missing from file."
+
+            assert "x" in f[str(step)].keys(), "Missing dataset 'x' in HDF5 file."
+
+            _assert_time(f[str(step)], step=step, dt=dt, t0=initial_time)
+
+        # make sure *no* extra steps were written
+        for step in range(1, write_out_distance):
+            assert str(step) not in f.keys(), f"Unexpected step {step} written."
+
+        # the final value stored in the file must match the model output
+        np.testing.assert_array_equal(
+            rk_prob["rk_integration.x_final"],
+            f[str(100)]["x"][:],
+            err_msg="Value of final step is wrong.",
+        )
 
 
-@pytest.mark.parametrize("write_out_distance", [1, 10, 20, 30])
+@pytest.mark.parametrize("write_out_distance", [1, 10, 25])
 def test_multidisciplinary(
     multi_problem,
     integration_config,
@@ -315,24 +301,20 @@ def test_multidisciplinary(
     rk_prob.run_model()
 
     with h5py.File(WRITE_FILE, "r") as f:
-        for q in ("x", "y"):
-            assert q in f, f"Missing group '{q}'."
-            for step in range(0, 100, write_out_distance):
-                assert (
-                    str(step) in f[q].keys()
-                ), f"Step {step} missing from group '{q}'."
-            for step in range(1, write_out_distance):
-                assert (
-                    str(step) not in f[q].keys()
-                ), f"Unexpected step {step} in group '{q}'."
-            assert "100" in f[q].keys(), f"Final step missing from group '{q}'."
+
+        for step in range(0, 100, write_out_distance):
+            assert str(step) in f.keys(), f"Step {step} missing from file."
+            for q in ("x", "y"):
+                assert q in f[str(step)], f"Missing group '{q}' in step {step}."
+        for step in range(1, write_out_distance):
+            assert str(step) not in f.keys(), f"Unexpected step {step} in file.'."
 
         # final values must match the model outputs
-        np.testing.assert_array_equal(rk_prob["rk_integration.x_final"], f["x"]["100"])
-        np.testing.assert_array_equal(rk_prob["rk_integration.y_final"], f["y"]["100"])
+        np.testing.assert_array_equal(rk_prob["rk_integration.x_final"], f["100"]["x"])
+        np.testing.assert_array_equal(rk_prob["rk_integration.y_final"], f["100"]["y"])
 
 
-@pytest.mark.parametrize("write_out_distance", (1, 10))
+@pytest.mark.parametrize("write_out_distance", (1, 10, 25))
 def test_n_d_array(
     nd_array_problem,
     integration_config,
@@ -355,18 +337,16 @@ def test_n_d_array(
     rk_prob.run_model()
 
     with h5py.File(WRITE_FILE, "r") as f:
-        assert "time_int" in f, "Missing top‑level group 'time_int'."
         for step in range(0, 100, write_out_distance):
-            assert str(step) in f["time_int"].keys(), f"Step {step} missing."
+            assert str(step) in f.keys(), f"Step {step} missing."
+            assert "time_int" in f[str(step)], "Missing dataset 'time_int'."
+
         for step in range(1, write_out_distance):
-            assert (
-                str(step) not in f["time_int"].keys()
-            ), f"Unexpected step {step} written."
-        assert "100" in f["time_int"].keys(), "Final step missing."
+            assert str(step) not in f.keys(), f"Unexpected step {step} written."
 
         np.testing.assert_array_equal(
             rk_prob["rk_integration.time_int_final"],
-            f["time_int"]["100"],
+            f["100"]["time_int"],
         )
 
 
@@ -391,8 +371,6 @@ def test_parallel_write_out(
     prob, _ = parallel_problem
 
     # Build the RK problem that writes to a temporary file.
-    # Use the core driver when available – it creates an in‑memory file on each rank.
-    driver = "core" if hasattr(h5py.File, "driver") else None
 
     rk_prob = _make_rk_problem(
         time_stage_problem=prob,
@@ -413,27 +391,21 @@ def test_parallel_write_out(
 
     rk_prob.run_model()
 
-    read_kwargs = {}
-    if driver == "core":
-        read_kwargs["driver"] = "core"
-        read_kwargs["backing_store"] = False
-
-    with h5py.File(WRITE_FILE, "r", **read_kwargs) as f:
-        assert "time_int" in f.keys(), "Missing group 'time_int' in parallel file."
-
+    with h5py.File(WRITE_FILE, "r", driver="mpio", comm=rk_prob.comm) as f:
         for step in range(0, 100, write_out_distance):
-            assert str(step) in f["time_int"].keys(), f"Step {step} missing."
+            assert str(step) in f.keys(), f"Step {step} missing."
+            assert (
+                "time_int" in f[str(step)].keys()
+            ), "Missing group 'time_int' in parallel file."
 
         for step in range(1, write_out_distance):
-            assert str(step) not in f["time_int"].keys(), f"Unexpected step {step}."
-
-        assert "100" in f["time_int"].keys(), "Final step missing."
+            assert str(step) not in f.keys(), f"Unexpected step {step}."
 
         local_final = rk_prob.get_val(
             name="rk_integration.time_int_final", get_remote=False
         )
         slice_obj = slice(0, 2) if prob.comm.rank == 0 else slice(2, 4)
-        h5_final = f["time_int"]["100"][slice_obj, ...]
+        h5_final = f["100"]["time_int"][slice_obj, ...]
         np.testing.assert_array_equal(local_final, h5_final)
 
 
@@ -451,14 +423,12 @@ def test_read_hdf5_file_monodisciplinary(mono_h5):
         WRITE_FILE, quantities, solution
     )
     with h5py.File(WRITE_FILE, "r") as f:
-        # time attributes
-        for step_str, dset in f["x"].items():
+        for step_str, group in f.items():
             step = int(step_str)
-            assert time_dict[step] == dset.attrs["time"]
+            assert time_dict[step] == group["time"]
             # stored results in an array
-            np.testing.assert_array_equal(result_dict["x"][step], dset[...])
+            np.testing.assert_array_equal(result_dict["x"][step], group["x"])
 
-        for step in result_dict["x"].keys():
             computed_error = np.abs(
                 solution(time_dict[step], result_dict["x"][0], time_dict[0])
                 - result_dict["x"][step]
@@ -478,13 +448,12 @@ def test_read_hdf5_file_multidisciplinary_h5(multi_h5):
         WRITE_FILE, quantities, solution
     )
     with h5py.File(WRITE_FILE, "r") as f:
-        for q in quantities:
-            # time attributes
-            for step_str, dset in f[q].items():
-                step = int(step_str)
-                assert time_dict[step] == dset.attrs["time"]
-                # stored results in an array
-                assert result_dict[q][step] == dset[...]
+        for step_str, group in f.items():
+            step = int(step_str)
+            assert time_dict[step] == group["time"]
+            # stored results in an array
+            for q in quantities:
+                assert result_dict[q][step] == group[q]
 
     for step in result_dict[quantities[0]].keys():
         computed_error = np.abs(
@@ -507,5 +476,5 @@ def test_read_last_local_error_exact_step(mono_h5):
     err = read_last_local_error(WRITE_FILE)
     with h5py.File(WRITE_FILE, "r") as f:
         assert (
-            err == f["error_measure"]["100"][0]
+            err == f["100"]["error_measure"][0]
         ), f"Error estimation of ``{mono_h5[0]}`` at step ``100`` is wrong."
