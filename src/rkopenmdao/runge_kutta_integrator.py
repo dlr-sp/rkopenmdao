@@ -206,8 +206,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             types=list,
             allow_none=True,
             desc="Callbacks used in the forward mode of the compute_jacvec_product"
-            "function. By default (None),has callbacks for iteration logging and wall "
-            "clock measurement of single iterations. For providing own versions, see "
+            "function. By default (None), has callbacks for iteration logging and wall"
+            " clock measurement of single iterations. For providing own versions, see "
             "the interface of `Callback`.",
         )
 
@@ -217,8 +217,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             types=list,
             allow_none=True,
             desc="Callbacks used in the reverse mode of the compute_jacvec_product"
-            "function.By default (None),has callbacks for iteration logging and wall "
-            "clock measurement of single iterations. For providing own versions, see "
+            "function.By default (None), has callbacks for iteration logging and wall"
+            " clock measurement of single iterations. For providing own versions, see "
             "the interface of `Callback`.",
         )
 
