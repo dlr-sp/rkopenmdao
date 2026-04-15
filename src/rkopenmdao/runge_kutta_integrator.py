@@ -278,7 +278,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                     self,
                     f"_{func_name}_callbacks",
                     [
-                        IterationLogging("compute"),
+                        IterationLogging(func_name),
                         WallClockMeasurement(),
                     ],
                 )
