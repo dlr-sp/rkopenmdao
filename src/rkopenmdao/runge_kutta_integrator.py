@@ -6,7 +6,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from copy import deepcopy
 
-
 import numpy as np
 import openmdao.api as om
 from openmdao.vectors.vector import Vector as OMVector
@@ -192,31 +191,32 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
 
         self.options.declare(
             "compute_callbacks",
-            default=[IterationLogging("compute"), WallClockMeasurement()],
+            default=None,
             types=list,
-            desc="Callbacks used in the primal compute function.",
+            allow_none=True,
+            desc="Callbacks used in the primal compute function. By default (None), "
+            "has callbacks for iteration logging and wall clock measurement of single "
+            "iterations",
         )
 
         self.options.declare(
             "compute_jacvec_product_fwd_callbacks",
-            default=[
-                IterationLogging("compute_jacvec_product_fwd"),
-                WallClockMeasurement(),
-            ],
+            default=None,
             types=list,
+            allow_none=True,
             desc="Callbacks used in the forward mode of the compute_jacvec_product"
-            "function.",
+            "function. By default (None),has callbacks for iteration logging and wall "
+            "clock measurement of single iterations",
         )
 
         self.options.declare(
             "compute_jacvec_product_rev_callbacks",
-            default=[
-                IterationLogging("compute_jacvec_product_rev"),
-                WallClockMeasurement(),
-            ],
+            default=None,
             types=list,
+            allow_none=True,
             desc="Callbacks used in the reverse mode of the compute_jacvec_product"
-            "function.",
+            "function.By default (None),has callbacks for iteration logging and wall "
+            "clock measurement of single iterations",
         )
 
     @staticmethod
@@ -260,13 +260,30 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._setup_error_controller()
         self._setup_integration_states()
         self._setup_checkpointing()
-        self._compute_callbacks = self.options["compute_callbacks"]
-        self._compute_jacvec_product_fwd_callbacks = self.options[
-            "compute_jacvec_product_fwd_callbacks"
-        ]
-        self._compute_jacvec_product_rev_callbacks = self.options[
-            "compute_jacvec_product_rev_callbacks"
-        ]
+        for func_name, callback_option in [
+            ("compute", self.options["compute_callbacks"]),
+            (
+                "compute_jacvec_product_fwd",
+                self.options["compute_jacvec_product_fwd_callbacks"],
+            ),
+            (
+                "compute_jacvec_product_rev",
+                self.options["compute_jacvec_product_rev_callbacks"],
+            ),
+        ]:
+            if callback_option is not None:
+                setattr(self, f"_{func_name}_callbacks", callback_option)
+            elif self.comm.rank == 0:
+                setattr(
+                    self,
+                    f"_{func_name}_callbacks",
+                    [
+                        IterationLogging("compute"),
+                        WallClockMeasurement(),
+                    ],
+                )
+            else:
+                setattr(self, f"_{func_name}_callbacks", [])
         if self.comm.rank == 0:
             print("\n" + "=" * 34 + " setup ends " + "=" * 34 + "\n")
 
