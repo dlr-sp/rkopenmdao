@@ -196,7 +196,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             allow_none=True,
             desc="Callbacks used in the primal compute function. By default (None), "
             "has callbacks for iteration logging and wall clock measurement of single "
-            "iterations",
+            "iterations. For providing own versions, see the interface of"
+            "`Callback`.",
         )
 
         self.options.declare(
@@ -206,7 +207,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             allow_none=True,
             desc="Callbacks used in the forward mode of the compute_jacvec_product"
             "function. By default (None),has callbacks for iteration logging and wall "
-            "clock measurement of single iterations",
+            "clock measurement of single iterations. For providing own versions, see "
+            "the interface of `Callback`.",
         )
 
         self.options.declare(
@@ -216,7 +218,8 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             allow_none=True,
             desc="Callbacks used in the reverse mode of the compute_jacvec_product"
             "function.By default (None),has callbacks for iteration logging and wall "
-            "clock measurement of single iterations",
+            "clock measurement of single iterations. For providing own versions, see "
+            "the interface of `Callback`.",
         )
 
     @staticmethod
