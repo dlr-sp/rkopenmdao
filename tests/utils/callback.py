@@ -32,7 +32,7 @@ class TimeStepsLog(Callback):
         ode: DiscretizedODE,
         discretization_scheme: TimeDiscretizationSchemeInterface,
     ):
-        step_size = discretization_scheme.step_size
+        step_size = time_integration_state.step_size_history[0]
         print(f"Step size: {step_size}")
 
         # Save Step size in a file

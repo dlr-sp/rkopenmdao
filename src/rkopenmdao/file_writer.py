@@ -1,6 +1,6 @@
 """Defines interface for file writers, as well as the HDF5 file writer."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Tuple
 
 
@@ -43,7 +43,7 @@ class OpenMDAOHDF5Callback(Callback):
 
     filename: str
     write_out_period: int = 1
-    comm: Comm = COMM_WORLD
+    comm: Comm = field(default_factory=lambda: COMM_WORLD)
 
     def before_iteration(
         self,

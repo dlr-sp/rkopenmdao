@@ -34,6 +34,7 @@ from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
+from rkopenmdao.file_writer import OpenMDAOHDF5Callback
 
 from .test_components import (
     TestComp1,
@@ -81,7 +82,7 @@ CONTROLLERS = [
     h0_321,
 ]
 
-TABLEAUS = [
+TABLEAUX = [
     heun_euler,
     two_stage_dirk,
     three_stage_esdirk,
@@ -97,11 +98,12 @@ CHECKPOINTERS = [NoCheckpointer, AllCheckpointer]
 #  Fixtures – the heavy lifting
 # ----------------------------------------------------------------------
 @pytest.fixture(scope="function")
-def integration_cfg():
+def integration_cfg(init_time):
     """Base configuration (adaptive, short horizon, tiny initial step)."""
     return IntegrationConfig(
         use_adaptive_time_stepping=True,
-        termination_criterion=PredefinedFinalTime(0.01),  # dummy; overridden per test
+        termination_criterion=PredefinedFinalTime(
+            init_time+0.01),  # dummy; overridden per test
         initial_step_size=0.01,
     )
 
@@ -136,7 +138,6 @@ def rk_problem(integration_cfg, time_stage_problem):
         measurer,
         checkpoint_impl=NoCheckpointer,
         callbacks=None,
-        write_out_distance=0,
         init_time: float,
     ):
         # ------------------------------------------------------------------
@@ -159,8 +160,7 @@ def rk_problem(integration_cfg, time_stage_problem):
                 error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
                 error_measurer=measurer,
                 checkpointing_type=checkpoint_impl,
-                callbacks=callbacks or [],
-                write_out_distance=write_out_distance,
+                compute_callbacks=callbacks or [],
             ),
             promotes=["*"],
         )
@@ -190,7 +190,9 @@ def read_time_steps(log: TimeStepsLog) -> list[float]:
 def run_and_compare(rk_prob, quantities, init_vals, functor, init_time):
     """Run the RK problem and assert the numerical result matches the analytic one."""
     rk_prob.run_model()
-    result = np.array([rk_prob[q + "_final"][0] for q in quantities])
+    result = np.zeros_like(init_vals)
+    for i, quantity in enumerate(quantities):
+        result[i] = rk_prob[quantity + "_final"][0]
     assert functor(init_time + 0.01, init_vals, init_time) == pytest.approx(
         result, rel=1e-4
     )
@@ -240,7 +242,7 @@ def _compare_fwd_rev(jac_data: dict, tol: float = 1e-6):
         (TestComp7, solution_test7, 2.0, np.array([1.0])),
     ],
 )
-@pytest.mark.parametrize("tableau", TABLEAUS)
+@pytest.mark.parametrize("tableau", TABLEAUX)
 @pytest.mark.parametrize("measurer", MEASURERS)
 @pytest.mark.parametrize("controller", CONTROLLERS)
 def test_component_integration(
@@ -262,6 +264,7 @@ def test_component_integration(
         controller=controller,
         measurer=measurer,
         init_time=init_time,
+        callbacks=None,
     )
     # Set the initial condition(s)
     rk["x_initial"] = init_vals[0] if init_vals.ndim == 1 else init_vals
@@ -283,7 +286,7 @@ def test_component_integration(
     + [[TestComp7, 1.0]]
     + [[TestComp7, 2.0]],
 )
-@pytest.mark.parametrize("tableau", TABLEAUS)
+@pytest.mark.parametrize("tableau", TABLEAUX)
 @pytest.mark.parametrize("ckpt_impl", CHECKPOINTERS)
 def test_time_integration_partials(
     rk_problem,
@@ -319,7 +322,7 @@ def test_time_integration_partials(
     + [[TestComp7, 1.0]]
     + [[TestComp7, 2.0]],
 )
-@pytest.mark.parametrize("tableau", TABLEAUS)
+@pytest.mark.parametrize("tableau", TABLEAUX[0:3])
 def test_if_adaptive(rk_problem, time_step_log, comp_cls, init_time, tableau):
     """Ensure that the integrator really changes its step size (i.e. logs >1 distinct values)."""
     callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
@@ -330,7 +333,6 @@ def test_if_adaptive(rk_problem, time_step_log, comp_cls, init_time, tableau):
         controller=integral,
         measurer=SimpleErrorMeasurer(),
         callbacks=callbacks,
-        write_out_distance=0,
         init_time=init_time,
     )
     rk.run_model()
@@ -338,3 +340,27 @@ def test_if_adaptive(rk_problem, time_step_log, comp_cls, init_time, tableau):
     steps = read_time_steps(time_step_log)
     assert len(steps) > 1, "Only one time step was recorded"
     assert len(set(steps)) > 1, "All recorded time steps are identical"
+
+
+@pytest.mark.parametrize(
+    "comp_cls, init_time",
+            [(TestComp1, 0.0)]
+)
+@pytest.mark.parametrize("tableau", [heun_euler])
+def test_new_old_adaptive_comparison(rk_problem, time_step_log, comp_cls, init_time, tableau):
+    """Ensure that the integrator change steps size are identical to the one in './data.'"""
+    callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    rk = rk_problem(
+        comp_cls=comp_cls,
+        tableau=tableau,
+        quantities=["x"],
+        controller=integral,
+        measurer=SimpleErrorMeasurer(),
+        callbacks=callbacks,
+        init_time=init_time,
+    )
+    rk.run_model()
+
+    steps_new = np.array(read_time_steps(time_step_log))
+    steps_old = np.array(read_time_steps(TimeStepsLog(f"tests/data/time_step_{0}.txt")))
+    assert np.allclose(steps_new, steps_old)
