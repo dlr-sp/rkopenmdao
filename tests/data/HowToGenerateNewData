@@ -1,0 +1,10 @@
+For those who question file `time_step_0` was generated using `tests/utils/callback.py` with the following settings:
+    - `Test case`: `TestComp1`
+    - `Initial time`: `0.0`
+    - `End time`: `0.01`,
+    - `Initial step size`: `0.01`
+    - `initial value`: `1.0`
+    - `Butcher tableau`: `embedded_heun_euler`
+    - `Error controller`: `Integral`
+    - `Error controller Tolerance`: `1e-6`
+    - `Error measurer`: `SimpleErrorMeasurer`

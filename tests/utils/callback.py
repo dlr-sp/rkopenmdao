@@ -16,15 +16,6 @@ class TimeStepsLog(Callback):
 
     write_file: str = ""
 
-    def before_iteration(
-        self,
-        iteration: int,
-        time_integration_state: TimeIntegrationState,
-        ode: DiscretizedODE,
-        discretization_scheme: TimeDiscretizationSchemeInterface,
-    ):
-        """DOES NOTHING"""
-
     def after_iteration(
         self,
         iteration: int,

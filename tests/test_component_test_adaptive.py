@@ -1,4 +1,4 @@
-"""Compact tests for adaptive RK integration (originally test_adaptive_time_integration.py)."""
+"""Compact tests for adaptive RK integration."""
 
 from __future__ import annotations
 
@@ -55,9 +55,6 @@ from .test_components import (
 )
 from .utils.callback import TimeStepsLog
 
-# ----------------------------------------------------------------------
-#  Parameter collections (kept unchanged)
-# ----------------------------------------------------------------------
 COMPONENTS = [
     TestComp1,
     TestComp2,
@@ -94,16 +91,14 @@ MEASURERS = [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
 CHECKPOINTERS = [NoCheckpointer, AllCheckpointer]
 
 
-# ----------------------------------------------------------------------
-#  Fixtures – the heavy lifting
-# ----------------------------------------------------------------------
 @pytest.fixture(scope="function")
-def integration_cfg(init_time):
+def integration_cfg(component_case):
     """Base configuration (adaptive, short horizon, tiny initial step)."""
+    _, _, init_time, _ = component_case
     return IntegrationConfig(
         use_adaptive_time_stepping=True,
         termination_criterion=PredefinedFinalTime(
-            init_time+0.01),  # dummy; overridden per test
+            init_time+0.01),
         initial_step_size=0.01,
     )
 
@@ -140,14 +135,10 @@ def rk_problem(integration_cfg, time_stage_problem):
         callbacks=None,
         init_time: float,
     ):
-        # ------------------------------------------------------------------
         #  Build inner problem (time‑stage)
-        # ------------------------------------------------------------------
         inner = time_stage_problem(comp_cls)
 
-        # ------------------------------------------------------------------
         #  Build outer RK problem
-        # ------------------------------------------------------------------
         rk = om.Problem()
         rk.model.add_subsystem(
             "rk_integrator",
@@ -177,6 +168,27 @@ def time_step_log(tmp_path_factory):
     tmp_file = tmp_path_factory.mktemp("timesteps") / "steps.txt"
     return TimeStepsLog(str(tmp_file))
 
+@pytest.fixture(
+    params=[
+        (TestComp1, solution_test1, 0.0, np.array([1.0])),
+        (TestComp1, solution_test1, 1.0, np.array([1.0])),
+        (TestComp2, solution_test2, 0.0, np.array([1.0])),
+        (TestComp2, solution_test2, 1.0, np.array([1.0])),
+        (TestComp3, solution_test3, 0.0, np.array([1.0])),
+        (TestComp3, solution_test3, 1.0, np.array([1.0])),
+        (TestComp4, solution_test4, 0.0, np.array([[1.0, 1.0]])),
+        (TestComp4, solution_test4, 1.0, np.array([[1.0, 1.0]])),
+        (TestComp6, solution_test6, 0.0, np.array([1.0])),
+        (TestComp6, solution_test6, 1.0, np.array([1.0])),
+        (TestComp6a, solution_test6, 0.0, np.array([1.0])),
+        (TestComp6a, solution_test6, 1.0, np.array([1.0])),
+        (TestComp7, solution_test7, 1.0, np.array([1.0])),
+        (TestComp7, solution_test7, 2.0, np.array([1.0])),
+    ]
+)
+def component_case(request):
+    return request.param
+
 
 def read_time_steps(log: TimeStepsLog) -> list[float]:
     """Utility used by ``test_if_adaptive`` – returns a list of the first column."""
@@ -184,9 +196,7 @@ def read_time_steps(log: TimeStepsLog) -> list[float]:
         return [float(line.split()[0]) for line in f]
 
 
-# ----------------------------------------------------------------------
-#  Helper utilities (run → compare / run → check partials)
-# ----------------------------------------------------------------------
+
 def run_and_compare(rk_prob, quantities, init_vals, functor, init_time):
     """Run the RK problem and assert the numerical result matches the analytic one."""
     rk_prob.run_model()
@@ -217,46 +227,18 @@ def _compare_fwd_rev(jac_data: dict, tol: float = 1e-6):
         assert rev == pytest.approx(fwd, rel=tol, abs=tol)
 
 
-# ----------------------------------------------------------------------
-#  Parametrised test cases (compact!)
-# ----------------------------------------------------------------------
-# ------------------------------------------------------------------
-#  1  Component‑integration correctness
-# ------------------------------------------------------------------
-@pytest.mark.parametrize(
-    "comp_cls, functor, init_time, init_vals",
-    [
-        (TestComp1, solution_test1, 0.0, np.array([1.0])),
-        (TestComp1, solution_test1, 1.0, np.array([1.0])),
-        (TestComp2, solution_test2, 0.0, np.array([1.0])),
-        (TestComp2, solution_test2, 1.0, np.array([1.0])),
-        (TestComp3, solution_test3, 0.0, np.array([1.0])),
-        (TestComp3, solution_test3, 1.0, np.array([1.0])),
-        (TestComp4, solution_test4, 0.0, np.array([[1.0, 1.0]])),
-        (TestComp4, solution_test4, 1.0, np.array([[1.0, 1.0]])),
-        (TestComp6, solution_test6, 0.0, np.array([1.0])),
-        (TestComp6, solution_test6, 1.0, np.array([1.0])),
-        (TestComp6a, solution_test6, 0.0, np.array([1.0])),
-        (TestComp6a, solution_test6, 1.0, np.array([1.0])),
-        (TestComp7, solution_test7, 1.0, np.array([1.0])),
-        (TestComp7, solution_test7, 2.0, np.array([1.0])),
-    ],
-)
 @pytest.mark.parametrize("tableau", TABLEAUX)
 @pytest.mark.parametrize("measurer", MEASURERS)
 @pytest.mark.parametrize("controller", CONTROLLERS)
 def test_component_integration(
     rk_problem,
-    comp_cls,
-    functor,
-    init_time,
-    init_vals,
+    component_case,
     tableau,
     measurer,
     controller,
 ):
     """Validate that the adaptive RK integrator reproduces the known analytic solution."""
-    # Build a *single‑quantity* problem (the original tests always used ["x"])
+    comp_cls, functor, init_time, init_vals = component_case
     rk = rk_problem(
         comp_cls=comp_cls,
         tableau=tableau,
@@ -272,29 +254,15 @@ def test_component_integration(
     run_and_compare(rk, ["x"], init_vals, functor, init_time)
 
 
-# ------------------------------------------------------------------
-#  2  Partial‑derivative consistency (with/without checkpointing)
-# ------------------------------------------------------------------
-@pytest.mark.parametrize(
-    "comp_cls, init_time",
-    list(
-        product(
-            [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
-            [0.0, 1.0],
-        )
-    )
-    + [[TestComp7, 1.0]]
-    + [[TestComp7, 2.0]],
-)
 @pytest.mark.parametrize("tableau", TABLEAUX)
 @pytest.mark.parametrize("ckpt_impl", CHECKPOINTERS)
 def test_time_integration_partials(
     rk_problem,
-    comp_cls,
-    init_time,
+    component_case,
     tableau,
     ckpt_impl,
 ):
+    comp_cls, _, init_time, _ = component_case
     """Check that forward‑ and reverse‑mode Jacobians match (when checkpointing is available)."""
     rk = rk_problem(
         comp_cls=comp_cls,
@@ -308,24 +276,11 @@ def test_time_integration_partials(
     run_and_check_partials(rk, ckpt_impl)
 
 
-# ------------------------------------------------------------------
-#  3 Adaptive‑step logging sanity check
-# ------------------------------------------------------------------
-@pytest.mark.parametrize(
-    "comp_cls, init_time",
-    list(
-        product(
-            [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
-            [0.0, 1.0],
-        )
-    )
-    + [[TestComp7, 1.0]]
-    + [[TestComp7, 2.0]],
-)
 @pytest.mark.parametrize("tableau", TABLEAUX[0:3])
-def test_if_adaptive(rk_problem, time_step_log, comp_cls, init_time, tableau):
+def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
     """Ensure that the integrator really changes its step size (i.e. logs >1 distinct values)."""
     callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    comp_cls, _, init_time, _ = component_case
     rk = rk_problem(
         comp_cls=comp_cls,
         tableau=tableau,
@@ -342,22 +297,17 @@ def test_if_adaptive(rk_problem, time_step_log, comp_cls, init_time, tableau):
     assert len(set(steps)) > 1, "All recorded time steps are identical"
 
 
-@pytest.mark.parametrize(
-    "comp_cls, init_time",
-            [(TestComp1, 0.0)]
-)
-@pytest.mark.parametrize("tableau", [heun_euler])
-def test_new_old_adaptive_comparison(rk_problem, time_step_log, comp_cls, init_time, tableau):
+def test_new_old_adaptive_comparison(rk_problem, time_step_log):
     """Ensure that the integrator change steps size are identical to the one in './data.'"""
     callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
     rk = rk_problem(
-        comp_cls=comp_cls,
-        tableau=tableau,
+        comp_cls=TestComp1,
+        tableau=heun_euler,
         quantities=["x"],
         controller=integral,
         measurer=SimpleErrorMeasurer(),
         callbacks=callbacks,
-        init_time=init_time,
+        init_time=0.0,
     )
     rk.run_model()
 
