@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from rkopenmdao.callback import Callback
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
@@ -15,6 +16,10 @@ class TimeStepsLog(Callback):
     """
 
     write_file: str = ""
+
+    def __post_init__(self):
+        path = Path(self.write_file)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
     def after_iteration(
         self,
