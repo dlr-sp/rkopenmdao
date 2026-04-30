@@ -92,9 +92,12 @@ CHECKPOINTERS = [NoCheckpointer, AllCheckpointer]
 
 
 @pytest.fixture(scope="function")
-def integration_cfg(component_case):
+def integration_cfg(request):
     """Base configuration (adaptive, short horizon, tiny initial step)."""
-    _, _, init_time, _ = component_case
+    init_time = 0.0  # default
+
+    if "component_case" in request.fixturenames:
+        _, _, init_time, _ = request.getfixturevalue("component_case")
     return IntegrationConfig(
         use_adaptive_time_stepping=True,
         termination_criterion=PredefinedFinalTime(
@@ -192,6 +195,11 @@ def component_case(request):
 
 def read_time_steps(log: TimeStepsLog) -> list[float]:
     """Utility used by ``test_if_adaptive`` – returns a list of the first column."""
+    if MPI.COMM_WORLD.Get_size() > 1:
+        MPI.COMM_WORLD.Barrier()
+
+    assert Path(time_step_log.write_file).exists()
+
     with open(log.write_file, "r") as f:
         return [float(line.split()[0]) for line in f]
 
