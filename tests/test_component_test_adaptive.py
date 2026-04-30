@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from itertools import product
+from pathlib import Path
 
 import numpy as np
 import openmdao.api as om
@@ -198,7 +199,7 @@ def read_time_steps(log: TimeStepsLog) -> list[float]:
     if MPI.COMM_WORLD.Get_size() > 1:
         MPI.COMM_WORLD.Barrier()
 
-    assert Path(time_step_log.write_file).exists()
+    assert Path(log.write_file).exists()
 
     with open(log.write_file, "r") as f:
         return [float(line.split()[0]) for line in f]
