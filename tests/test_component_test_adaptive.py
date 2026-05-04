@@ -318,7 +318,7 @@ def test_new_old_adaptive_comparison(rk_problem, time_step_log):
         init_time=0.0,
     )
     rk.run_model()
-    if MPI.COMM_WORLD.Get_rank() == 0
+    if MPI.COMM_WORLD.Get_rank() == 0:
         steps_new = np.array(list(time_step_log.q))
         steps_old = np.array(read_time_steps(TimeStepsLogToFile(f"tests/data/time_step_{0}.txt")))
         assert np.allclose(steps_new, steps_old)
