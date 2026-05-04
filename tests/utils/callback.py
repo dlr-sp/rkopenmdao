@@ -1,3 +1,7 @@
+"""Callback utiliies for `test_component_test_adaptive.py`"""
+
+# pylint: disable=unnecessary-lambda
+
 from dataclasses import dataclass,field
 from pathlib import Path
 from collections import deque
@@ -8,6 +12,7 @@ from rkopenmdao.time_discretization.time_discretization_scheme_interface import 
     TimeDiscretizationSchemeInterface,
 )
 from rkopenmdao.time_integration_state import TimeIntegrationState
+
 
 @dataclass
 class TimeStepsLog(Callback):
@@ -31,7 +36,7 @@ class TimeStepsLog(Callback):
 @dataclass
 class TimeStepsLogToFile(Callback):
     """
-    Callback for saving and printing step sizes taken for each step of time integration.
+    Callback for saving into a file and printing step sizes taken for each step of time integration.
     """
 
     write_file: str = ""
@@ -49,6 +54,5 @@ class TimeStepsLogToFile(Callback):
     ):
         step_size = time_integration_state.step_size_history[0]
         print(f"Step size: {step_size}")
-        # Save Step size in a file
-        with open(self.write_file, "a") as file:
+        with open(self.write_file, "a", encoding='utf-8') as file:
             file.write(f"{step_size}\n")

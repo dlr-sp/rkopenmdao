@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from itertools import product
 from pathlib import Path
 
 import numpy as np
@@ -35,7 +34,6 @@ from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
-from rkopenmdao.file_writer import OpenMDAOHDF5Callback
 
 from .test_components import (
     TestComp1,
@@ -92,9 +90,11 @@ MEASURERS = [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
 CHECKPOINTERS = [NoCheckpointer, AllCheckpointer]
 
 
-@pytest.fixture(scope="function")
-def integration_cfg(request):
-    """Base configuration (adaptive, short horizon, tiny initial step)."""
+@pytest.fixture(name="integration_cfg", scope="function")
+def integration_cfg_fixture(request):
+    """
+    Base configuration (adaptive, short horizon, tiny initial step).
+    """
     init_time = 0.0  # default
 
     if "component_case" in request.fixturenames:
@@ -107,9 +107,11 @@ def integration_cfg(request):
     )
 
 
-@pytest.fixture
-def time_stage_problem():
-    """Factory that builds the “inner” problem holding the test component."""
+@pytest.fixture(name="time_stage_problem")
+def time_stage_problem_fixture():
+    """
+    Factory that builds the “inner” problem holding the test component.
+    """
 
     def _make(comp_cls):
         prob = om.Problem()
@@ -121,8 +123,8 @@ def time_stage_problem():
     return _make
 
 
-@pytest.fixture
-def rk_problem(integration_cfg, time_stage_problem):
+@pytest.fixture(name="rk_problem")
+def rk_problem_fixture(integration_cfg, time_stage_problem):
     """
     Factory that builds the outer RK problem.
     Parameters are supplied via ``indirect`` parametrisation.
@@ -166,12 +168,12 @@ def rk_problem(integration_cfg, time_stage_problem):
     return _make
 
 
-@pytest.fixture
-def time_step_log():
+@pytest.fixture(name="time_step_log")
+def time_step_log_fixture():
     """Create a fresh TimeStepsLog."""
     return TimeStepsLog()
 
-@pytest.fixture(
+@pytest.fixture(name="component_case",
     params=[
         (TestComp1, solution_test1, 0.0, np.array([1.0])),
         (TestComp1, solution_test1, 1.0, np.array([1.0])),
@@ -189,24 +191,28 @@ def time_step_log():
         (TestComp7, solution_test7, 2.0, np.array([1.0])),
     ]
 )
-def component_case(request):
+def component_case_fixture(request):
     return request.param
 
 
 def read_time_steps(log: TimeStepsLogToFile) -> list[float]:
-    """Utility used by ``test_if_adaptive`` – returns a list of the first column."""
+    """
+    Utility used by ``test_if_adaptive`` – returns a list of the first column.
+    """
     if MPI.COMM_WORLD.Get_size() > 1:
         MPI.COMM_WORLD.Barrier()
 
     assert Path(log.write_file).exists()
 
-    with open(log.write_file, "r") as f:
+    with open(log.write_file, "r", encoding='utf-8') as f:
         return [float(line.split()[0]) for line in f]
 
 
 
 def run_and_compare(rk_prob, quantities, init_vals, functor, init_time):
-    """Run the RK problem and assert the numerical result matches the analytic one."""
+    """
+    Run the RK problem and assert the numerical result matches the analytic one.
+    """
     rk_prob.run_model()
     result = np.zeros_like(init_vals)
     for i, quantity in enumerate(quantities):
@@ -217,7 +223,9 @@ def run_and_compare(rk_prob, quantities, init_vals, functor, init_time):
 
 
 def run_and_check_partials(rk_prob, checkpoint_impl):
-    """Run the RK problem and, depending on the checkpoint implementation, test partials."""
+    """
+    Run the RK problem and, depending on the checkpoint implementation, test partials.
+    """
     rk_prob.run_model()
     if checkpoint_impl is NoCheckpointer:
         with pytest.raises(NotImplementedError):
@@ -228,7 +236,9 @@ def run_and_check_partials(rk_prob, checkpoint_impl):
 
 
 def _compare_fwd_rev(jac_data: dict, tol: float = 1e-6):
-    """Utility used by ``run_and_check_partials`` – forward vs reverse Jacobians."""
+    """
+    Utility used by ``run_and_check_partials`` – forward vs reverse Jacobians.
+    """
     for pair in jac_data["rk_integrator"]:
         fwd = jac_data["rk_integrator"][pair]["J_fwd"]
         rev = jac_data["rk_integrator"][pair]["J_rev"]
@@ -245,7 +255,9 @@ def test_component_integration(
     measurer,
     controller,
 ):
-    """Validate that the adaptive RK integrator reproduces the known analytic solution."""
+    """
+    Validate that the adaptive RK integrator reproduces the known analytic solution.
+    """
     comp_cls, functor, init_time, init_vals = component_case
     rk = rk_problem(
         comp_cls=comp_cls,
@@ -270,8 +282,11 @@ def test_time_integration_partials(
     tableau,
     ckpt_impl,
 ):
+    """
+    Check that forward‑ and reverse‑mode Jacobians match
+    (when checkpointing is available).
+    """
     comp_cls, _, init_time, _ = component_case
-    """Check that forward‑ and reverse‑mode Jacobians match (when checkpointing is available)."""
     rk = rk_problem(
         comp_cls=comp_cls,
         tableau=tableau,
@@ -286,7 +301,10 @@ def test_time_integration_partials(
 
 @pytest.mark.parametrize("tableau", TABLEAUX[0:3])
 def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
-    """Ensure that the integrator really changes its step size (i.e. logs >1 distinct values)."""
+    """
+    Ensure that the integrator really changes its step size
+    (i.e. logs >1 distinct values).
+    """
     callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
     comp_cls, _, init_time, _ = component_case
     rk = rk_problem(
@@ -306,7 +324,9 @@ def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
 
 
 def test_new_old_adaptive_comparison(rk_problem, time_step_log):
-    """Ensure that the integrator change steps size are identical to the one in './data.'"""
+    """
+    Ensure that the integrator change steps size are identical to the one in './data.'
+    """
     callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
     rk = rk_problem(
         comp_cls=TestComp1,
