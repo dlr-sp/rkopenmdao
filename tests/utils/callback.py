@@ -17,7 +17,8 @@ from rkopenmdao.time_integration_state import TimeIntegrationState
 @dataclass
 class TimeStepsLog(Callback):
     """
-    Callback for saving and printing step sizes taken for each step of time integration.
+    Callback for saving and printing step sizes taken for each
+    step of time integration.
     """
 
     q:deque  = field(default_factory=lambda: deque())
@@ -36,7 +37,8 @@ class TimeStepsLog(Callback):
 @dataclass
 class TimeStepsLogToFile(Callback):
     """
-    Callback for saving into a file and printing step sizes taken for each step of time integration.
+    Callback for saving into a file and printing step sizes taken for
+    each step of time integration.
     """
 
     write_file: str = ""
