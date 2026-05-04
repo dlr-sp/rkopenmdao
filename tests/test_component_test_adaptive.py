@@ -54,7 +54,7 @@ from .test_components import (
     solution_test6,
     solution_test7,
 )
-from .utils.callback import TimeStepsLog
+from .utils.callback import TimeStepsLog,TimeStepsLogToFile
 
 COMPONENTS = [
     TestComp1,
@@ -167,10 +167,9 @@ def rk_problem(integration_cfg, time_stage_problem):
 
 
 @pytest.fixture
-def time_step_log(tmp_path_factory):
-    """Create a fresh TimeStepsLog that writes into a temporary file."""
-    tmp_file = tmp_path_factory.mktemp("timesteps") / "steps.txt"
-    return TimeStepsLog(str(tmp_file))
+def time_step_log():
+    """Create a fresh TimeStepsLog."""
+    return TimeStepsLog()
 
 @pytest.fixture(
     params=[
@@ -194,7 +193,7 @@ def component_case(request):
     return request.param
 
 
-def read_time_steps(log: TimeStepsLog) -> list[float]:
+def read_time_steps(log: TimeStepsLogToFile) -> list[float]:
     """Utility used by ``test_if_adaptive`` – returns a list of the first column."""
     if MPI.COMM_WORLD.Get_size() > 1:
         MPI.COMM_WORLD.Barrier()
@@ -300,10 +299,10 @@ def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
         init_time=init_time,
     )
     rk.run_model()
-
-    steps = read_time_steps(time_step_log)
-    assert len(steps) > 1, "Only one time step was recorded"
-    assert len(set(steps)) > 1, "All recorded time steps are identical"
+    if MPI.COMM_WORLD.Get_rank() == 0:
+        steps = list(time_step_log.q)
+        assert len(steps) > 1, "Only one time step was recorded"
+        assert len(set(steps)) > 1, "All recorded time steps are identical"
 
 
 def test_new_old_adaptive_comparison(rk_problem, time_step_log):
@@ -319,7 +318,7 @@ def test_new_old_adaptive_comparison(rk_problem, time_step_log):
         init_time=0.0,
     )
     rk.run_model()
-
-    steps_new = np.array(read_time_steps(time_step_log))
-    steps_old = np.array(read_time_steps(TimeStepsLog(f"tests/data/time_step_{0}.txt")))
-    assert np.allclose(steps_new, steps_old)
+    if MPI.COMM_WORLD.Get_rank() == 0
+        steps_new = np.array(list(time_step_log.q))
+        steps_old = np.array(read_time_steps(TimeStepsLogToFile(f"tests/data/time_step_{0}.txt")))
+        assert np.allclose(steps_new, steps_old)
