@@ -12,10 +12,18 @@ from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     embedded_second_order_two_stage_sdirk,
 )
-from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInterface
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
-from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
-from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+from rkopenmdao.checkpoint_interface.checkpointed_time_integration import (
+    CheckpointInterface,
+)
+from rkopenmdao.checkpoint_interface.no_checkpoint_time_integration import (
+    NoCheckpointer,
+)
+from rkopenmdao.checkpoint_interface.all_checkpoint_time_integration import (
+    AllCheckpointer,
+)
+from rkopenmdao.checkpoint_interface.pyrevolve_time_integration import (
+    PyrevolveTimeIntegration,
+)
 from rkopenmdao.components import ImplicitUnsteadyComponent
 from rkopenmdao.error_controllers import integral
 from rkopenmdao.integration_config import IntegrationConfig
@@ -375,7 +383,7 @@ def test_parallel_single_distributed_time_integration(
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
     "num_steps, checkpointing_implementation",
-    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveCheckpointer)],
+    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveTimeIntegration)],
 )
 def test_parallel_single_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation
@@ -502,7 +510,7 @@ def test_parallel_two_distributed_time_integration(
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
     "num_steps, checkpointing_implementation",
-    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveCheckpointer)],
+    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveTimeIntegration)],
 )
 def test_parallel_two_distributed_totals(
     num_steps, butcher_tableau, test_direction, checkpointing_implementation

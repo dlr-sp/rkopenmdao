@@ -12,10 +12,18 @@ from rkopenmdao.butcher_tableaux import (
 )
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.components import ExplicitUnsteadyComponent
-from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInterface
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
-from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
-from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+from rkopenmdao.checkpoint_interface.checkpointed_time_integration import (
+    CheckpointInterface,
+)
+from rkopenmdao.checkpoint_interface.no_checkpoint_time_integration import (
+    NoCheckpointer,
+)
+from rkopenmdao.checkpoint_interface.all_checkpoint_time_integration import (
+    AllCheckpointer,
+)
+from rkopenmdao.checkpoint_interface.pyrevolve_time_integration import (
+    PyrevolveTimeIntegration,
+)
 from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
 
@@ -516,7 +524,7 @@ def test_parallel_group_time_integration(
 @pytest.mark.parametrize("test_direction", ["fwd", "rev"])
 @pytest.mark.parametrize(
     "num_steps, checkpointing_implementation",
-    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveCheckpointer)],
+    [(1, AllCheckpointer), (10, AllCheckpointer), (10, PyrevolveTimeIntegration)],
 )
 def test_parallel_group_time_integration_totals(
     num_steps: int,

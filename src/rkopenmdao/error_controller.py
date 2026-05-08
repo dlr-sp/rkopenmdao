@@ -48,7 +48,7 @@ class ErrorControllerConfig:
     tol: float = 1e-6
     lower_bound: float = 0
     upper_bound: float = np.inf
-    safety_factor: float = 0.95
+    safety_factor: float = 0.8
     max_iter: int = 5
 
 
@@ -194,15 +194,17 @@ class ErrorController:
             )
         else:
             new_delta_t = delta_t
-            warnings.warn(
-                """Current error norm is 0, can't estimate new step size
-                and using old one."""
-            )
+            warnings.warn("""Current error norm is 0, can't estimate new step size
+                and using old one.""")
 
         new_delta_t = max(
             self.config.lower_bound, min(self.config.upper_bound, new_delta_t)
         )
-        new_delta_t = min(remaining_time + (1 - success) * delta_t, new_delta_t)
+        new_delta_t = min(remaining_time, new_delta_t)
+        # The error controller won't generate anything lower than that by itself
+        # so we might as well accept it at that point.
+        if new_delta_t < self.config.lower_bound:
+            success = True
         return ErrorControllerStatus(new_delta_t, success)
 
     def _estimate_next_step_function(

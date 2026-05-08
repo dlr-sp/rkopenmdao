@@ -3,38 +3,19 @@
 # pylint: disable=protected-access
 
 from __future__ import annotations
-from collections.abc import Callable
-from copy import deepcopy
 
 import numpy as np
-import openmdao.api as om
-from openmdao.vectors.vector import Vector as OMVector
+from openmdao.vectors.vector import Vector
+from rkopenmdao.metadata_extractor import TimeIntegrationMetadata
+from rkopenmdao.openmdao_time_integration_wrapper import OpenMDAOTimeIntegrationWrapper
 
-from rkopenmdao.callback import Callback, IterationLogging, WallClockMeasurement
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
-from rkopenmdao.error_measurer import ErrorMeasurer, SimpleErrorMeasurer
-from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization import (
-    StageOrderedRungeKuttaDiscretization,
-    StageOrderedEmbeddedRungeKuttaDiscretization,
-)
-from rkopenmdao.time_discretization.runge_kutta_discretization_state import (
-    RungeKuttaDiscretizationState,
-    EmbeddedRungeKuttaDiscretizationState,
-)
-from rkopenmdao.time_integration_state import TimeIntegrationState
-from rkopenmdao.butcher_tableau import ButcherTableau
+from rkopenmdao.states import FinalizationValues, StartingValues
+from rkopenmdao.time_integration_interface import TimeIntegrationInterface
+
 from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
 
-# from .integration_control import IntegrationControl
-from rkopenmdao.error_controller import ErrorController
-from rkopenmdao.error_controllers import integral
-from rkopenmdao.checkpoint_interface.checkpoint_interface import CheckpointInterface
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 
-from rkopenmdao.integration_config import IntegrationConfig
-
-
-class RungeKuttaIntegrator(om.ExplicitComponent):
+class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
     """Outer component for solving time-dependent problems with explicit or diagonally
     implicit Runge-Kutta schemes. One stage of the scheme is modelled by an inner
     OpenMDAO-problem.
@@ -43,273 +24,38 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
     OpenMDAO output: - final values of the quantities for the time integration
     """
 
-    _of_vars: list
-    _wrt_vars: list
-
-    _ode: OpenMDAOODE | None
-
-    _runge_kutta_discretization: StageOrderedRungeKuttaDiscretization | None
-    _time_integration_state: TimeIntegrationState | None
-    _time_integration_state_perturbations: TimeIntegrationState | None
-
-    _cached_input: RungeKuttaDiscretizationState | None
-
-    _integration_config: IntegrationConfig | None
-    _remaining_time_func: Callable[[float], float] | None
-
-    _error_controller: ErrorController | None
-    _error_measurer: ErrorMeasurer | None
-
-    _checkpointer: CheckpointInterface | None
-
-    _compute_callbacks: list[Callback]
-    _compute_jacvec_product_fwd_callbacks: list[Callback]
-    _compute_jacvec_product_rev_callbacks: list[Callback]
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self._of_vars = []
-        self._wrt_vars = []
-
-        self._ode = None
-        self._runge_kutta_discretization = None
-        self._time_integration_state = None
-        self._time_integration_state_perturbations = None
-
-        self._cached_input = None
-
-        self._integration_config = None
-        self._remaining_time_func = None
-
-        self._error_controller = None
-        self._error_measurer = None
-
-        self._checkpointer = None
-
     def initialize(self):
         self.options.declare(
-            "time_stage_problem",
-            types=om.Problem,
-            desc="""openMDAO problem used to model one Runge-Kutta stage. All variables
-            relevant to the time-integration need to have two tags. One to declare to
-            which quantity the variable belongs, and a second to differentiate between
-            their roles in the time integration. For inputs, there is the tag
-            'step_input_var' specifying the state at the start of the time step, and
-            there is the tag 'accumulated_stage_var' used for specifying a variable that
-            contains the weighted sum (according to the butcher matrix) of the stage
-            updates up to the previous stage. For outputs, there is only the tag
-            'stage_output_var', which marks the variable whose value is used at the end
-            of the time step to calculate the new state. Per quantity, there needs to be
-            either three variables which cover all of the time integration tags, or just
-            one output variable with the 'stage_output_var' tag (this should be used for
-            quantities that only depend on time and the state of other quantities,
-            but not its own previous state).""",
-        )
-        self.options.declare(
-            "butcher_tableau",
-            types=ButcherTableau,
-            desc="""The butcher tableau for the RK-scheme. Needs to be explicit or
-            diagonally implicit (i.e all zeros in the upper triangle of the butcher
-            matrix).""",
-        )
-        self.options.declare(
-            "integration_config",
-            types=IntegrationConfig,
-            desc="""Configuration options for the checkpointed time integration.""",
-        )
-
-        self.options.declare(
-            "time_integration_quantities",
-            types=list,
-            desc="""List of tags used to describe the quantities that are time
-            integrated by the RK integrator. These tags fulfil multiple roles, and need
-            to be set at different points in the inner problems:
-                1. Based on these tags, inputs and outputs are added to the
-                RungeKuttaIntegrator. Per tag there will be *tag*_initial as input and
-                *tag*_final as output.
-                2. Inputs and outputs with these tags need to be present in the
-                time_stage_problem. In detail, per tag there need to be either both
-                inputs tagged with [*tag*,"step_input_var", ...] and 
-                [*tag*, "accumulated_stage_var", ...] as well as an output with
-                [*tag*, "stage_output_var", ...], or just an output with 
-                [*tag*, "stage_output_var"] (in case where there is no dependence on
-                the previous state of the quantity in the ODE).
-                """,
-        )
-        self.options.declare(
-            "time_independent_input_quantities",
-            types=list,
-            default=[],
-            desc="""List of tags used to describe quantities of independent inputs in
-            the time_stage_problem. These tags fulfil the following roles:
-                1. Based on these tags, an input will be added to the
-                RungeKuttaIntegrator. Per tag there will be the input *tag*.
-                2. Inputs with these tags need to be present in the time_stage_problem.
-                In detail, per tag there needs to be exactly one input tagged with
-                [*tag*, 'time_independent_input_var'].
-                """,
-        )
-        self.options.declare(
-            "checkpointing_type",
+            "time_integrator",
+            types=TimeIntegrationInterface,
             check_valid=self.check_checkpointing_type,
-            default=NoCheckpointer,
-            desc="""Type of checkpointing used. Must be a subclass of
-            CheckpointInterface""",
-        )
-
-        self.options.declare(
-            "checkpoint_options",
-            types=dict,
-            default={},
-            desc="""Additional options passed to the checkpointer. Valid options depend
-            on the used checkpointing_type""",
-        )
-
-        self.options.declare(
-            "error_controller",
-            default=[integral],
-            check_valid=self.check_error_controller,
-            desc="""List of Error controllers for adaptive time stepping of
-            the Runge-Kutta Scheme, where the first is the outer most controller
-            and the other decorate on it.""",
-        )
-
-        self.options.declare(
-            "error_controller_options",
-            types=dict,
-            default={},
-            desc="""Options for the error controller class. Valid options depend of
-            the error controller type.""",
-        )
-
-        self.options.declare(
-            "error_measurer",
-            default=SimpleErrorMeasurer(),
-            types=ErrorMeasurer,
-            desc="""ErrorMeasurer used for error control.""",
-        )
-
-        self.options.declare(
-            "compute_callbacks",
-            default=None,
-            types=list,
-            allow_none=True,
-            desc="Callbacks used in the primal compute function. By default (None), "
-            "has callbacks for iteration logging and wall clock measurement of single "
-            "iterations. For providing own versions, see the interface of"
-            "`Callback`.",
-        )
-
-        self.options.declare(
-            "compute_jacvec_product_fwd_callbacks",
-            default=None,
-            types=list,
-            allow_none=True,
-            desc="Callbacks used in the forward mode of the compute_jacvec_product"
-            "function. By default (None), has callbacks for iteration logging and wall"
-            " clock measurement of single iterations. For providing own versions, see "
-            "the interface of `Callback`.",
-        )
-
-        self.options.declare(
-            "compute_jacvec_product_rev_callbacks",
-            default=None,
-            types=list,
-            allow_none=True,
-            desc="Callbacks used in the reverse mode of the compute_jacvec_product"
-            "function.By default (None), has callbacks for iteration logging and wall"
-            " clock measurement of single iterations. For providing own versions, see "
-            "the interface of `Callback`.",
         )
 
     @staticmethod
-    def check_checkpointing_type(name, value):
-        """Checks whether the passed checkpointing type for the options is an actual
-        subclass of CheckpointInterface"""
-        # pylint: disable=unused-argument
-        # OpenMDAO needs that specific interface, even if we don't need it fully.
-        if not issubclass(value, CheckpointInterface):
-            raise TypeError(f"{value} is not a subclass of CheckpointInterface")
-
-    @staticmethod
-    def check_error_controller(name, value):
-        """Checks whether the passed error_controller type for the options is an actual
-        a callable and has the right parameters"""
-        # pylint: disable=unused-argument
-        # OpenMDAO needs that specific interface, even if we don't need it fully.
-        for method in value:
-            if not callable(method):
-                raise TypeError(f"{method} is not a callable.")
-            temp = method(p=1)
-            if not isinstance(temp, ErrorController):
-                raise TypeError(
-                    f"{method} does not instantiate an instance of ErrorController"
-                )
+    def check_checkpointing_type(name: str, value: TimeIntegrationInterface):
+        if hasattr(value, "ode"):
+            if isinstance(value.ode, OpenMDAOODE):
+                return
+        raise ValueError(
+            f"Option {name} needs an attribute ode which must be of type OpenMDAOODE."
+        )
 
     def setup(self):
-        if self.comm.rank == 0:
-            print("\n" + "=" * 33 + " setup starts " + "=" * 33 + "\n")
-        self._integration_config = self.options["integration_config"]
-        if hasattr(self._integration_config.termination_criterion, "remaining_time"):
-            self._remaining_time_func = (
-                self._integration_config.termination_criterion.remaining_time
-            )
-        else:
-            self._remaining_time_func = lambda x: np.inf
-        self._setup_ode()
-        self._setup_wrt_and_of_vars()
+        self._time_integrator = self.options["time_integrator"]
         self._add_inputs_and_outputs()
-        self._setup_runge_kutta_discretization()
-        self._setup_error_controller()
-        self._setup_integration_states()
-        self._setup_checkpointing()
-        for func_name, callback_option in [
-            ("compute", self.options["compute_callbacks"]),
-            (
-                "compute_jacvec_product_fwd",
-                self.options["compute_jacvec_product_fwd_callbacks"],
-            ),
-            (
-                "compute_jacvec_product_rev",
-                self.options["compute_jacvec_product_rev_callbacks"],
-            ),
-        ]:
-            if callback_option is not None:
-                setattr(self, f"_{func_name}_callbacks", callback_option)
-            elif self.comm.rank == 0:
-                setattr(
-                    self,
-                    f"_{func_name}_callbacks",
-                    [
-                        IterationLogging(func_name),
-                        WallClockMeasurement(),
-                    ],
-                )
-            else:
-                setattr(self, f"_{func_name}_callbacks", [])
-        if self.comm.rank == 0:
-            print("\n" + "=" * 34 + " setup ends " + "=" * 34 + "\n")
-
-    def _setup_ode(self):
-        self.options["time_stage_problem"].setup()
-        self.options["time_stage_problem"].final_setup()
-        self._ode = OpenMDAOODE(
-            self.options["time_stage_problem"],
-            self.options["time_integration_quantities"],
-            self.options["time_independent_input_quantities"],
-        )
 
     def _add_inputs_and_outputs(self):
         self._add_time_integration_inputs_and_outputs()
         self._add_time_independent_inputs()
 
     def _add_time_integration_inputs_and_outputs(self):
-        time_stage_problem: om.Problem = self.options["time_stage_problem"]
         self.add_input("time_initial", shape=1, val=0.0)
         self.add_output("time_final", shape=1)
         for (
             quantity
-        ) in self._ode.time_integration_metadata.time_integration_quantity_list:
+        ) in (
+            self._time_integrator.ode.time_integration_metadata.time_integration_quantity_list
+        ):
             if quantity.array_metadata.local:
                 self.add_input(
                     quantity.name + "_initial",
@@ -318,7 +64,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
                         # Arrays of size 0 tend to have the wrong shape when aquired
                         # from OpenMDAO, making a manual reshape necessary in that
                         # case.
-                        time_stage_problem.get_val(
+                        self._time_integrator.ode.time_stage_problem.get_val(
                             quantity.translation_metadata.step_input_var,
                         ).reshape(quantity.array_metadata.shape)
                         if quantity.translation_metadata.step_input_var is not None
@@ -339,537 +85,104 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
 
     def _add_time_independent_inputs(self):
-        time_stage_problem: om.Problem = self.options["time_stage_problem"]
         for (
             quantity
-        ) in self._ode.time_integration_metadata.time_independent_input_quantity_list:
+        ) in (
+            self._time_integrator.ode.time_integration_metadata.time_independent_input_quantity_list
+        ):
             self.add_input(
                 quantity.name,
                 shape=quantity.array_metadata.shape,
-                val=time_stage_problem.get_val(
+                val=self._time_integrator.ode.time_stage_problem.get_val(
                     quantity.translation_metadata.time_independent_input_var
                 ),
                 distributed=quantity.array_metadata.distributed,
             )
 
-    def _setup_wrt_and_of_vars(self):
-        self._add_time_integration_derivative_info()
-        self._add_time_independent_variable_derivative_info()
-
-    def _add_time_integration_derivative_info(self):
-        for (
-            quantity
-        ) in self._ode.time_integration_metadata.time_integration_quantity_list:
-            self._of_vars.append(quantity.translation_metadata.stage_output_var)
-            if quantity.translation_metadata.step_input_var is not None:
-                self._wrt_vars.append(quantity.translation_metadata.step_input_var)
-                self._wrt_vars.append(
-                    quantity.translation_metadata.accumulated_stage_var
-                )
-
-    def _add_time_independent_variable_derivative_info(self):
-        for (
-            quantity
-        ) in self._ode.time_integration_metadata.time_independent_input_quantity_list:
-            self._wrt_vars.append(
-                quantity.translation_metadata.time_independent_input_var
-            )
-
-    def _setup_runge_kutta_discretization(self):
-        butcher_tableau: ButcherTableau = self.options["butcher_tableau"]
-        if butcher_tableau.is_embedded:
-            self._runge_kutta_discretization = (
-                StageOrderedEmbeddedRungeKuttaDiscretization(butcher_tableau)
-            )
-        else:
-            self._runge_kutta_discretization = StageOrderedRungeKuttaDiscretization(
-                butcher_tableau,
-            )
-        if self.comm.rank == 0:
-            print(f"\n{self._runge_kutta_discretization.butcher_tableau}\n")
-
-    def _setup_error_controller(self):
-        self._error_measurer = self.options["error_measurer"]
-        p = self.options["butcher_tableau"].min_p_order()
-        self._error_controller = None
-        # Sets initial delta_t to be at boundary if given wrongly by mistake
-        for controller in self.options["error_controller"]:
-            self._error_controller = controller(
-                p=p,
-                **self.options["error_controller_options"],
-                base=self._error_controller,
-            )
-        if self.comm.rank == 0:
-            print(f"\n{self._error_controller}")
-
-    def _setup_integration_states(self):
-        self._time_integration_state = TimeIntegrationState(
-            self._runge_kutta_discretization.create_empty_discretization_state(
-                self._ode
+    def _get_starting_values_from_inputs(self, inputs):
+        time_integration_metadata: TimeIntegrationMetadata = (
+            self._time_integrator._ode.time_integration_metadata
+        )
+        starting_values = StartingValues(
+            initial_time=inputs["time_initial"],
+            initial_values=np.zeros(
+                time_integration_metadata.time_integration_array_size
             ),
-            np.array([self._integration_config.initial_step_size]),
-            # FIXME: The error controller should report how far back time steps and
-            # error estimates need to be provided, currently this is hardcoded to two
-            # for both.
-            np.zeros(2),
-            np.full(2, self._error_controller.config.tol),
-        )
-        self._time_integration_state_perturbations = TimeIntegrationState(
-            self._runge_kutta_discretization.create_empty_discretization_state(
-                self._ode
+            independent_inputs=np.zeros(
+                time_integration_metadata.time_independent_input_size
             ),
-            np.zeros(0),
-            np.zeros(0),  #  Currently don't need histories in derivative values
-            np.zeros(0),
         )
+        for quantity in time_integration_metadata.time_integration_quantity_list:
+            starting_values.initial_values[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ] = inputs[quantity.name + "_initial"].flatten()
+        for quantity in time_integration_metadata.time_independent_input_quantity_list:
+            starting_values.independent_inputs[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ] = inputs[quantity.name].flatten()
 
-    def _setup_checkpointing(self):
-        self._checkpointer = self.options["checkpointing_type"](
-            termination_criterion=self._integration_config.termination_criterion,
-            run_step_func=self._run_step,
-            run_step_jacvec_rev_func=self._run_step_jacvec_rev,
-            state=self._time_integration_state,
-            state_perturbation=self._time_integration_state_perturbations,
-            **self.options["checkpoint_options"],
+        return starting_values
+
+    def _get_inputs_from_starting_values(self, starting_values, inputs: Vector):
+        time_integration_metadata: TimeIntegrationMetadata = (
+            self._time_integrator._ode.time_integration_metadata
         )
+        inputs["time_initial"][0] = starting_values.initial_time
+        for quantity in time_integration_metadata.time_integration_quantity_list:
+            inputs[quantity.name + "_initial"] = starting_values.initial_values[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ].reshape(quantity.array_metadata.shape)
+        for quantity in time_integration_metadata.time_independent_input_quantity_list:
+            inputs[quantity.name] = starting_values.independent_inputs[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ].reshape(quantity.array_metadata.shape)
 
-    def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
-        if self.comm.rank == 0:
-            print("\n" + "=" * 32 + " compute starts " + "=" * 32 + "\n\n")
-        self._compute_preparation_phase(inputs, self._time_integration_state)
-        self._checkpointer.create_checkpointer()
-        self._time_integration_state.set(
-            self._checkpointer.iterate_forward(self._time_integration_state)
+    def _add_starting_values_to_inputs(self, starting_values, inputs):
+        time_integration_metadata: TimeIntegrationMetadata = (
+            self._time_integrator._ode.time_integration_metadata
         )
-        self._from_numpy_array_time_integration(
-            self._time_integration_state.discretization_state.final_state, outputs
+        inputs["time_initial"][0] += starting_values.initial_time
+        for quantity in time_integration_metadata.time_integration_quantity_list:
+            inputs[quantity.name + "_initial"] += starting_values.initial_values[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ].reshape(quantity.array_metadata.shape)
+        for quantity in time_integration_metadata.time_independent_input_quantity_list:
+            inputs[quantity.name] += starting_values.independent_inputs[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ].reshape(quantity.array_metadata.shape)
+
+    def _get_finalization_values_from_outputs(self, outputs):
+        time_integration_metadata: TimeIntegrationMetadata = (
+            self._time_integrator._ode.time_integration_metadata
         )
-        outputs["time_final"] = (
-            self._time_integration_state.discretization_state.final_time[0]
-        )
-        if self.comm.rank == 0:
-            print("\n" + "=" * 33 + " compute ends " + "=" * 33 + "\n")
-
-    def _compute_preparation_phase(
-        self, inputs: OMVector, integration_state: TimeIntegrationState
-    ):
-        self._to_numpy_array_time_integration(
-            inputs, integration_state.discretization_state.final_state
-        )
-        self._to_numpy_array_independent_inputs(
-            inputs, integration_state.discretization_state.independent_inputs
-        )
-        integration_state.discretization_state.final_time[0] = inputs["time_initial"][0]
-        self._cached_input = deepcopy(integration_state.discretization_state)
-
-        self._reset_error_control(integration_state)
-        integration_state.discretization_state.linearization_points.fill(0.0)
-
-    def _to_numpy_array_time_integration(
-        self, om_vector: OMVector, np_array: np.ndarray
-    ):
-        if om_vector._kind == "input":
-            name_suffix = "_initial"
-        else:
-            name_suffix = "_final"
-        for (
-            quantity
-        ) in self._ode.time_integration_metadata.time_integration_quantity_list:
-            start = quantity.array_metadata.start_index
-            end = quantity.array_metadata.end_index
-            np_array[start:end] = om_vector[quantity.name + name_suffix].flatten()
-
-    def _to_numpy_array_independent_inputs(
-        self, om_vector: OMVector, np_array: np.ndarray
-    ):
-        if om_vector._kind != "input":
-            raise TypeError(
-                "Can't extract independent input data from an output vector"
-            )
-        else:
-            for (
-                quantity
-            ) in (
-                self._ode.time_integration_metadata.time_independent_input_quantity_list
-            ):
-                start = quantity.array_metadata.start_index
-                end = quantity.array_metadata.end_index
-                np_array[start:end] = om_vector[quantity.name].flatten()
-
-    def _from_numpy_array_time_integration(
-        self, np_array: np.ndarray, om_vector: OMVector
-    ):
-        if om_vector._kind == "input":
-            name_suffix = "_initial"
-        else:
-            name_suffix = "_final"
-        for (
-            quantity
-        ) in self._ode.time_integration_metadata.time_integration_quantity_list:
-            start = quantity.array_metadata.start_index
-            end = quantity.array_metadata.end_index
-            om_vector[quantity.name + name_suffix] = np_array[start:end].reshape(
-                quantity.array_metadata.shape
-            )
-
-    def _from_numpy_array_independent_input(
-        self, np_array: np.ndarray, om_vector: OMVector
-    ):
-        if om_vector._kind != "input":
-            raise TypeError("Can't export independent input data to an output vector")
-        else:
-            for (
-                quantity
-            ) in (
-                self._ode.time_integration_metadata.time_independent_input_quantity_list
-            ):
-                start = quantity.array_metadata.start_index
-                end = quantity.array_metadata.end_index
-                om_vector[quantity.name] = np_array[start:end].reshape(
-                    quantity.array_metadata.shape
-                )
-
-    def _run_step(
-        self, step: int, time_integration_state: TimeIntegrationState
-    ) -> TimeIntegrationState:
-        for callback in self._compute_callbacks:
-            callback.before_iteration(
-                step,
-                time_integration_state,
-                self._ode,
-                self._runge_kutta_discretization,
-            )
-        time_integration_state.set(self._iterate_on_step(time_integration_state))
-        for callback in self._compute_callbacks:
-            callback.after_iteration(
-                step,
-                time_integration_state,
-                self._ode,
-                self._runge_kutta_discretization,
-            )
-        return time_integration_state
-
-    def _reset_error_control(self, integration_state: TimeIntegrationState):
-        integration_state.step_size_history.fill(0.0)
-        integration_state.error_history.fill(self._error_controller.config.tol)
-        integration_state.step_size_suggestion[0] = (
-            self._integration_config.initial_step_size
-        )
-
-    def _iterate_on_step(
-        self, time_integration_state: TimeIntegrationState, i: int = 0
-    ):
-        """Iterates on the a step until a time step that
-        complies with the norm's tolerance"""
-        if self._integration_config.use_adaptive_time_stepping:
-            if self.comm.rank == 0:
-                print(
-                    f"Start Iteration {i}: Trying with "
-                    f"{time_integration_state.step_size_suggestion[0]}"
-                )
-        temp_discretization_state = deepcopy(
-            time_integration_state.discretization_state
-        )
-        temp_discretization_state = self._runge_kutta_discretization.compute_step(
-            self._ode,
-            temp_discretization_state,
-            time_integration_state.step_size_suggestion[0],
-        )
-        if self._integration_config.use_adaptive_time_stepping:
-            error_measure = self._get_error_measure(temp_discretization_state)
-
-            remaining_time = self._remaining_time_func(
-                temp_discretization_state.final_time
-            )
-
-            error_controller_status = self._error_controller(
-                error_measure,
-                time_integration_state.step_size_suggestion[0],
-                remaining_time,
-                time_integration_state.error_history,
-                time_integration_state.step_size_history,
-            )
-            if self.comm.rank == 0:
-                nl = "\n"
-                print(
-                    f"""End Iteration {i}: {
-                    time_integration_state.step_size_suggestion[0]} {f'succeeded. {nl}'
-                    'Estimation for next step is:' 
-                    if error_controller_status.acceptance else f'failed. {nl}' 
-                    'retrying with:'
-                    } {error_controller_status.step_size_suggestion}
-                    """
-                )
-            if error_controller_status.acceptance:
-                new_step_size_history = np.roll(
-                    time_integration_state.step_size_history, 1
-                )
-                new_step_size_history[0] = time_integration_state.step_size_suggestion[
-                    0
-                ]
-                new_error_history = np.roll(time_integration_state.error_history, 1)
-                new_error_history[0] = error_measure
-                time_integration_state.discretization_state.set(
-                    temp_discretization_state
-                )
-                time_integration_state.step_size_suggestion[0] = (
-                    error_controller_status.step_size_suggestion
-                )
-                time_integration_state.step_size_history[:] = new_step_size_history
-                time_integration_state.error_history[:] = new_error_history
-            else:
-                time_integration_state.step_size_suggestion[0] = (
-                    error_controller_status.step_size_suggestion
-                )
-                time_integration_state.set(
-                    self._iterate_on_step(
-                        time_integration_state,
-                        i + 1,
-                    )
-                )
-
-        else:
-            time_integration_state.discretization_state.set(temp_discretization_state)
-            np.roll(time_integration_state.step_size_history, 1)
-            time_integration_state.step_size_history[0] = (
-                time_integration_state.step_size_suggestion[0]
-            )
-        return time_integration_state
-
-    def _get_error_measure(
-        self, discretization_state: EmbeddedRungeKuttaDiscretizationState
-    ):
-        state_error_estimate = DiscretizedODEResultState(
-            np.zeros(0), discretization_state.error_estimate, np.zeros(0)
-        )
-        state = DiscretizedODEResultState(
-            np.zeros(0), discretization_state.final_state, np.zeros(0)
-        )
-        return self._error_measurer.get_measure(state_error_estimate, state, self._ode)
-
-    def compute_jacvec_product(
-        self, inputs, d_inputs, d_outputs, mode, discrete_inputs=None
-    ):  # pylint: disable = arguments-differ
-        if mode == "fwd":
-            self._compute_jacvec_product_fwd(inputs, d_inputs, d_outputs)
-        elif mode == "rev":
-            self._compute_jacvec_product_rev(inputs, d_inputs, d_outputs)
-
-    def _compute_jacvec_product_fwd(self, inputs, d_inputs, d_outputs):
-        if self.comm.rank == 0:
-            print(
-                "\n" + "=" * 24 + " fwd-mode jacvec product starts " + "=" * 24 + "\n\n"
-            )
-        self._compute_jacvec_fwd_preparation_phase(
-            inputs,
-            d_inputs,
-            self._time_integration_state,
-            self._time_integration_state_perturbations,
-        )
-        self._time_integration_state_perturbations.set(
-            self._compute_jacvec_fwd_run_steps(
-                self._time_integration_state, self._time_integration_state_perturbations
-            )
-        )
-        self._from_numpy_array_time_integration(
-            self._time_integration_state_perturbations.discretization_state.final_state,
-            d_outputs,
-        )
-        d_outputs[
-            "time_final"
-        ] += self._time_integration_state_perturbations.discretization_state.final_time[
-            0
-        ]
-        if self.comm.rank == 0:
-            print(
-                "\n\n" + "=" * 25 + " fwd-mode jacvec product ends " + "=" * 25 + "\n"
-            )
-
-    def _compute_jacvec_fwd_preparation_phase(
-        self,
-        inputs: OMVector,
-        d_inputs: OMVector,
-        integration_state: TimeIntegrationState,
-        integration_state_perturbations: TimeIntegrationState,
-    ):
-        self._to_numpy_array_time_integration(
-            inputs, integration_state.discretization_state.final_state
-        )
-        self._to_numpy_array_time_integration(
-            d_inputs, integration_state_perturbations.discretization_state.final_state
-        )
-        self._to_numpy_array_independent_inputs(
-            inputs, integration_state.discretization_state.independent_inputs
-        )
-        self._to_numpy_array_independent_inputs(
-            d_inputs,
-            integration_state_perturbations.discretization_state.independent_inputs,
-        )
-        integration_state.discretization_state.final_time[0] = inputs["time_initial"][0]
-        integration_state_perturbations.discretization_state.final_time[0] = d_inputs[
-            "time_initial"
-        ][0]
-        self._reset_error_control(integration_state)
-
-    def _compute_jacvec_fwd_run_steps(
-        self,
-        time_integration_state: TimeIntegrationState,
-        time_integration_state_perturbations: TimeIntegrationState,
-    ) -> TimeIntegrationState:
-        iteration = 0
-        while not self._integration_config.termination_criterion.is_iteration_finished(
-            iteration, time_integration_state
-        ):
-            iteration += 1
-            time_integration_state, time_integration_state_perturbations = (
-                self._run_step_jacvec_fwd(
-                    iteration,
-                    time_integration_state,
-                    time_integration_state_perturbations,
-                )
-            )
-        return time_integration_state_perturbations
-
-    def _run_step_jacvec_fwd(
-        self,
-        step: int,
-        time_integration_state: TimeIntegrationState,
-        time_integration_state_perturbation: TimeIntegrationState,
-    ) -> TimeIntegrationState:
-        for callback in self._compute_jacvec_product_fwd_callbacks:
-            callback.before_iteration(
-                step,
-                time_integration_state,
-                self._ode,
-                self._runge_kutta_discretization,
-            )
-        time_integration_state.set(self._iterate_on_step(time_integration_state))
-        time_integration_state_perturbation.discretization_state.set(
-            self._runge_kutta_discretization.compute_step_derivative(
-                self._ode,
-                time_integration_state.discretization_state,
-                time_integration_state_perturbation.discretization_state,
-                time_integration_state.step_size_history[0],
-            )
-        )
-        for callback in self._compute_jacvec_product_fwd_callbacks:
-            callback.after_iteration(
-                step,
-                time_integration_state,
-                self._ode,
-                self._runge_kutta_discretization,
-            )
-        return time_integration_state, time_integration_state_perturbation
-
-    def _compute_jacvec_product_rev(self, inputs, d_inputs, d_outputs):
-        if self.comm.rank == 0:
-            print(
-                "\n" + "=" * 24 + " rev-mode jacvec product starts " + "=" * 24 + "\n\n"
-            )
-        integration_state_perturbations = self._time_integration_state_perturbations
-        self._compute_jacvec_rev_preparation_phase(
-            inputs,
-            d_outputs,
-            integration_state_perturbations,
-        )
-        self._time_integration_state_perturbations.set(
-            self._checkpointer.iterate_reverse(integration_state_perturbations)
-        )
-
-        self._from_numpy_array_time_integration(
-            integration_state_perturbations.discretization_state.final_state,
-            d_inputs,
-        )
-        self._from_numpy_array_independent_input(
-            integration_state_perturbations.discretization_state.independent_inputs,
-            d_inputs,
-        )
-        d_inputs[
-            "time_initial"
-        ] += integration_state_perturbations.discretization_state.final_time[0]
-
-        # using the checkpoints invalidates the checkpointer in general
-        self._cached_input = None
-
-        if self.comm.rank == 0:
-            print(
-                "\n\n" + "=" * 25 + " fwd-mode jacvec product ends " + "=" * 25 + "\n"
-            )
-
-    def _compute_jacvec_rev_preparation_phase(
-        self,
-        inputs: OMVector,
-        d_outputs: OMVector,
-        integration_state_perturbations: TimeIntegrationState,
-    ):
-        temporary_integration_state = TimeIntegrationState(
-            self._runge_kutta_discretization.create_empty_discretization_state(
-                self._ode
+        finalization_values = FinalizationValues(
+            final_time=outputs["time_final"],
+            final_values=np.zeros(
+                time_integration_metadata.time_integration_array_size
             ),
-            np.array([self._integration_config.initial_step_size]),
-            np.zeros(0),
-            np.zeros(0),
+            final_independent_outputs=np.zeros(0),  # Not Implemented,
         )
-        self._to_numpy_array_time_integration(
-            inputs, temporary_integration_state.discretization_state.final_state
-        )
-        self._to_numpy_array_independent_inputs(
-            inputs, temporary_integration_state.discretization_state.independent_inputs
-        )
-        temporary_integration_state.discretization_state.final_time[0] = inputs[
-            "time_initial"
-        ][0]
-        if self._cached_input is None or not (
-            np.array_equal(
-                self._cached_input.final_state,
-                temporary_integration_state.discretization_state.final_state,
-            )
-            and np.array_equal(
-                self._cached_input.independent_inputs,
-                temporary_integration_state.discretization_state.independent_inputs,
-            )
-        ):
-            if self.comm.rank == 0:
-                print("Preparing checkpoints by calling compute()")
-            outputs = self._vector_class("nonlinear", "output", self)
-            self.compute(inputs, outputs)
+        for quantity in time_integration_metadata.time_integration_quantity_list:
+            finalization_values.final_values[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ] = outputs[quantity.name + "_final"].flatten()
 
-        self._to_numpy_array_time_integration(
-            d_outputs, integration_state_perturbations.discretization_state.final_state
-        )
-        integration_state_perturbations.discretization_state.independent_inputs.fill(
-            0.0
-        )
-        integration_state_perturbations.discretization_state.final_time[0] = d_outputs[
-            "time_final"
-        ][0]
+        return finalization_values
 
-    def _run_step_jacvec_rev(
-        self,
-        step: int,
-        time_integration_state: TimeIntegrationState,
-        time_integration_state_perturbations: TimeIntegrationState,
-    ) -> TimeIntegrationState:
-        for callback in self._compute_jacvec_product_rev_callbacks:
-            callback.before_iteration(
-                step,
-                time_integration_state,
-                self._ode,
-                self._runge_kutta_discretization,
-            )
-        time_integration_state_perturbations.discretization_state.set(
-            self._runge_kutta_discretization.compute_step_adjoint_derivative(
-                self._ode,
-                time_integration_state.discretization_state,
-                time_integration_state_perturbations.discretization_state,
-                time_integration_state.step_size_history[0],
-            )
+    def _get_outputs_from_finalization_values(self, finalization_values, outputs):
+        time_integration_metadata: TimeIntegrationMetadata = (
+            self._time_integrator._ode.time_integration_metadata
         )
-        for callback in self._compute_jacvec_product_rev_callbacks:
-            callback.after_iteration(
-                step,
-                time_integration_state,
-                self._ode,
-                self._runge_kutta_discretization,
-            )
-        return time_integration_state_perturbations
+        for quantity in time_integration_metadata.time_integration_quantity_list:
+            outputs[quantity.name + "_final"] = finalization_values.final_values[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ].reshape(quantity.array_metadata.shape)
+
+    def _add_finalization_values_to_outputs(self, finalization_values, outputs):
+        time_integration_metadata: TimeIntegrationMetadata = (
+            self._time_integrator._ode.time_integration_metadata
+        )
+        for quantity in time_integration_metadata.time_integration_quantity_list:
+            outputs[quantity.name + "_final"] += finalization_values.final_values[
+                quantity.array_metadata.start_index : quantity.array_metadata.end_index
+            ].reshape(quantity.array_metadata.shape)

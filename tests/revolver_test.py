@@ -7,7 +7,9 @@ import pytest
 
 from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import implicit_euler
-from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+from rkopenmdao.checkpoint_interface.pyrevolve_time_integration import (
+    PyrevolveTimeIntegration,
+)
 from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
 
@@ -71,7 +73,7 @@ def test_rk_integrator_revolver_options(revolver_type, revolver_options):
             butcher_tableau=implicit_euler,
             integration_config=integration_config,
             time_integration_quantities=["x"],
-            checkpointing_type=PyrevolveCheckpointer,
+            checkpointing_type=PyrevolveTimeIntegration,
             checkpoint_options={
                 "revolver_type": revolver_type,
                 "revolver_options": revolver_options,
