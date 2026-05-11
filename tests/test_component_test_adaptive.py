@@ -52,7 +52,7 @@ from .test_components import (
     solution_test6,
     solution_test7,
 )
-from .utils.callback import TimeStepsLog,TimeStepsLogToFile
+from .utils.callback import TimeStepsLog, TimeStepsLogToFile
 
 COMPONENTS = [
     TestComp1,
@@ -89,6 +89,9 @@ TABLEAUX = [
 MEASURERS = [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
 CHECKPOINTERS = [NoCheckpointer, AllCheckpointer]
 
+COMM = MPI.COMM_WORLD
+RANK = COMM.Get_rank()
+
 
 @pytest.fixture(name="integration_cfg", scope="function")
 def integration_cfg_fixture(request):
@@ -101,8 +104,7 @@ def integration_cfg_fixture(request):
         _, _, init_time, _ = request.getfixturevalue("component_case")
     return IntegrationConfig(
         use_adaptive_time_stepping=True,
-        termination_criterion=PredefinedFinalTime(
-            init_time+0.01),
+        termination_criterion=PredefinedFinalTime(init_time + 0.01),
         initial_step_size=0.01,
     )
 
@@ -173,7 +175,9 @@ def time_step_log_fixture():
     """Create a fresh TimeStepsLog."""
     return TimeStepsLog()
 
-@pytest.fixture(name="component_case",
+
+@pytest.fixture(
+    name="component_case",
     params=[
         (TestComp1, solution_test1, 0.0, np.array([1.0])),
         (TestComp1, solution_test1, 1.0, np.array([1.0])),
@@ -189,7 +193,7 @@ def time_step_log_fixture():
         (TestComp6a, solution_test6, 1.0, np.array([1.0])),
         (TestComp7, solution_test7, 1.0, np.array([1.0])),
         (TestComp7, solution_test7, 2.0, np.array([1.0])),
-    ]
+    ],
 )
 def component_case_fixture(request):
     return request.param
@@ -199,14 +203,11 @@ def read_time_steps(log: TimeStepsLogToFile) -> list[float]:
     """
     Utility used by ``test_if_adaptive`` – returns a list of the first column.
     """
-    if MPI.COMM_WORLD.Get_size() > 1:
-        MPI.COMM_WORLD.Barrier()
 
     assert Path(log.write_file).exists()
 
-    with open(log.write_file, "r", encoding='utf-8') as f:
+    with open(log.write_file, "r", encoding="utf-8") as f:
         return [float(line.split()[0]) for line in f]
-
 
 
 def run_and_compare(rk_prob, quantities, init_vals, functor, init_time):
@@ -305,7 +306,7 @@ def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
     Ensure that the integrator really changes its step size
     (i.e. logs >1 distinct values).
     """
-    callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    callbacks = [time_step_log] if COMM.Get_rank() == 0 else []
     comp_cls, _, init_time, _ = component_case
     rk = rk_problem(
         comp_cls=comp_cls,
@@ -317,7 +318,7 @@ def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
         init_time=init_time,
     )
     rk.run_model()
-    if MPI.COMM_WORLD.Get_rank() == 0:
+    if RANK == 0:
         steps = list(time_step_log.q)
         assert len(steps) > 1, "Only one time step was recorded"
         assert len(set(steps)) > 1, "All recorded time steps are identical"
@@ -327,7 +328,7 @@ def test_new_old_adaptive_comparison(rk_problem, time_step_log):
     """
     Ensure that the integrator change steps size are identical to the one in './data.'
     """
-    callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    callbacks = [time_step_log] if RANK == 0 else []
     rk = rk_problem(
         comp_cls=TestComp1,
         tableau=heun_euler,
@@ -338,7 +339,10 @@ def test_new_old_adaptive_comparison(rk_problem, time_step_log):
         init_time=0.0,
     )
     rk.run_model()
-    if MPI.COMM_WORLD.Get_rank() == 0:
+    if RANK == 0:
         steps_new = np.array(list(time_step_log.q))
-        steps_old = np.array(read_time_steps(TimeStepsLogToFile(f"tests/data/time_step_{0}.txt")))
+        steps_old = np.array(
+            read_time_steps(TimeStepsLogToFile(f"tests/data/time_step_{0}.txt"))
+        )
         assert np.allclose(steps_new, steps_old)
+    COMM.Barrier()
