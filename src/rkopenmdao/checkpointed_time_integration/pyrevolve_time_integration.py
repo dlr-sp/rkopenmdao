@@ -18,37 +18,70 @@ from rkopenmdao.states import TimeIntegrationState
 @dataclass
 class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
     """
-    Checkpointer where checkpointing is done via pyRevolve. Memory efficient,
-    but doesn't support online checkpointing for adaptive time stepping.
+    Memory-efficient checkpointing using pyRevolve for reverse-mode integration.
+
+    This implementation uses the pyRevolve library to implement adaptive checkpointing
+    strategies for efficient reverse-mode (adjoint) time integration. It supports
+    multiple strategies that trade off memory usage against computation time:
+
+    - Memory (default): In-memory adaptive checkpointing
+    - Disk: Checkpointing to disk for large problems
+    - SingleLevel: Simple single-level reversible checkpointing
+    - MultiLevel: Multi-level hierarchical checkpointing (use with caution)
+    - Base: Base pyRevolve implementation
+
+    The strategy works by storing a subset of intermediate states (checkpoints)
+    and recomputing missing states as needed during the reverse integration.
+    This achieves O(sqrt(n_steps)) memory usage with only O(log(n_steps))
+    recomputation per step.
 
     Parameters
     ----------
-    termination_criterion: TerminationCriterion
-        Condition on when to stop the forward iteration.
-    run_step_func: Callable[[int, TimeIntegrationState], TimeIntegrationState]
-        Function for the computation of one step of the forward (primal) time
-        integration. Input is the current time step, as well as the state of the time
-        integration at the start of the step, return value the state at the end of the
-        same step.
-    run_step_jacvec_rev_func: Callable[
-        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
-    ]
-        Function for the computation of one step of the reverse (linear) time
-        integration. Inputs are the current (reverse) step, the state of the time
-        integration during that step acting as linearization point, as well as the
-        perturbations coming from the end of the time step. Return value is the
-        perturbation for the start of the time step.
-    state: TimeIntegrationState
-        Time integration state on which all computations for the forward (primal) time
-        integration are performed.
-    state_perturbation: TimeIntegrationState
-        Time integration state on which all computations for the reverse (linear) time
-        integration are performed.
-    revolver_type: str
-        String representing the type of revolver to use. Options are 'Memory', 'Disc'
-        'Base', 'SingleLevel', and 'MultiLevel' Default is 'Memory'.
-    revolver_options: dict
-        Configuration options passed to the revolver. Default is an empty dict.
+    ode : DiscretizedODE
+        The discretized ODE system to integrate (inherited from base class).
+    time_discretization_scheme : TimeDiscretizationSchemeInterface
+        The time discretization scheme (inherited from base class).
+    error_controller : ErrorController
+        The adaptive step size controller (inherited from base class).
+    error_measurer : ErrorMeasurer
+        The error measurement strategy (inherited from base class).
+    time_integration_config : IntegrationConfig
+        Integration configuration including termination criterion
+        (inherited from base class).
+    integrate_callbacks : list[Callback]
+        Callbacks for primal integration (inherited from base class).
+    integrate_derivative_callbacks : list[Callback]
+        Callbacks for derivative integration (inherited from base class).
+    integrate_adjoint_derivative_callbacks : list[Callback]
+        Callbacks for adjoint derivative integration (inherited from base class).
+    revolver_type : str, optional
+        Type of pyRevolve strategy to use. Options are 'Memory', 'Disk',
+        'SingleLevel', 'MultiLevel', and 'Base'. Default is 'Memory'.
+    revolver_options : dict, optional
+        Additional options passed to the pyRevolve constructor. Can include:
+        - n_checkpoints: Number of checkpoints to store (auto-computed if not given)
+        - storage_list: For MultiLevel, list of storage backends
+        - Other options specific to the revolver type
+
+    Notes
+    -----
+    **Termination Criterion Requirement:**
+    This implementation requires a termination criterion with a fixed number of steps
+    (PredefinedNumberOfSteps). Online checkpointing (determining steps adaptively)
+    is not yet supported.
+
+    **Memory vs Computation Tradeoff:**
+    - More checkpoints = less recomputation, more memory
+    - Fewer checkpoints = more recomputation, less memory
+    - The 'n_checkpoints' option controls this tradeoff
+
+    **MultiLevelRevolver Warning:**
+    The MultiLevelRevolver has known issues where certain numbers of checkpoints work
+    while others don't, without an obvious pattern. Use with caution and test thoroughly.
+
+    **Storage Options:**
+    For 'MultiLevel' strategy, the 'storage_list' option accepts a list of
+    (storage_type, options) tuples where storage_type can be 'Numpy', 'Disk', or 'Bytes'.
     """
 
     revolver_type: str = "Memory"
@@ -62,7 +95,7 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
     _revolver_class_type: type = field(init=None)
 
     def __post_init__(self):
-        """Sets up all permanent data derived from initialization arguments."""
+        """Sets up pyRevolve with checkpointing configuration."""
         self._cached_input = self.create_empty_primal_integration_state()
         self._first_complete_state = self.create_empty_primal_integration_state()
         self._pyrevolve_state = self.create_empty_primal_integration_state()
@@ -149,19 +182,40 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
                 f"'SingleLevel', 'MultiLevel' and Base. Given was '{revolver_type}'."
             )
 
-    def integrate(self, initial_state: TimeIntegrationState) -> TimeIntegrationState:
+    def integrate(
+        self, initial_state: TimeIntegrationState
+    ) -> list[TimeIntegrationState]:
         """
-        Runs forward iteration using internal revolver by pyRevolve.
+        Performs forward integration using pyRevolve checkpointing.
+
+        This method uses the configured pyRevolve strategy to integrate forward in time
+        while storing checkpoints as needed for efficient reverse integration.
 
         Parameters
         ----------
-        initial_state: TimeIntegrationState
-            The state at the beginning of the time integration process.
+        initial_state : TimeIntegrationState
+            The initial state containing:
+            - discretization_state: Initial values of state variables
+            - step_size_suggestion: Initial step size suggestion
+            - step_size_history: Initial step size history
+            - error_history: Initial error history
 
         Returns
         -------
-        final_state: TimeIntegrationState
-            The resulting state after completing all time steps.
+        list[TimeIntegrationState]
+            List containing the final state after completing all time steps.
+            The list contains a single element.
+
+        Notes
+        -----
+        The forward integration proceeds as follows:
+        1. Initialize the pyRevolve operator with the forward integration callback
+        2. Apply the forward operator to integrate from t=-1 to t=0 (internal indexing)
+        3. Store the first complete state for later use in reverse integration
+        4. Apply the forward strategy to complete the integration
+
+        The checkpointing strategy stores intermediate states as determined by
+        the 'n_checkpoints' option and the number of time steps.
         """
         self._cached_input = deepcopy(initial_state)
         self._revolver = self._revolver_class_type(**self.revolver_options)
@@ -180,19 +234,38 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
         final_state_perturbations: list[TimeIntegrationState],
     ) -> TimeIntegrationState:
         """
-        Runs reverse iteration using internal revolver by pyRevolve.
+        Performs reverse (adjoint) integration using pyRevolve checkpointing.
+
+        This method integrates backward in time to compute the gradient of a cost
+        function with respect to initial conditions. It uses stored checkpoints to
+        reconstruct intermediate states as needed.
 
         Parameters
         ----------
-        final_state_perturbation: TimeIntegrationState
-            The perturbation of the final state used as starting point for reverse
-            iteration.
+        initial_state : TimeIntegrationState
+            The initial state from the forward integration (linearization point).
+            This is used to reinitialize the integration if needed.
+
+        final_state_perturbations : list[TimeIntegrationState]
+            List containing the final state perturbation (adjoint variable) which
+            represents the gradient of the cost function with respect to the final state.
+            Must contain exactly one element.
 
         Returns
         -------
-        initial_state_perturbation: TimeIntegrationState
-            The resulting perturbation of the initial state after completing all time
-            steps.
+        TimeIntegrationState
+            The perturbation of the initial state after reverse integration.
+            Contains:
+            - discretization_state: Gradient of cost function w.r.t. initial conditions
+            - Empty or zero step_size_suggestion, step_size_history, error_history
+
+        Notes
+        -----
+        The reverse integration proceeds as follows:
+        1. If not already run, perform forward integration to establish checkpoints
+        2. Set the final perturbation state as the starting point for reverse
+        3. Apply the reverse strategy to integrate backward through time
+        4. Apply the reverse operator to complete the integration from t=-1 to t=0
         """
         if not self._revolver:
             self.integrate(initial_state)
@@ -207,76 +280,105 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
 
 class TimeIntegrationCheckpoint(pr.Checkpoint):
     """
-    Blueprint for one checkpoint.
+    pyRevolve checkpoint implementation for TimeIntegrationState.
 
-    Parameters
-    ----------
-    _symbol: dict
-        Storage for making checkpoints accessible to pyRevolve.
-    _time_integration_state: TimeIntegrationState
-        Time integration state consistent with `_symbol`.
+    This class implements the pyRevolve Checkpoint interface to enable checkpointing
+    of TimeIntegrationState objects. It provides methods for accessing checkpoint data
+    and determining checkpoint size for memory management.
+
+    Notes
+    -----
+    The checkpoint stores a copy of the state's data in a dictionary format.
+    The pyRevolve library uses the get_data() and get_data_location() methods
+    to manage checkpoint storage and retrieval.
+
+    The size property allows pyRevolve to estimate memory usage and make
+    checkpointing decisions accordingly.
     """
 
-    _symbol: dict
+    _symbols: dict
     _time_integration_state: TimeIntegrationState
 
     def __init__(self, time_integration_state: TimeIntegrationState):
+        """
+        Initialize the checkpoint with a time integration state.
+
+        Parameters
+        ----------
+        time_integration_state : TimeIntegrationState
+            The state to checkpoint. The state is converted to a dictionary
+            representation via time_integration_state.to_dict().
+        """
         self._time_integration_state = time_integration_state
         self._symbols = time_integration_state.to_dict()
 
     def get_data_location(self, timestep) -> list:
         """
-        Gets location for data at given time step.
+        Gets memory locations for checkpoint data at a given time step.
+
+        This method is part of the pyRevolve Checkpoint interface and is used
+        to retrieve references to stored data during reverse integration.
 
         Parameters
         ----------
-        timestep: Any
-            Unused argument required by the interface.
+        timestep : Any
+            Unused argument required by the pyRevolve interface.
+            The checkpoint data location is independent of the time step.
 
         Returns
         -------
-        locations: list
-            Memory locations where checkpoint data is saved.
+        list
+            Memory locations (references) where checkpoint data is stored.
+            These are typically references to the internal numpy arrays.
         """
-        # pylint: disable=unused-argument
-        # Here the method of getting the data is independent of the time step, but the
-        # interface requires the argument.
         locations = self._get_data_impl(self._symbols, location=True)
         return locations
 
     def get_data(self, timestep) -> list:
         """
-        Gets data at given time step.
+        Gets checkpoint data at a given time step.
+
+        This method is part of the pyRevolve Checkpoint interface and is used
+        to retrieve checkpoint data during forward or reverse integration.
 
         Parameters
         ----------
-        timestep: Any
-            Unused argument required by the interface.
+        timestep : Any
+            Unused argument required by the pyRevolve interface.
+            The checkpoint data is independent of the time step.
 
         Returns
         -------
-        locations: list
-            Data if currently loaded checkpoint.
+        list
+            Copies of the checkpoint data as numpy arrays.
         """
         data = self._get_data_impl(self._symbols, location=False)
         return data
 
     def _get_data_impl(self, state_part: dict | np.ndarray, location: bool) -> list:
         """
-        Recursive implementation of `get_data` and `get_data_location`.
+        Recursive implementation of data access methods.
+
+        Traverses the nested dictionary structure of the checkpoint state to
+        collect either data copies or memory locations.
 
         Parameters
         ----------
-        state_part: dict | np.ndarray
-            Current sub-part which is traversed to get data (location).
-        location: bool
-            Flag indicating whether location of data (True) or copy of data (False)
-            is requested.
+        state_part : dict | np.ndarray
+            Current sub-part of the state being traversed.
+        location : bool
+            If True, return memory locations (references to arrays).
+            If False, return copies of the data.
 
         Returns
         -------
-        result: list
-            List containing data (locations) of already traversed part of dict.
+        list
+            List of collected data or locations from the traversed structure.
+
+        Raises
+        ------
+        TypeError
+            If state_part is neither a dict nor a numpy array.
         """
         result = []
         if isinstance(state_part, dict):
@@ -294,28 +396,37 @@ class TimeIntegrationCheckpoint(pr.Checkpoint):
     @property
     def size(self) -> int:
         """
-        The memory consumption of the data contained in this checkpoint.
+        Memory consumption of the checkpoint in bytes.
+
+        Returns the total memory used by all arrays in the checkpoint state.
 
         Returns
         -------
-        size: int
+        int
             Memory size of checkpoint in Bytes.
         """
         return self._size_impl(self._symbols)
 
     def _size_impl(self, state_part: dict | np.ndarray) -> int:
         """
-        Recursive implementation of the size property.
+        Recursive implementation of size calculation.
+
+        Traverses the nested dictionary structure to sum the sizes of all arrays.
 
         Parameters
         ----------
-        state_part: dict | np.ndarray
-            Current sub-part which is traversed to get checkpoint size.
+        state_part : dict | np.ndarray
+            Current sub-part of the state being traversed.
 
         Returns
         -------
-        size: int
-            Size of already traversed part of checkpoint.
+        int
+            Total size of the traversed part in bytes.
+
+        Raises
+        ------
+        TypeError
+            If state_part is neither a dict nor a numpy array.
         """
         size = 0
         if isinstance(state_part, dict):
@@ -332,12 +443,12 @@ class TimeIntegrationCheckpoint(pr.Checkpoint):
     @property
     def dtype(self) -> type:
         """
-        Data type used for single values of the checkpoint.
+        Data type used for checkpoint values.
 
         Returns
         -------
-        dtype: type
-            Data type used by single values of the checkpoint.
+        type
+            The numpy dtype (np.float64) used for checkpoint values.
         """
         return np.float64
 
@@ -345,32 +456,38 @@ class TimeIntegrationCheckpoint(pr.Checkpoint):
 @dataclass
 class ForwardOperator(pr.Operator):
     """
-    Forward operator of the RungeKuttaIntegrator (i.e. the normal time
-    integration).
+    Forward (primal) integration operator for pyRevolve.
+
+    This operator wraps the primal integration step and is called by pyRevolve
+    during forward integration to advance the solution by one time step.
 
     Parameters
     ----------
-    time_integration_state: TimeIntegrationState
-        State on which internal calculations are performed.
-    fwd_operation: Callable[[int, TimeIntegrationState], TimeIntegrationState]
-        Function applying one single step of time integration.
+    time_integration_state : TimeIntegrationState
+        The state on which forward integration is performed.
+        Modified in-place during apply().
+    fwd_operation : Callable[[int, TimeIntegrationState], None]
+        Function that applies one time integration step.
+        Takes the iteration number and state as arguments.
+        Must modify the state in-place.
     """
 
     time_integration_state: TimeIntegrationState
-    fwd_operation: Callable[[int, TimeIntegrationState], TimeIntegrationState]
+    fwd_operation: Callable[[int, TimeIntegrationState], None]
 
     def apply(self, **kwargs):
-        # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
-        # how it is.
         """
-        Does forward (primal) integration from step `t_start` + 1 to `t_end` + 1.
+        Performs forward integration from step t_start+1 to t_end+1.
+
+        This method is called by pyRevolve during forward integration to advance
+        the solution through multiple time steps.
 
         Parameters
         ----------
-        t_start: int
-            First integrated time step shifted by one.
-        t_end: int
-            Last integration time step shifted by one.
+        **kwargs : dict
+            Keyword arguments from pyRevolve containing:
+            - t_start: int, first time step (shifted by one internally)
+            - t_end: int, last time step (shifted by one internally)
         """
         for step in range(kwargs["t_start"] + 1, kwargs["t_end"] + 1):
             self.fwd_operation(step, self.time_integration_state)
@@ -379,39 +496,47 @@ class ForwardOperator(pr.Operator):
 @dataclass
 class ReverseOperator(pr.Operator):
     """
-    Backward operator of the Runge-Kutta-integrator (i.e. one reverse step).
+    Reverse (adjoint) integration operator for pyRevolve.
+
+    This operator wraps the adjoint integration step and is called by pyRevolve
+    during reverse integration to compute gradients backward in time.
 
     Parameters
     ----------
-    time_integration_state: TimeIntegrationState
-        State which contains the current linearization point.
-    time_integration_state_perturbations: TimeIntegrationState
-        Perturbation state on which internal calculations are performed.
-    rev_operation: Callable[
-        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
-    ]
-        Function applying one single reverse step of time integration.
+    time_integration_state : TimeIntegrationState
+        The primal state (linearization point) at the current time level.
+    time_integration_state_perturbations : TimeIntegrationState
+        The perturbation state on which reverse integration is performed.
+        Modified in-place during apply().
+    rev_operation : Callable[[int, TimeIntegrationState, TimeIntegrationState], None]
+        Function that applies one reverse integration step.
+        Takes the iteration number, primal state, and perturbation state as arguments.
+        Must modify the perturbation state in-place.
+
+    See Also
+    --------
+    ForwardOperator : Forward (primal) integration operator
+    PyrevolveTimeIntegration : Uses this operator for reverse integration
     """
 
     time_integration_state: TimeIntegrationState
     time_integration_state_perturbations: TimeIntegrationState
-    rev_operation: Callable[
-        [int, TimeIntegrationState, TimeIntegrationState], TimeIntegrationState
-    ]
+    rev_operation: Callable[[int, TimeIntegrationState, TimeIntegrationState], None]
 
     def apply(self, **kwargs):
         """
-        Does reverse (linear) integration from step `t_end` + 2 to `t_start` + 2.
+        Performs reverse (adjoint) integration from step t_end+2 to t_start+2.
+
+        This method is called by pyRevolve during reverse integration to compute
+        gradients backward through time.
 
         Parameters
         ----------
-        t_start: int
-            First integrated time step shifted by one.
-        t_end: int
-            Last integration time step shifted by one.
+        **kwargs : dict
+            Keyword arguments from pyRevolve containing:
+            - t_start: int, first time step (shifted by two internally)
+            - t_end: int, last time step (shifted by two internally)
         """
-        # PyRevolve only ever uses t_start and t_end as arguments, but the interface is
-        # how it is.
         for step in reversed(range(kwargs["t_start"] + 2, kwargs["t_end"] + 2)):
             self.rev_operation(
                 step,
