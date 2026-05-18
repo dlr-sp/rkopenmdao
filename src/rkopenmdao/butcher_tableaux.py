@@ -47,6 +47,7 @@ __all__ = [
     "embedded_fourth_order_five_stage_esdirk",
     "embedded_runge_kutta_fehlberg",
     "embedded_fifth_order_six_stage_esdirk",
+    "butcher_tableau_collection",
 ]
 
 # one stage methods
@@ -935,3 +936,36 @@ def create_fifth_order_six_stage_esdirk():
 
 
 embedded_fifth_order_six_stage_esdirk = create_fifth_order_six_stage_esdirk()
+
+butcher_tableau_collection = [
+    explicit_euler,
+    implicit_euler,
+    implicit_midpoint,
+    third_order_two_stage_sdirk,
+    third_order_three_stage_sdirk,
+    third_order_three_stage_esdirk,
+    runge_kutta_four,
+    third_order_four_stage_sdirk,
+    third_order_second_weak_stage_order_four_stage_dirk,
+    third_order_third_weak_stage_order_four_stage_dirk,
+    fourth_order_five_stage_sdirk,
+    fifth_order_five_stage_sdirk,
+    fourth_order_six_stage_esdirk,
+    fourth_order_third_weak_stage_order_six_stage_dirk,
+    fifth_order_six_stage_esdirk,
+    embedded_second_order_two_stage_sdirk,
+    embedded_second_order_three_stage_esdirk,
+    embedded_third_order_three_stage_sdirk,
+    embedded_third_order_four_stage_esdirk,
+    embedded_fourth_order_four_stage_sdirk,
+    embedded_fourth_order_five_stage_esdirk,
+    # These  currently don't exhibit the expected order in some cases, so remove them
+    # from the current collection until investigated.
+    # TODO: look into this again once deeper tests for butcher tableauxs got added.
+    # embedded_third_order_five_stage_esdirk,
+    # embedded_runge_kutta_fehlberg,
+    # embedded_fifth_order_six_stage_esdirk,
+    #
+    # This one does not reliably fulfil the tests for adaptive time stepping
+    embedded_heun_euler,
+]

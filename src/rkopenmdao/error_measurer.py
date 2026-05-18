@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
+from rkopenmdao.states import DiscretizedODEResultState
 
 
 class ErrorMeasurer(ABC):

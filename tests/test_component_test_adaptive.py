@@ -19,8 +19,12 @@ from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk as four_stage_esdirk,
     embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
 )
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
-from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
+from rkopenmdao.checkpoint_interface.no_checkpoint_time_integration import (
+    NoCheckpointer,
+)
+from rkopenmdao.checkpoint_interface.all_checkpoint_time_integration import (
+    AllCheckpointer,
+)
 from rkopenmdao.error_controllers import (
     integral,
     h_211,

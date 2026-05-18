@@ -9,6 +9,7 @@ from rkopenmdao.discretized_ode.discretized_ode import (
     DiscretizedODEInputState,
     DiscretizedODEResultState,
 )
+from rkopenmdao.states import StartingValues, FinalizationValues
 
 
 class IdentityODE(DiscretizedODE):
@@ -70,6 +71,40 @@ class IdentityODE(DiscretizedODE):
         return 0
 
 
+def identity_ode_solution(
+    initial_values: StartingValues, passed_time: float
+) -> FinalizationValues:
+    return FinalizationValues(
+        passed_time + initial_values.initial_time,
+        initial_values.initial_values * np.e**passed_time,
+        np.zeros(0),
+    )
+
+
+def identity_ode_solution_derivative(
+    initial_values: StartingValues,
+    initial_value_perturbations: StartingValues,
+    passed_time: float,
+) -> FinalizationValues:
+    return FinalizationValues(
+        initial_value_perturbations.initial_time,
+        initial_value_perturbations.initial_values * np.e**passed_time,
+        np.zeros(0),
+    )
+
+
+def identity_ode_solution_adjoint_derivative(
+    initial_values: StartingValues,
+    final_value_perturbations: FinalizationValues,
+    passed_time: float,
+) -> StartingValues:
+    return StartingValues(
+        final_value_perturbations.final_time,
+        final_value_perturbations.final_values * np.e**passed_time,
+        np.zeros(0),
+    )
+
+
 class TimeODE(DiscretizedODE):
     """
     Discretized ODE implementation for the ODE x'(t) = t.
@@ -129,6 +164,44 @@ class TimeODE(DiscretizedODE):
 
     def get_linearization_point_size(self):
         return 0
+
+
+def time_ode_solution(
+    initial_values: StartingValues, passed_time: float
+) -> FinalizationValues:
+    return FinalizationValues(
+        passed_time + initial_values.initial_time,
+        initial_values.initial_values
+        + initial_values.initial_time * passed_time
+        + 0.5 * passed_time**2,
+        np.zeros(0),
+    )
+
+
+def time_ode_solution_derivative(
+    initial_values: StartingValues,
+    initial_value_perturbations: StartingValues,
+    passed_time: float,
+) -> FinalizationValues:
+    return FinalizationValues(
+        initial_value_perturbations.initial_time,
+        initial_value_perturbations.initial_values
+        + passed_time * initial_value_perturbations.initial_time,
+        np.zeros(0),
+    )
+
+
+def time_ode_solution_adjoint_derivative(
+    initial_values: StartingValues,
+    final_value_perturbations: FinalizationValues,
+    passed_time: float,
+) -> StartingValues:
+    return StartingValues(
+        final_value_perturbations.final_time
+        + passed_time * final_value_perturbations.final_values,
+        final_value_perturbations.final_values,
+        np.zeros(0),
+    )
 
 
 @dataclass
@@ -236,6 +309,57 @@ class TimeScaledIdentityODE(DiscretizedODE):
         return 3
 
 
+def time_scaled_identity_ode_solution(
+    initial_values: StartingValues, passed_time: float
+) -> FinalizationValues:
+    return FinalizationValues(
+        passed_time + initial_values.initial_time,
+        initial_values.initial_values
+        * np.exp(initial_values.initial_time * passed_time + 0.5 * passed_time**2),
+        np.zeros(0),
+    )
+
+
+def time_scaled_identity_ode_solution_derivative(
+    initial_values: StartingValues,
+    initial_value_perturbations: StartingValues,
+    passed_time: float,
+) -> FinalizationValues:
+    exp_factor = np.exp(
+        initial_values.initial_time * passed_time + 0.5 * passed_time**2
+    )
+    return FinalizationValues(
+        initial_value_perturbations.initial_time,
+        exp_factor
+        * (
+            initial_values.initial_values
+            * passed_time
+            * initial_value_perturbations.initial_time
+            + initial_value_perturbations.initial_values
+        ),
+        np.zeros(0),
+    )
+
+
+def time_scaled_identity_ode_solution_adjoint_derivative(
+    initial_values: StartingValues,
+    final_value_perturbations: FinalizationValues,
+    passed_time: float,
+) -> StartingValues:
+    exp_factor = np.exp(
+        initial_values.initial_time * passed_time + 0.5 * passed_time**2
+    )
+    return StartingValues(
+        final_value_perturbations.final_time
+        + exp_factor
+        * initial_values.initial_values
+        * passed_time
+        * final_value_perturbations.final_values,
+        exp_factor * final_value_perturbations.final_values,
+        np.zeros(0),
+    )
+
+
 class ParameterODE(DiscretizedODE):
     """
     Discretized ODE implementation for the ODE x'(t) = b, with b a time independent
@@ -300,6 +424,41 @@ class ParameterODE(DiscretizedODE):
 
     def get_linearization_point_size(self):
         return 0
+
+
+def parameter_ode_solution(
+    initial_values: StartingValues, passed_time: float
+) -> FinalizationValues:
+    return FinalizationValues(
+        passed_time + initial_values.initial_time,
+        initial_values.initial_values + passed_time * initial_values.independent_inputs,
+        np.zeros(0),
+    )
+
+
+def parameter_ode_solution_derivative(
+    initial_values: StartingValues,
+    initial_value_perturbations: StartingValues,
+    passed_time: float,
+) -> FinalizationValues:
+    return FinalizationValues(
+        initial_value_perturbations.initial_time,
+        initial_value_perturbations.initial_values
+        + passed_time * initial_value_perturbations.independent_inputs,
+        np.zeros(0),
+    )
+
+
+def parameter_ode_solution_adjoint_derivative(
+    initial_values: StartingValues,
+    final_value_perturbations: FinalizationValues,
+    passed_time: float,
+) -> StartingValues:
+    return StartingValues(
+        final_value_perturbations.final_time,
+        final_value_perturbations.final_values,
+        passed_time * final_value_perturbations.final_values,
+    )
 
 
 @dataclass
@@ -395,3 +554,41 @@ class RootODE(DiscretizedODE):
 
     def get_linearization_point_size(self):
         return 2
+
+
+def root_ode_solution(
+    initial_values: StartingValues, passed_time: float
+) -> FinalizationValues:
+    return FinalizationValues(
+        passed_time + initial_values.initial_time,
+        initial_values.initial_values
+        + passed_time * initial_values.initial_values**0.5
+        + 0.25 * passed_time**2,
+        np.zeros(0),
+    )
+
+
+def root_ode_solution_derivative(
+    initial_values: StartingValues,
+    initial_value_perturbations: StartingValues,
+    passed_time: float,
+) -> FinalizationValues:
+    return FinalizationValues(
+        initial_value_perturbations.initial_time,
+        (1 + 0.5 * passed_time / (initial_values.initial_values**0.5))
+        * initial_value_perturbations.initial_values,
+        np.zeros(0),
+    )
+
+
+def root_ode_solution_adjoint_derivative(
+    initial_values: StartingValues,
+    final_value_perturbations: FinalizationValues,
+    passed_time: float,
+) -> StartingValues:
+    return StartingValues(
+        final_value_perturbations.final_time,
+        (1 + 0.5 * passed_time / (initial_values.initial_values**0.5))
+        * final_value_perturbations.final_values,
+        np.zeros(0),
+    )

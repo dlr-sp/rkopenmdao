@@ -21,8 +21,8 @@ from rkopenmdao.metadata_extractor import (
 )
 
 from rkopenmdao.om_data_exchange import OMDataExchange
-from .discretized_ode import (
-    DiscretizedODE,
+from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
+from rkopenmdao.states import (
     DiscretizedODEInputState,
     DiscretizedODEResultState,
 )

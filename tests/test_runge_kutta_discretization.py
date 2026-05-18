@@ -27,9 +27,9 @@ from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization imp
 from rkopenmdao.time_discretization.runge_kutta_discretization_state import (
     RungeKuttaDiscretizationState,
 )
-from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
-    TimeDiscretizationStartingValues,
-    TimeDiscretizationFinalizationValues,
+from rkopenmdao.states import (
+    StartingValues,
+    FinalizationValues,
 )
 
 from .odes import IdentityODE, RootODE, TimeScaledIdentityODE, TimeODE, ParameterODE
@@ -106,7 +106,7 @@ def fixture_ode_collection(request):
     Collection of ODE + misc. info for convergence tests.
     """
     ode, analytical_solution, order_barrier = request.param
-    starting_values = TimeDiscretizationStartingValues(
+    starting_values = StartingValues(
         1.0, np.ones(ode.get_state_size()), np.ones(ode.get_independent_input_size())
     )
     return {
@@ -174,7 +174,7 @@ def test_step_duality(butcher_tableau: ButcherTableau, ode: DiscretizedODE, seed
     discretization = StageOrderedRungeKuttaDiscretization(butcher_tableau)
 
     # Create a state at which to evaluate the Jacobian
-    starting_values = TimeDiscretizationStartingValues(
+    starting_values = StartingValues(
         initial_time=0.0,
         initial_values=np.ones(ode.get_state_size()),
         independent_inputs=np.ones(ode.get_independent_input_size()),
@@ -238,14 +238,14 @@ def test_starting_scheme_duality(butcher_tableau: ButcherTableau):
     discretization = StageOrderedRungeKuttaDiscretization(butcher_tableau)
     ode = IdentityODE()
 
-    starting_values = TimeDiscretizationStartingValues(
+    starting_values = StartingValues(
         initial_time=0.0,
         initial_values=np.ones(ode.get_state_size()),
         independent_inputs=np.ones(ode.get_independent_input_size()),
     )
 
     # Create perturbations
-    starting_value_derivative = TimeDiscretizationStartingValues(
+    starting_value_derivative = StartingValues(
         initial_time=0.01,
         initial_values=np.array([0.1]),
         independent_inputs=np.ones(ode.get_independent_input_size()),
@@ -287,7 +287,7 @@ def test_finalization_scheme_duality(
     ode = IdentityODE()
 
     # Create a final state
-    starting_values = TimeDiscretizationStartingValues(
+    starting_values = StartingValues(
         initial_time=0.0,
         initial_values=np.ones(ode.get_state_size()),
         independent_inputs=np.ones(ode.get_independent_input_size()),
@@ -303,7 +303,7 @@ def test_finalization_scheme_duality(
     final_state_derivative = discretization.create_empty_discretization_state(ode)
     final_state_derivative.final_state = np.array([0.1])
 
-    finalization_value_adjoint = TimeDiscretizationFinalizationValues(
+    finalization_value_adjoint = FinalizationValues(
         final_time=0.0,
         final_values=np.array([0.2]),
         final_independent_outputs=np.ones(ode.get_independent_output_size()),
@@ -363,3 +363,105 @@ def test_error_estimate_convergence(
     norm_comparisons = np.log2(norm_comparisons)
     expected_order = min(order_barrier, butcher_tableau.p)
     assert np.all(norm_comparisons >= 0.95 * expected_order)
+
+
+@pytest.mark.parametrize(
+    "butcher_tableau",
+    [
+        implicit_euler,
+        runge_kutta_four,
+        fourth_order_five_stage_sdirk,
+        embedded_second_order_two_stage_sdirk,
+        embedded_second_order_three_stage_esdirk,
+    ],
+)
+@pytest.mark.parametrize(
+    "ode",
+    [IdentityODE(), TimeScaledIdentityODE(), RootODE()],
+)
+def test_get_ode_state(butcher_tableau: ButcherTableau, ode: DiscretizedODE):
+    """
+    Test that get_ode_state returns a DiscretizedODEResultState with correct values.
+    """
+    discretization = StageOrderedRungeKuttaDiscretization(butcher_tableau)
+
+    starting_values = StartingValues(
+        initial_time=0.0,
+        initial_values=np.ones(ode.get_state_size()),
+        independent_inputs=np.ones(ode.get_independent_input_size()),
+    )
+    state = discretization.time_discretization_starting_scheme(
+        ode, starting_values, 0.0
+    )
+    state = discretization.compute_step(ode, state, 0.0)
+    ode_state = discretization.get_ode_state(ode, state, 0.0)
+
+    assert ode_state.stage_state == pytest.approx(state.final_state)
+
+
+@pytest.mark.parametrize(
+    "butcher_tableau",
+    [
+        implicit_euler,
+        runge_kutta_four,
+        fourth_order_five_stage_sdirk,
+    ],
+)
+@pytest.mark.parametrize(
+    "ode",
+    [IdentityODE(), TimeScaledIdentityODE(), RootODE()],
+)
+def test_get_ode_error_estimate_non_embedded(
+    butcher_tableau: ButcherTableau, ode: DiscretizedODE
+):
+    """
+    Test that get_ode_error_estimate returns None for non-embedded methods.
+    """
+    discretization = StageOrderedRungeKuttaDiscretization(butcher_tableau)
+
+    starting_values = StartingValues(
+        initial_time=0.0,
+        initial_values=np.ones(ode.get_state_size()),
+        independent_inputs=np.ones(ode.get_independent_input_size()),
+    )
+    state = discretization.time_discretization_starting_scheme(
+        ode, starting_values, 0.0
+    )
+    state = discretization.compute_step(ode, state, 0.0)
+
+    assert discretization.get_ode_error_estimate(ode, state, 0.0) is None
+
+
+@pytest.mark.parametrize(
+    "butcher_tableau",
+    [
+        embedded_second_order_two_stage_sdirk,
+        embedded_second_order_three_stage_esdirk,
+    ],
+)
+@pytest.mark.parametrize(
+    "ode",
+    [IdentityODE(), TimeScaledIdentityODE(), RootODE()],
+)
+def test_get_ode_error_estimate_embedded(
+    butcher_tableau: EmbeddedButcherTableau, ode: DiscretizedODE
+):
+    """
+    Test that get_ode_error_estimate returns a DiscretizedODEResultState with correct
+    values for embedded methods.
+    """
+    discretization = StageOrderedEmbeddedRungeKuttaDiscretization(butcher_tableau)
+
+    starting_values = StartingValues(
+        initial_time=0.0,
+        initial_values=np.ones(ode.get_state_size()),
+        independent_inputs=np.ones(ode.get_independent_input_size()),
+    )
+    state = discretization.time_discretization_starting_scheme(
+        ode, starting_values, 0.1
+    )
+    state = discretization.compute_step(ode, state, 0.1)
+
+    error_estimate = discretization.get_ode_error_estimate(ode, state, 0.1)
+
+    assert error_estimate.stage_state == pytest.approx(state.error_estimate)

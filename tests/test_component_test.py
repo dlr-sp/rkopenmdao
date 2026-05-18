@@ -17,9 +17,15 @@ from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk as two_stage_dirk,
     runge_kutta_four,
 )
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
-from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
-from rkopenmdao.checkpoint_interface.pyrevolve_checkpointer import PyrevolveCheckpointer
+from rkopenmdao.checkpoint_interface.no_checkpoint_time_integration import (
+    NoCheckpointer,
+)
+from rkopenmdao.checkpoint_interface.all_checkpoint_time_integration import (
+    AllCheckpointer,
+)
+from rkopenmdao.checkpoint_interface.pyrevolve_time_integration import (
+    PyrevolveTimeIntegration,
+)
 
 
 from .test_components import (
@@ -295,7 +301,7 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
-    [NoCheckpointer, AllCheckpointer, PyrevolveCheckpointer],
+    [NoCheckpointer, AllCheckpointer, PyrevolveTimeIntegration],
 )
 def test_time_integration_partials(
     test_class, initial_time, butcher_tableau, checkpointing_implementation
@@ -359,7 +365,7 @@ def test_time_integration_partials(
     [
         NoCheckpointer,
         AllCheckpointer,
-        PyrevolveCheckpointer,
+        PyrevolveTimeIntegration,
     ],
 )
 def test_time_integration_with_parameter_partials(
@@ -407,7 +413,7 @@ def test_time_integration_with_parameter_partials(
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
-    [AllCheckpointer, PyrevolveCheckpointer],
+    [AllCheckpointer, PyrevolveTimeIntegration],
 )
 def test_component_splitting_partials(
     initial_time, butcher_tableau, checkpointing_implementation

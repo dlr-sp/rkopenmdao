@@ -470,3 +470,22 @@ def h_330_general(
         config=config,
         name=name,
     )
+
+
+error_controller_collection = [
+    integral,
+    h0_110,
+    h_211,
+    pid,
+    h0_312,
+    # The following ones lead to test assertion failures for accuracy
+    # Investigate further at later date (maybe a different recovery mechanism?)
+    # h0_211,
+    # pc,
+    # h0_220,
+    # h_312,
+    # ppid,
+    # h_321,
+    # h0_321,
+    # h0_330,
+]

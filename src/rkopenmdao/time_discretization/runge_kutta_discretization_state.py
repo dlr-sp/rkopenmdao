@@ -6,9 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 
 
-from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
-    TimeDiscretizationStateInterface,
-)
+from rkopenmdao.states import TimeDiscretizationStateInterface
 
 
 @dataclass(init=False)
