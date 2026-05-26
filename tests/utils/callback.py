@@ -2,7 +2,7 @@
 
 # pylint: disable=unnecessary-lambda
 
-from dataclasses import dataclass,field
+from dataclasses import dataclass, field
 from pathlib import Path
 from collections import deque
 
@@ -21,7 +21,7 @@ class TimeStepsLog(Callback):
     step of time integration.
     """
 
-    q:deque  = field(default_factory=lambda: deque())
+    q: list = field(default_factory=lambda: [])
 
     def after_iteration(
         self,
@@ -34,27 +34,23 @@ class TimeStepsLog(Callback):
         print(f"Step size: {step_size}")
         self.q.append(step_size)
 
-@dataclass
-class TimeStepsLogToFile(Callback):
+
+def save_data(timestepslog: TimeStepsLog, write_file: str):
     """
-    Callback for saving into a file and printing step sizes taken for
-    each step of time integration.
+    Utility to save the data created by ``TimeStepsLog`` by generating a file
     """
-
-    write_file: str = ""
-
-    def __post_init__(self):
-        path = Path(self.write_file)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-    def after_iteration(
-        self,
-        iteration: int,
-        time_integration_state: TimeIntegrationState,
-        ode: DiscretizedODE,
-        discretization_scheme: TimeDiscretizationSchemeInterface,
-    ):
-        step_size = time_integration_state.step_size_history[0]
-        print(f"Step size: {step_size}")
-        with open(self.write_file, "a", encoding='utf-8') as file:
+    path = Path(write_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(write_file, "a", encoding="utf-8") as file:
+        for step_size in timestepslog.q:
             file.write(f"{step_size}\n")
+
+
+def read_data(read_file: str) -> list[float]:
+    """
+    Utility to read the data created by ``TimeStepsLog`` by generating a file
+    """
+    assert Path(read_file).exists()
+
+    with open(read_file, "r", encoding="utf-8") as f:
+        return [float(line.split()[0]) for line in f]

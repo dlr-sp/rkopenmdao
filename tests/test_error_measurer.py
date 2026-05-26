@@ -17,50 +17,48 @@ from .odes import RootODE
 
 @pytest.mark.mpi
 @pytest.mark.parametrize(
-    "measurer_factory, estimate, state, ode_factory, expected_measure",
+    "measurer, estimate, state, ode, expected_measure",
     [
         (
-            SimpleErrorMeasurer,
+            SimpleErrorMeasurer(),
             np.ones(1),
             np.full(1, 2.0),
-            RootODE,
+            RootODE(),
             1.0,
         ),
         (
-            ImprovedErrorMeasurer,
+            ImprovedErrorMeasurer(),
             np.ones(1),
             np.full(1, 2.0),
-            RootODE,
+            RootODE(),
             1 / 3,
         ),
         (
-            lambda: ImprovedErrorMeasurer(eta=1e-3),
+            ImprovedErrorMeasurer(eta=1e-3),
             np.ones(1),
             np.full(1, 2.0),
-            RootODE,
+            RootODE(),
             1 / 1002,
         ),
         (
-            lambda: ImprovedErrorMeasurer(eps=1e-3),
+            ImprovedErrorMeasurer(eps=1e-3),
             np.ones(1),
             np.full(1, 2.0),
-            RootODE,
+            RootODE(),
             1000 / 2001,
         ),
     ],
 )
 def test_error_measurer(
-    measurer_factory,
+    measurer,
     estimate: np.ndarray,
     state: np.ndarray,
-    ode_factory,
+    ode,
     expected_measure: float,
 ):
     """
     Tests the correct calculation of the error measure based on an estimate and ODE.
     """
-    measurer: ErrorMeasurer = measurer_factory()
-    ode: DiscretizedODE = ode_factory()
 
     result = measurer.get_measure(
         DiscretizedODEResultState(None, estimate, None),
