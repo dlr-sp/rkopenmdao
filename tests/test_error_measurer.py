@@ -5,11 +5,9 @@ Test the ErrorMeasurer class.
 import numpy as np
 import pytest
 
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.error_measurer import (
     SimpleErrorMeasurer,
     ImprovedErrorMeasurer,
-    ErrorMeasurer,
 )
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
 from .odes import RootODE

@@ -70,6 +70,7 @@ line-length = 88
 [tool.pylint]
 max-args=10
 max-attributes=12
+max-positional-arguments=7
 disable=[
     "no-else-return",
     "no-else-raise",

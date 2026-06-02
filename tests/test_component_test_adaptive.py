@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import openmdao.api as om
 import pytest
@@ -52,7 +50,7 @@ from .test_components import (
     solution_test6,
     solution_test7,
 )
-from .utils.callback import TimeStepsLog, save_data, read_data
+from .utils.callback import TimeStepsLog, read_data
 
 COMPONENTS = [
     TestComp1,
@@ -167,8 +165,8 @@ def rk_problem_fixture(integration_cfg, time_stage_problem):
     return _make
 
 
-@pytest.fixture(name="time_step_log")
-def time_step_log_fixture():
+@pytest.fixture(name="timestep_log")
+def timestep_log_fixture():
     """Create a fresh TimeStepsLog."""
     return TimeStepsLog()
 
@@ -193,6 +191,7 @@ def time_step_log_fixture():
     ],
 )
 def component_case_fixture(request):
+    """Create component cases"""
     return request.param
 
 
@@ -287,12 +286,12 @@ def test_time_integration_partials(
 
 
 @pytest.mark.parametrize("tableau", TABLEAUX[0:3])
-def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
+def test_if_adaptive(rk_problem, timestep_log, component_case, tableau):
     """
     Ensure that the integrator really changes its step size
     (i.e. logs >1 distinct values).
     """
-    callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    callbacks = [timestep_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
     comp_cls, _, init_time, _ = component_case
     rk = rk_problem(
         comp_cls=comp_cls,
@@ -305,16 +304,16 @@ def test_if_adaptive(rk_problem, time_step_log, component_case, tableau):
     )
     rk.run_model()
     if MPI.COMM_WORLD.Get_rank() == 0:
-        steps = time_step_log.q
+        steps = timestep_log.time_steps
         assert len(steps) > 1, "Only one time step was recorded"
         assert len(set(steps)) > 1, "All recorded time steps are identical"
 
 
-def test_new_old_adaptive_comparison(rk_problem, time_step_log):
+def test_new_old_adaptive_comparison(rk_problem, timestep_log):
     """
     Ensure that the integrator change steps size are identical to the one in './data.'
     """
-    callbacks = [time_step_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    callbacks = [timestep_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
     rk = rk_problem(
         comp_cls=TestComp1,
         tableau=heun_euler,
@@ -326,6 +325,6 @@ def test_new_old_adaptive_comparison(rk_problem, time_step_log):
     )
     rk.run_model()
     if MPI.COMM_WORLD.Get_rank() == 0:
-        steps_new = np.array(time_step_log.q)
+        steps_new = np.array(timestep_log.time_steps)
         steps_old = np.array(read_data(f"tests/data/time_step_{0}.txt"))
         assert np.allclose(steps_new, steps_old)

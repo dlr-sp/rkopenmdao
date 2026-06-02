@@ -1,3 +1,5 @@
+"""Simple linear ODE problem's component"""
+
 import numpy as np
 
 from rkopenmdao.components import ExplicitUnsteadyComponent

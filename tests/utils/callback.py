@@ -4,7 +4,6 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections import deque
 
 from rkopenmdao.callback import Callback
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
@@ -21,7 +20,7 @@ class TimeStepsLog(Callback):
     step of time integration.
     """
 
-    q: list = field(default_factory=lambda: [])
+    time_steps: list = field(default_factory=lambda: [])
 
     def after_iteration(
         self,
@@ -32,17 +31,17 @@ class TimeStepsLog(Callback):
     ):
         step_size = time_integration_state.step_size_history[0]
         print(f"Step size: {step_size}")
-        self.q.append(step_size)
+        self.time_steps.append(step_size)
 
 
-def save_data(timestepslog: TimeStepsLog, write_file: str):
+def save_data(timesteps_log: TimeStepsLog, write_file: str):
     """
     Utility to save the data created by ``TimeStepsLog`` by generating a file
     """
     path = Path(write_file)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(write_file, "a", encoding="utf-8") as file:
-        for step_size in timestepslog.q:
+        for step_size in timesteps_log.time_steps:
             file.write(f"{step_size}\n")
 
 
