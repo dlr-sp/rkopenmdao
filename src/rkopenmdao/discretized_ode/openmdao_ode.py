@@ -69,7 +69,6 @@ class OpenMDAOODE(DiscretizedODE):
         self,
         time_stage_problem: om.Problem,
         time_integration_quantities: list,
-        *,
         independent_input_quantities: Optional[list] = None,
         norm_exclusions: Optional[list] = None,
         norm_order: Union[float, str] = 2.0,
@@ -125,11 +124,11 @@ class OpenMDAOODE(DiscretizedODE):
 
         _, outputs, _ = self._time_stage_problem.model.get_nonlinear_vectors()
         self._input_state_to_om_vector(
-            time=np.array([ode_input.time]),
-            step_input=ode_input.step_input,
-            stage_input=ode_input.stage_input,
-            independent_input=ode_input.independent_input,
-            om_vector=outputs,
+            np.array([ode_input.time]),
+            ode_input.step_input,
+            ode_input.stage_input,
+            ode_input.independent_input,
+            outputs,
         )
         self._om_data_exchange.step_size = step_size
         self._om_data_exchange.stage_factor = stage_factor
@@ -163,12 +162,12 @@ class OpenMDAOODE(DiscretizedODE):
         _, d_outputs, d_residuals = self._time_stage_problem.model.get_linear_vectors()
         d_residuals.asarray()[:] *= 0.0
         self._input_state_to_om_vector(
-            time=np.array([ode_input_perturbation.time]),
-            step_input=ode_input_perturbation.step_input,
-            stage_input=ode_input_perturbation.stage_input,
-            independent_input=ode_input_perturbation.independent_input,
-            om_vector=d_residuals,
-            factor=-1.0,
+            np.array([ode_input_perturbation.time]),
+            ode_input_perturbation.step_input,
+            ode_input_perturbation.stage_input,
+            ode_input_perturbation.independent_input,
+            d_residuals,
+            -1.0,
         )
 
         self._om_run_solve_linear("fwd")
@@ -199,11 +198,11 @@ class OpenMDAOODE(DiscretizedODE):
         _, d_outputs, d_residuals = self._time_stage_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0.0
         self._output_state_to_om_vector(
-            stage_update=ode_result_perturbation.stage_update,
-            stage_state=ode_result_perturbation.stage_state,
-            independent_output=ode_result_perturbation.independent_output,
-            om_vector=d_outputs,
-            factor=-1.0,
+            ode_result_perturbation.stage_update,
+            ode_result_perturbation.stage_state,
+            ode_result_perturbation.independent_output,
+            d_outputs,
+            -1.0,
         )
         self._om_run_solve_linear("rev")
         step_input_pert = np.zeros(
@@ -217,11 +216,11 @@ class OpenMDAOODE(DiscretizedODE):
         )
         time_pert_arr = np.zeros(1)
         self._om_vector_to_input_state(
-            om_vector=d_residuals,
-            time=time_pert_arr,
-            step_input=step_input_pert,
-            stage_input=stage_input_pert,
-            independent_input=independent_input_pert,
+            d_residuals,
+            time_pert_arr,
+            step_input_pert,
+            stage_input_pert,
+            independent_input_pert,
         )
         return DiscretizedODEInputState(
             step_input_pert, stage_input_pert, independent_input_pert, time_pert_arr[0]
@@ -257,7 +256,6 @@ class OpenMDAOODE(DiscretizedODE):
 
     def _input_state_to_om_vector(
         self,
-        *,
         time: np.ndarray,
         step_input: np.ndarray,
         stage_input: np.ndarray,
@@ -309,7 +307,6 @@ class OpenMDAOODE(DiscretizedODE):
 
     def _output_state_to_om_vector(
         self,
-        *,
         stage_update: np.ndarray,
         stage_state: np.ndarray,  # currently not used
         independent_output: np.ndarray,  # currently not used
@@ -326,7 +323,6 @@ class OpenMDAOODE(DiscretizedODE):
 
     def _om_vector_to_input_state(
         self,
-        *,
         om_vector: Vector,
         time: np.ndarray,
         step_input: np.ndarray,

@@ -111,14 +111,14 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
                 stage_times=time_discretization_state.stage_times,
                 stage_independent_outputs=(
                     time_discretization_state.stage_independent_outputs,
-                ),
+                )[0],
                 final_time=time_discretization_state.final_time[0],
                 stage_time_perturbations=(
                     time_discretization_state_perturbation.stage_times
                 ),
                 stage_independent_output_perturbations=(
                     time_discretization_state_perturbation.stage_independent_outputs
-                ),
+                )[0],
                 final_time_perturbation=(
                     time_discretization_state_perturbation.final_time[0]
                 ),
@@ -162,6 +162,7 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
             time_discretization_state_perturbation.final_time[0]
         )
         for i in reversed(range(self.butcher_tableau.number_of_stages())):
+            lin_pt = time_discretization_state.linearization_points[i]
             time_discretization_state_perturbation = (
                 self._compute_stage_adjoint_derivative(
                     ode=ode,
@@ -170,9 +171,7 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
                     ),
                     step_size=step_size,
                     stage=i,
-                    linearization_point=time_discretization_state.linearization_points[
-                        i
-                    ],
+                    linearization_point=lin_pt,
                 )
             )
         self._shift_state_reverse(time_discretization_state_perturbation)
