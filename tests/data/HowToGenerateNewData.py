@@ -1,6 +1,6 @@
 """
-Reference script with which `time_step_0.txt` is generated for use in a regression test.
-with the following settings:
+Reference script that generates `time_step_0.txt` for a regression test, configured
+with the following parameters:with the following settings:
 - `Test case`: `TestComp1`
 - `Initial time`: `0.0`
 - `End time`: `0.01`,
@@ -44,7 +44,6 @@ def time_stage_problem():
     return prob
 
 
-#  Build inner problem (time‑stage)
 callbacks = [TimeStepsLog()]
 #  Build outer RK problem
 rk = om.Problem()
