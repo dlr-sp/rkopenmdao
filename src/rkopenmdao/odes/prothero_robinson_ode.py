@@ -38,7 +38,13 @@ class ProtheroRobinson(ExplicitUnsteadyComponent):
         """
         return np.cos(time + np.pi / 4)
 
-    def compute(self, inputs: dict, outputs: dict):
+    def compute(
+        self,
+        inputs: dict,
+        outputs: dict,
+        *_,
+        **__,
+    ):
         _delta_t = self.om_data_exchange.step_size
         stage_time = inputs["time"]
         lambda_ = self.options["lambda_"]

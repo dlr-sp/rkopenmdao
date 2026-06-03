@@ -91,5 +91,5 @@ good-names=[
 ]
 max-line-length=88
 min-similarity-lines=10
-
+ignored-modules="mpi4py"
 [tool.setuptools_scm]

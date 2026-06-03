@@ -15,14 +15,28 @@ class SimpleLinearODE(ExplicitUnsteadyComponent):
         )
         self.add_output("y_stage", val=1.0, tags=["y", "stage_output_var"])
 
-    def compute(self, inputs, outputs):
+    def compute(
+        self,
+        inputs,
+        outputs,
+        *_,
+        **__,
+    ):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         outputs["y_stage"] = -(
             inputs["y_old"] + delta_t * inputs["y_accumulated_stages"]
         ) / (1 + delta_t * butcher_diagonal_element)
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(
+        self,
+        inputs,
+        d_inputs,
+        d_outputs,
+        mode,
+        *_,
+        **__,
+    ):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         factor = (1 + delta_t * butcher_diagonal_element) ** -1
