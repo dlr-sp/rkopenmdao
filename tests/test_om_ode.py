@@ -30,7 +30,7 @@ def fixture_identity_openmdao_ode() -> OpenMDAOODE:
     ode = OpenMDAOODE(
         test_problem,
         test_time_integration_quantities,
-        independent_input_quantities=test_independent_input_quantities,
+        test_independent_input_quantities,
     )
     return ode
 

@@ -22,11 +22,11 @@ def pseudo(
 ):
     if base:
         return ErrorControllerDecorator(
-            alpha=0,
-            error_controller=base,
+            0,
+            base,
             name=name,
         )
-    return ErrorController(alpha=0, config=config)
+    return ErrorController(0, config=config)
 
 
 def integral(
@@ -38,12 +38,12 @@ def integral(
     alpha = 1 / (1 + p)
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
-            error_controller=base,
+            alpha,
+            base,
             name=name,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         config=config,
         name=name,
     )
@@ -74,14 +74,14 @@ def h_211(
     a = -1 / 4
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             a=a,
             name=name,
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         a=a,
         config=config,
@@ -100,14 +100,14 @@ def h0_211(
     a = -1 / 2
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             a=a,
             name=name,
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         a=a,
         config=config,
@@ -126,14 +126,14 @@ def pc(
     a = 1
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             a=a,
             name=name,
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         a=a,
         config=config,
@@ -166,14 +166,14 @@ def pid(
     gamma = alpha
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             name=name,
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         config=config,
@@ -194,7 +194,7 @@ def h_312(
     b = -1 / 8
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -203,7 +203,7 @@ def h_312(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -226,7 +226,7 @@ def h0_312(
     b = -1 / 4
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -235,7 +235,7 @@ def h0_312(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -250,7 +250,6 @@ def h_312_general(
     var_alpha,
     a,
     b,
-    *,
     config=ErrorControllerConfig(),
     name="H_312_general",
     base: ErrorController = None,
@@ -260,7 +259,7 @@ def h_312_general(
     gamma = alpha
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -269,7 +268,7 @@ def h_312_general(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -291,7 +290,7 @@ def ppid(
     a = 1
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -299,7 +298,7 @@ def ppid(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -321,7 +320,7 @@ def h_321(
     b = 1 / 6
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -330,7 +329,7 @@ def h_321(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -353,7 +352,7 @@ def h0_321(
     b = 3 / 4
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -362,7 +361,7 @@ def h0_321(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -377,7 +376,6 @@ def h_321_general(
     var_alpha,
     var_beta,
     a,
-    *,
     config=ErrorControllerConfig(),
     name="H_321_general",
     base: ErrorController = None,
@@ -388,7 +386,7 @@ def h_321_general(
     b = 1 - a
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -397,7 +395,7 @@ def h_321_general(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -420,7 +418,7 @@ def h0_330(  # delivers very small suggestions
     b = -1
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -429,7 +427,7 @@ def h0_330(  # delivers very small suggestions
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,
@@ -444,7 +442,6 @@ def h_330_general(
     var_alpha,
     var_beta,
     var_gamma,
-    *,
     config=ErrorControllerConfig(),
     name="H_330_general",
     base: ErrorController = None,
@@ -456,7 +453,7 @@ def h_330_general(
     b = -1
     if base:
         return ErrorControllerDecorator(
-            alpha=alpha,
+            alpha,
             beta=beta,
             gamma=gamma,
             a=a,
@@ -465,7 +462,7 @@ def h_330_general(
             error_controller=base,
         )
     return ErrorController(
-        alpha=alpha,
+        alpha,
         beta=beta,
         gamma=gamma,
         a=a,

@@ -65,7 +65,6 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
 
     def __init__(
         self,
-        *,
         ode_state_size: int,
         independent_input_size: int,
         independent_output_size: int,
@@ -132,11 +131,11 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
     def from_dict(cls, state_dict: dict):
         number_of_stages = len(state_dict["linearization_points"])
         state = cls(
-            ode_state_size=state_dict["final_state"].size,
-            independent_input_size=state_dict["independent_input"],
-            independent_output_size=state_dict["stage_0"]["independent_output"].size,
-            number_of_stages=number_of_stages,
-            linearization_point_size=state_dict["linearization_points"].shape[1],
+            state_dict["final_state"].size,
+            state_dict["independent_input"],
+            state_dict["stage_0"]["independent_output"].size,
+            number_of_stages,
+            state_dict["linearization_points"].shape[1],
         )
         state.start_state = state_dict["start_state"]
         state.start_time = state_dict["start_time"]
@@ -199,7 +198,6 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
 
     def __init__(
         self,
-        *,
         ode_state_size: int,
         independent_input_size: int,
         independent_output_size: int,
@@ -207,11 +205,11 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
         linearization_point_size: int,
     ):
         super().__init__(
-            ode_state_size=ode_state_size,
-            independent_input_size=independent_input_size,
-            independent_output_size=independent_output_size,
-            number_of_stages=number_of_stages,
-            linearization_point_size=linearization_point_size,
+            ode_state_size,
+            independent_input_size,
+            independent_output_size,
+            number_of_stages,
+            linearization_point_size,
         )
         self.embedded_state = np.zeros_like(self.start_state)
         self.error_estimate = np.zeros_like(self.start_state)

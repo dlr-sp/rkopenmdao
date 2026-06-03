@@ -43,11 +43,11 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         self, ode: DiscretizedODE
     ) -> RungeKuttaDiscretizationState:
         return RungeKuttaDiscretizationState(
-            ode_state_size=ode.get_state_size(),
-            independent_input_size=ode.get_independent_input_size(),
-            independent_output_size=ode.get_independent_output_size(),
-            number_of_stages=self.butcher_tableau.number_of_stages(),
-            linearization_point_size=ode.get_linearization_point_size(),
+            ode.get_state_size(),
+            ode.get_independent_input_size(),
+            ode.get_independent_output_size(),
+            self.butcher_tableau.number_of_stages(),
+            ode.get_linearization_point_size(),
         )
 
     def compute_step(
@@ -88,15 +88,12 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
     ) -> RungeKuttaDiscretizationState:
         self._shift_state(time_discretization_state_perturbation)
         for i in range(self.butcher_tableau.number_of_stages()):
-            lin_pt = time_discretization_state.linearization_points[i]
             time_discretization_state_perturbation = self._compute_stage_derivative(
-                ode=ode,
-                time_discretization_state_perturbation=(
-                    time_discretization_state_perturbation
-                ),
-                step_size=step_size,
-                stage=i,
-                linearization_point=lin_pt,
+                ode,
+                time_discretization_state_perturbation,
+                step_size,
+                i,
+                time_discretization_state.linearization_points[i],
             )
         time_discretization_state_perturbation.final_time[0] = (
             time_discretization_state_perturbation.start_time[0]
@@ -108,20 +105,12 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         )
         time_discretization_state_perturbation.final_independent_outputs[:] = (
             self._compute_final_independent_output_derivative(
-                stage_times=time_discretization_state.stage_times,
-                stage_independent_outputs=(
-                    time_discretization_state.stage_independent_outputs,
-                )[0],
-                final_time=time_discretization_state.final_time[0],
-                stage_time_perturbations=(
-                    time_discretization_state_perturbation.stage_times
-                ),
-                stage_independent_output_perturbations=(
-                    time_discretization_state_perturbation.stage_independent_outputs
-                )[0],
-                final_time_perturbation=(
-                    time_discretization_state_perturbation.final_time[0]
-                ),
+                time_discretization_state.stage_times,
+                time_discretization_state.stage_independent_outputs,
+                time_discretization_state.final_time[0],
+                time_discretization_state_perturbation.stage_times,
+                time_discretization_state_perturbation.stage_independent_outputs,
+                time_discretization_state_perturbation.final_time[0],
             )
         )
         return time_discretization_state_perturbation
@@ -165,13 +154,11 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
             lin_pt = time_discretization_state.linearization_points[i]
             time_discretization_state_perturbation = (
                 self._compute_stage_adjoint_derivative(
-                    ode=ode,
-                    time_discretization_state_perturbation=(
-                        time_discretization_state_perturbation
-                    ),
-                    step_size=step_size,
-                    stage=i,
-                    linearization_point=lin_pt,
+                    ode,
+                    time_discretization_state_perturbation,
+                    step_size,
+                    i,
+                    time_discretization_state.linearization_points[i],
                 )
             )
         self._shift_state_reverse(time_discretization_state_perturbation)
@@ -244,7 +231,6 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
 
     def _compute_stage_derivative(
         self,
-        *,
         ode: DiscretizedODE,
         time_discretization_state_perturbation: RungeKuttaDiscretizationState,
         step_size: float,
@@ -282,7 +268,6 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
 
     def _compute_stage_adjoint_derivative(
         self,
-        *,
         ode: DiscretizedODE,
         time_discretization_state_perturbation: RungeKuttaDiscretizationState,
         step_size: float,
@@ -342,7 +327,6 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
 
     @staticmethod
     def _compute_final_independent_output_derivative(
-        *,
         stage_times: np.ndarray,
         stage_independent_outputs: np.ndarray,
         final_time: float,
@@ -536,11 +520,11 @@ class StageOrderedEmbeddedRungeKuttaDiscretization(
         self, ode: DiscretizedODE
     ) -> EmbeddedRungeKuttaDiscretizationState:
         return EmbeddedRungeKuttaDiscretizationState(
-            ode_state_size=ode.get_state_size(),
-            independent_input_size=ode.get_independent_input_size(),
-            independent_output_size=ode.get_independent_output_size(),
-            number_of_stages=self.butcher_tableau.number_of_stages(),
-            linearization_point_size=ode.get_linearization_point_size(),
+            ode.get_state_size(),
+            ode.get_independent_input_size(),
+            ode.get_independent_output_size(),
+            self.butcher_tableau.number_of_stages(),
+            ode.get_linearization_point_size(),
         )
 
     def compute_step(

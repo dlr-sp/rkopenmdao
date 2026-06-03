@@ -1,5 +1,3 @@
-"""An interface to represent problems"""
-
 import argparse
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -22,10 +20,7 @@ from rkopenmdao.odes.prothero_robinson_ode import ProtheroRobinson
 
 
 def generate_path(path: str):
-    """
-    Generate a path for output files and create the directory automatically
-    if it doesn't exist
-    """
+    """Generate a path for output files and create the directory automatically if it doesn't exist"""
     if path[-3::] == ".h5" or path[-4::] == ".png":
         idx = path.rfind("/")
         directory_path = path[: idx + 1]
@@ -65,7 +60,7 @@ class Problem:
     ) -> Tuple[str, pathlib.Path]:
         """Get the file's path"""
         if isinstance(_type, str):
-            if _type not in ("adaptive", "avg_homogeneous"):
+            if _type != "adaptive" and _type != "avg_homogeneous":
                 raise ValueError(
                     "_type (str) must be either 'adaptive' or 'avg_homogeneous'"
                 )
@@ -82,12 +77,11 @@ class Problem:
             raise ValueError("_type must be of type str or float")
 
     def file_exists(self, butcher_name: str, _type: Union[str, float]) -> bool:
-        """Check whether the file exists"""
         _, path = self.get_file_path(butcher_name=butcher_name, _type=_type)
         return os.path.isfile(path)
 
     def compute_tolerance(self, butcher_name: str) -> np.floating:
-        """Compute the tolerance for the given Runge-Kutta scheme"""
+        """compute the tolerance for the given Runge-Kutta scheme"""
         try:
             error = np.zeros_like(self.step_sizes, dtype=np.float64)
             for idx, step_size in enumerate(self.step_sizes):
@@ -103,10 +97,7 @@ class Problem:
         butcher_tableau: ButcherTableau,
         problem_config: ProblemConfig,
     ) -> None:
-        """
-        execute the RK-integration for a given problem,
-        a Butcher tableau and integration configuration.
-        """
+        """execute the RK-integration for a given problem, a Butcher tableau and integration configuration."""
         # initialize the OpenMDAO problem for the time integration model
         time_integration_prob = om.Problem()
         # add the `Problem` subsystem for the time integration model
@@ -118,8 +109,7 @@ class Problem:
         )
         # initialize the OpenMDAO problem for the RK integration
         runge_kutta_prob = om.Problem()
-        # add the `RungeKuttaIntegrator` subsystem for the RK integration
-        # and connect the time integration model
+        # add the `RungeKuttaIntegrator` subsystem for the RK integration and connect the time integration model
         runge_kutta_prob.model.add_subsystem(
             "rk_integration",
             RungeKuttaIntegrator(
@@ -139,8 +129,7 @@ class Problem:
             ),
             promotes=["*"],
         )
-        # set up the OpenMDAO problem, fill the initial values for each quantity
-        # and run the RK integration
+        # set up the OpenMDAO problem, fill the initial values for each quantity and run the RK integration
         runge_kutta_prob.setup()
         for index, quantity in enumerate(self.quantities):
             runge_kutta_prob[quantity + "_initial"].fill(
@@ -204,10 +193,9 @@ def prothero_robinson_problem(_lambda: float = -1e2):
     folder_path = (
         pathlib.Path(__file__).resolve().parents[3] / "data" / "prothero_robinson"
     )
-    # "data/prothero_robinson" should contain the "adaptive" folder for the data of
-    # adaptive .h5 runs (adaptive.py), and the "homogeneous" folder for the
-    # homogeneous for the data .h5 runs wrt. the adaptive's average delta_t
-    # (run_non_adaptive_wrt_adaptive.py)
+    # "data/prothero_robinson" should contain the "adaptive" folder for the data of adaptive .h5 runs
+    # (adaptive.py), and the "homogeneous" folder for the homogeneous for the data .h5 runs wrt. the adaptive's
+    # average delta_t (run_non_adaptive_wrt_adaptive.py)
     return Problem(
         delta_t_list,
         quantities,
@@ -235,10 +223,9 @@ def kaps_problem(epsilon=1.0):
     stiffness_coef = {"epsilon": epsilon}
     time_objective = 1.0
     folder_path = pathlib.Path(__file__).resolve().parents[3] / "data" / "kaps"
-    # "data/kaps" should contain the "adaptive" folder for the data of adaptive .h5
-    # runs (adaptive.py), and the "homogeneous" folder for the homogeneous for the
-    # data .h5 runs (homogeneous.py) wrt. the adaptive's average delta_t
-    # (avg_homogeneous.py)
+    # "data/kaps" should contain the "adaptive" folder for the data of adaptive .h5 runs
+    # (adaptive.py), and the "homogeneous" folder for the homogeneous for the data .h5 runs (homogeneous.py) wrt. the adaptive's
+    # average delta_t (avg_homogeneous.py)
     return Problem(
         delta_t_list,
         quantities,

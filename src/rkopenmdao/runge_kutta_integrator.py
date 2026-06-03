@@ -296,9 +296,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
         self._ode = OpenMDAOODE(
             self.options["time_stage_problem"],
             self.options["time_integration_quantities"],
-            independent_input_quantities=self.options[
-                "time_independent_input_quantities"
-            ],
+            self.options["time_independent_input_quantities"],
         )
 
     def _add_inputs_and_outputs(self):
@@ -585,21 +583,23 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             )
 
             error_controller_status = self._error_controller(
-                error_measure=error_measure,
-                delta_t=time_integration_state.step_size_suggestion[0],
-                remaining_time=remaining_time,
-                error_history=time_integration_state.error_history,
-                step_size_history=time_integration_state.step_size_history,
+                error_measure,
+                time_integration_state.step_size_suggestion[0],
+                remaining_time,
+                time_integration_state.error_history,
+                time_integration_state.step_size_history,
             )
             if self.comm.rank == 0:
                 nl = "\n"
-                print(f"""End Iteration {i}: {
+                print(
+                    f"""End Iteration {i}: {
                     time_integration_state.step_size_suggestion[0]} {f'succeeded. {nl}'
                     'Estimation for next step is:' 
                     if error_controller_status.acceptance else f'failed. {nl}' 
                     'retrying with:'
                     } {error_controller_status.step_size_suggestion}
-                    """)
+                    """
+                )
             if error_controller_status.acceptance:
                 new_step_size_history = np.roll(
                     time_integration_state.step_size_history, 1
