@@ -151,7 +151,6 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
             time_discretization_state_perturbation.final_time[0]
         )
         for i in reversed(range(self.butcher_tableau.number_of_stages())):
-            lin_pt = time_discretization_state.linearization_points[i]
             time_discretization_state_perturbation = (
                 self._compute_stage_adjoint_derivative(
                     ode,
