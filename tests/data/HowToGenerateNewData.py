@@ -1,6 +1,6 @@
 """
 Reference script that generates `time_step_0.txt` for a regression test, configured
-with the following parameters:with the following settings:
+with the following parameters:
 - `Test case`: `TestComp1`
 - `Initial time`: `0.0`
 - `End time`: `0.01`,
@@ -26,20 +26,22 @@ from ..utils.callback import TimeStepsLog, save_data
 from ..test_components import TestComp1
 
 
-def save_case_anew():
-    def integration_cfg():
-        return IntegrationConfig(
-            use_adaptive_time_stepping=True,
-            termination_criterion=PredefinedFinalTime(0.01),
-            initial_step_size=0.01,
-        )
+def integration_cfg():
+    """Integration configuration factory"""
+    return IntegrationConfig(
+        use_adaptive_time_stepping=True,
+        termination_criterion=PredefinedFinalTime(0.01),
+        initial_step_size=0.01,
+    )
 
-    def time_stage_problem():
-        prob = om.Problem()
-        prob.model.add_subsystem("test_comp", TestComp1())
-        prob.model.nonlinear_solver = om.NewtonSolver(solve_subsystems=True)
-        prob.model.linear_solver = om.ScipyKrylov()
-        return prob
+
+def time_stage_problem():
+    """Time problem factory"""
+    prob = om.Problem()
+    prob.model.add_subsystem("test_comp", TestComp1())
+    prob.model.nonlinear_solver = om.NewtonSolver(solve_subsystems=True)
+    prob.model.linear_solver = om.ScipyKrylov()
+    return prob
 
 
 callbacks = [TimeStepsLog()]
