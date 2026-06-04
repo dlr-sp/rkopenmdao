@@ -579,7 +579,7 @@ class RungeKuttaIntegrator(om.ExplicitComponent):
             error_measure = self._get_error_measure(temp_discretization_state)
 
             remaining_time = self._remaining_time_func(
-                temp_discretization_state.final_time
+                temp_discretization_state.final_time[0]
             )
 
             error_controller_status = self._error_controller(

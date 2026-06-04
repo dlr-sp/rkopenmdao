@@ -1,6 +1,8 @@
 """Some direct implementations of DiscretizedODE to test time discretizations."""
 
-from dataclasses import dataclass
+# pylint: disable=unnecessary-lambda
+
+from dataclasses import dataclass,field
 
 import numpy as np
 
@@ -137,7 +139,7 @@ class TimeScaledIdentityODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = t*x(t).
     """
 
-    _cached_linearization: np.ndarray = np.zeros(3)
+    _cached_linearization: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
     def compute_update(
         self,
@@ -308,7 +310,7 @@ class RootODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = sqrt(x(t)).
     """
 
-    _cached_linearization: np.ndarray = np.zeros(2)
+    _cached_linearization: np.ndarray = field(default_factory=lambda:np.zeros(2))
 
     def compute_update(
         self,

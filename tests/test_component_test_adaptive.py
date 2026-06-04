@@ -1,26 +1,13 @@
-"""Tests the adaptive time integration with the various components of
-test_components.py"""
+"""Compact tests for adaptive RK integration."""
 
-# pylint: disable=duplicate-code
+from __future__ import annotations
 
-from itertools import product
-
+import numpy as np
 import openmdao.api as om
 import pytest
-import numpy as np
+from mpi4py import MPI
 
 from rkopenmdao.error_controller import ErrorControllerConfig
-
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
-from rkopenmdao.butcher_tableaux import (
-    embedded_second_order_two_stage_sdirk as two_stage_dirk,
-    embedded_second_order_three_stage_esdirk as three_stage_esdirk,
-    embedded_heun_euler as heun_euler,
-    embedded_third_order_four_stage_esdirk as four_stage_esdirk,
-    embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
-)
-from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
-from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
 from rkopenmdao.error_controllers import (
     integral,
     h_211,
@@ -32,23 +19,30 @@ from rkopenmdao.error_controllers import (
     h_321,
     h0_321,
 )
-from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
+from rkopenmdao.error_measurer import ImprovedErrorMeasurer, SimpleErrorMeasurer
 from rkopenmdao.integration_config import IntegrationConfig
+from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
+from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.termination_criterion import PredefinedFinalTime
+from rkopenmdao.butcher_tableaux import (
+    embedded_heun_euler as heun_euler,
+    embedded_second_order_two_stage_sdirk as two_stage_dirk,
+    embedded_second_order_three_stage_esdirk as three_stage_esdirk,
+    embedded_third_order_four_stage_esdirk as four_stage_esdirk,
+    embedded_fourth_order_five_stage_esdirk as five_stage_esdirk,
+)
 
 from .test_components import (
     TestComp1,
     TestComp2,
     TestComp3,
     TestComp4,
-    Testcomp51,
-    Testcomp52,
     TestComp6,
     TestComp6a,
     TestComp7,
-)
-
-from .test_components import (
+    Testcomp51,
+    Testcomp52,
     solution_test1,
     solution_test2,
     solution_test3,
@@ -56,8 +50,9 @@ from .test_components import (
     solution_test6,
     solution_test7,
 )
+from .utils.callback import TimeStepsLog, read_data
 
-test_comp_class_list = [
+COMPONENTS = [
     TestComp1,
     TestComp2,
     TestComp3,
@@ -69,7 +64,7 @@ test_comp_class_list = [
     TestComp7,
 ]
 
-error_controller_list = [
+CONTROLLERS = [
     integral,
     h_211,
     h0_211,
@@ -81,190 +76,255 @@ error_controller_list = [
     h0_321,
 ]
 
-times = np.linspace(1.0, 9.0, 3)
-butcher_diagonal_elements = np.linspace(0.0, 1.0, 3)
+TABLEAUX = [
+    heun_euler,
+    two_stage_dirk,
+    three_stage_esdirk,
+    four_stage_esdirk,
+    five_stage_esdirk,
+]
+
+MEASURERS = [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
+CHECKPOINTERS = [NoCheckpointer, AllCheckpointer]
 
 
-@pytest.mark.parametrize(
-    "test_class, test_functor, initial_time, initial_values",
-    (
-        [TestComp1, solution_test1, 0.0, np.array([1.0])],
-        [TestComp1, solution_test1, 1.0, np.array([1.0])],
-        [TestComp2, solution_test2, 0.0, np.array([1.0])],
-        [TestComp2, solution_test2, 1.0, np.array([1.0])],
-        [TestComp3, solution_test3, 0.0, np.array([1.0])],
-        [TestComp3, solution_test3, 1.0, np.array([1.0])],
-        [TestComp4, solution_test4, 0.0, np.array([[1.0, 1.0]])],
-        [TestComp4, solution_test4, 1.0, np.array([[1.0, 1.0]])],
-        [TestComp6, solution_test6, 0.0, np.array([1.0])],
-        [TestComp6, solution_test6, 1.0, np.array([1.0])],
-        [TestComp6a, solution_test6, 0.0, np.array([1.0])],
-        [TestComp6a, solution_test6, 1.0, np.array([1.0])],
-        [TestComp7, solution_test7, 1.0, np.array([1.0])],
-        [TestComp7, solution_test7, 2.0, np.array([1.0])],
-    ),
-)
-@pytest.mark.parametrize(
-    "butcher_tableau",
-    [
-        heun_euler,
-        two_stage_dirk,
-        three_stage_esdirk,
-        four_stage_esdirk,
-        five_stage_esdirk,
-    ],
-)
-@pytest.mark.parametrize("quantities", [["x"]])
-@pytest.mark.parametrize(
-    "test_measurer", [SimpleErrorMeasurer(), ImprovedErrorMeasurer()]
-)
-@pytest.mark.parametrize("test_controller", error_controller_list)
-def test_component_integration(
-    test_class,
-    test_functor,
-    initial_time,
-    initial_values,
-    butcher_tableau,
-    quantities,
-    test_measurer,
-    test_controller,
-):
-    """Tests the time integration of the different components."""
-    integration_config = IntegrationConfig(
-        use_adaptive_time_stepping=True,
-        termination_criterion=PredefinedFinalTime(initial_time + 0.01),
-        initial_step_size=0.01,
-    )
-    time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem("test_comp", test_class())
-    time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=True
-    )
-    time_integration_prob.model.linear_solver = om.ScipyKrylov()
-
-    runge_kutta_prob = om.Problem()
-    runge_kutta_prob.model.add_subsystem(
-        "rk_integrator",
-        RungeKuttaIntegrator(
-            time_stage_problem=time_integration_prob,
-            butcher_tableau=butcher_tableau,
-            integration_config=integration_config,
-            time_integration_quantities=quantities,
-            error_controller=[test_controller, integral],
-            error_measurer=test_measurer,
-        ),
-        promotes=["*"],
-    )
-
-    runge_kutta_prob.setup()
-    runge_kutta_prob["time_initial"] = initial_time
-    for i, quantity in enumerate(quantities):
-        runge_kutta_prob[quantity + "_initial"] = initial_values[i]
-
-    runge_kutta_prob.run_model()
-
-    result = np.zeros_like(initial_values)
-    for i, quantity in enumerate(quantities):
-        result[i] = runge_kutta_prob[quantity + "_final"][0]
-
-    # relatively coarse, but this isn't supposed to test the accuracy,
-    # it's just to make sure the solution is in the right region
-    assert test_functor(
-        initial_time + 0.01,
-        initial_values,
-        initial_time,
-    ) == pytest.approx(result, rel=1e-4)
-
-
-@pytest.mark.parametrize(
-    "test_class, initial_time",
-    list(
-        product(
-            [TestComp1, TestComp2, TestComp3, TestComp4, TestComp6, TestComp6a],
-            [0.0, 1.0],
-        )
-    )
-    + [[TestComp7, 1.0]]
-    + [[TestComp7, 2.0]],
-)
-@pytest.mark.parametrize(
-    "butcher_tableau",
-    [
-        heun_euler,
-        two_stage_dirk,
-        three_stage_esdirk,
-        four_stage_esdirk,
-        five_stage_esdirk,
-    ],
-)
-@pytest.mark.parametrize(
-    "checkpointing_implementation",
-    [
-        NoCheckpointer,
-        AllCheckpointer,
-    ],
-)
-def test_time_integration_partials(
-    test_class,
-    initial_time,
-    butcher_tableau,
-    checkpointing_implementation,
-):
-    """Tests the partials of the time integration of the different components."""
-    integration_config = IntegrationConfig(
-        use_adaptive_time_stepping=True,
-        termination_criterion=PredefinedFinalTime(initial_time + 0.01),
-        initial_step_size=0.01,
-    )
-    time_integration_prob = om.Problem()
-    time_integration_prob.model.add_subsystem("test_comp", test_class())
-
-    time_integration_prob.model.nonlinear_solver = om.NewtonSolver(
-        solve_subsystems=True
-    )
-    time_integration_prob.model.linear_solver = om.ScipyKrylov()
-
-    runge_kutta_prob = om.Problem()
-    runge_kutta_prob.model.add_subsystem(
-        "rk_integrator",
-        RungeKuttaIntegrator(
-            time_stage_problem=time_integration_prob,
-            butcher_tableau=butcher_tableau,
-            integration_config=integration_config,
-            time_integration_quantities=["x"],
-            checkpointing_type=checkpointing_implementation,
-            error_controller=[integral],
-            error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
-            error_measurer=SimpleErrorMeasurer(),
-        ),
-        promotes=["*"],
-    )
-
-    runge_kutta_prob.setup()
-    runge_kutta_prob["time_initial"] = initial_time
-
-    runge_kutta_prob.run_model()
-    if checkpointing_implementation == NoCheckpointer:
-        with pytest.raises(NotImplementedError):
-            runge_kutta_prob.check_partials()
-
-    else:
-        data = runge_kutta_prob.check_partials()
-        check_partials_wo_fd(data)
-
-
-def check_partials_wo_fd(jac_data: dict, tol: float = 1e-6):
+@pytest.fixture(name="integration_cfg", scope="function")
+def integration_cfg_fixture(request):
     """
-    Since FD by the Openmdao and fwd/rev are not comparable for adaptive schemes, a
-    function excluding fd is necessary. The fd of OpenMDAO perturbs the inputs/initial
-    values, which lead the error estimation to also be differentiated.
-    The implementation of fwd and rev mode explicitely excludes the error estimation
-    from the derivatives, because else that would introduce errors
-    (see 1. https://doi.org/10.1016/j.cam.2009.08.109 and
-    2. http://dx.doi.org/10.1090/S0025-5718-99-01027-3
+    Base configuration (adaptive, short horizon, tiny initial step).
+    """
+    init_time = 0.0  # default
+
+    if "component_case" in request.fixturenames:
+        _, _, init_time, _ = request.getfixturevalue("component_case")
+    return IntegrationConfig(
+        use_adaptive_time_stepping=True,
+        termination_criterion=PredefinedFinalTime(init_time + 0.01),
+        initial_step_size=0.01,
+    )
+
+
+@pytest.fixture(name="time_stage_problem")
+def time_stage_problem_fixture():
+    """
+    Factory that builds the “inner” problem holding the test component.
+    """
+
+    def _make(comp_cls):
+        prob = om.Problem()
+        prob.model.add_subsystem("test_comp", comp_cls())
+        prob.model.nonlinear_solver = om.NewtonSolver(solve_subsystems=True)
+        prob.model.linear_solver = om.ScipyKrylov()
+        return prob
+
+    return _make
+
+
+@pytest.fixture(name="rk_problem")
+def rk_problem_fixture(integration_cfg, time_stage_problem):
+    """
+    Factory that builds the outer RK problem.
+    Parameters are supplied via ``indirect`` parametrisation.
+    """
+
+    def _make(
+        *,
+        comp_cls,
+        tableau,
+        quantities,
+        controller,
+        measurer,
+        checkpoint_impl=NoCheckpointer,
+        callbacks=None,
+        init_time: float,
+    ):
+        #  Build inner problem (time‑stage)
+        inner = time_stage_problem(comp_cls)
+
+        #  Build outer RK problem
+        rk = om.Problem()
+        rk.model.add_subsystem(
+            "rk_integrator",
+            RungeKuttaIntegrator(
+                time_stage_problem=inner,
+                butcher_tableau=tableau,
+                integration_config=integration_cfg,
+                time_integration_quantities=quantities,
+                error_controller=[controller, integral],
+                error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
+                error_measurer=measurer,
+                checkpointing_type=checkpoint_impl,
+                compute_callbacks=callbacks or [],
+            ),
+            promotes=["*"],
+        )
+        rk.setup()
+        rk["time_initial"] = init_time
+        return rk
+
+    return _make
+
+
+@pytest.fixture(name="timestep_log")
+def timestep_log_fixture():
+    """Create a fresh TimeStepsLog."""
+    return TimeStepsLog()
+
+
+@pytest.fixture(
+    name="component_case",
+    params=[
+        (TestComp1, solution_test1, 0.0, np.array([1.0])),
+        (TestComp1, solution_test1, 1.0, np.array([1.0])),
+        (TestComp2, solution_test2, 0.0, np.array([1.0])),
+        (TestComp2, solution_test2, 1.0, np.array([1.0])),
+        (TestComp3, solution_test3, 0.0, np.array([1.0])),
+        (TestComp3, solution_test3, 1.0, np.array([1.0])),
+        (TestComp4, solution_test4, 0.0, np.array([[1.0, 1.0]])),
+        (TestComp4, solution_test4, 1.0, np.array([[1.0, 1.0]])),
+        (TestComp6, solution_test6, 0.0, np.array([1.0])),
+        (TestComp6, solution_test6, 1.0, np.array([1.0])),
+        (TestComp6a, solution_test6, 0.0, np.array([1.0])),
+        (TestComp6a, solution_test6, 1.0, np.array([1.0])),
+        (TestComp7, solution_test7, 1.0, np.array([1.0])),
+        (TestComp7, solution_test7, 2.0, np.array([1.0])),
+    ],
+)
+def component_case_fixture(request):
+    """Create component cases"""
+    return request.param
+
+
+def run_and_compare(rk_prob, quantities, init_vals, functor, init_time):
+    """
+    Run the RK problem and assert the numerical result matches the analytic one.
+    """
+    rk_prob.run_model()
+    result = np.zeros_like(init_vals)
+    for i, quantity in enumerate(quantities):
+        result[i] = rk_prob[quantity + "_final"][0]
+    assert functor(init_time + 0.01, init_vals, init_time) == pytest.approx(
+        result, rel=1e-4
+    )
+
+
+def run_and_check_partials(rk_prob, checkpoint_impl):
+    """
+    Run the RK problem and, depending on the checkpoint implementation, test partials.
+    """
+    rk_prob.run_model()
+    if checkpoint_impl is NoCheckpointer:
+        with pytest.raises(NotImplementedError):
+            rk_prob.check_partials()
+    else:
+        data = rk_prob.check_partials()
+        _compare_fwd_rev(data)
+
+
+def _compare_fwd_rev(jac_data: dict, tol: float = 1e-6):
+    """
+    Utility used by ``run_and_check_partials`` – forward vs reverse Jacobians.
     """
     for pair in jac_data["rk_integrator"]:
         fwd = jac_data["rk_integrator"][pair]["J_fwd"]
         rev = jac_data["rk_integrator"][pair]["J_rev"]
-        # Absolute :
         assert rev == pytest.approx(fwd, rel=tol, abs=tol)
+
+
+@pytest.mark.parametrize("tableau", TABLEAUX)
+@pytest.mark.parametrize("measurer", MEASURERS)
+@pytest.mark.parametrize("controller", CONTROLLERS)
+def test_component_integration(
+    rk_problem,
+    component_case,
+    tableau,
+    measurer,
+    controller,
+):
+    """
+    Validate that the adaptive RK integrator reproduces the known analytic solution.
+    """
+    comp_cls, functor, init_time, init_vals = component_case
+    rk = rk_problem(
+        comp_cls=comp_cls,
+        tableau=tableau,
+        quantities=["x"],
+        controller=controller,
+        measurer=measurer,
+        init_time=init_time,
+        callbacks=None,
+    )
+    # Set the initial condition(s)
+    rk["x_initial"] = init_vals[0] if init_vals.ndim == 1 else init_vals
+    # Run and compare
+    run_and_compare(rk, ["x"], init_vals, functor, init_time)
+
+
+@pytest.mark.parametrize("tableau", TABLEAUX)
+@pytest.mark.parametrize("ckpt_impl", CHECKPOINTERS)
+def test_time_integration_partials(
+    rk_problem,
+    component_case,
+    tableau,
+    ckpt_impl,
+):
+    """
+    Check that forward‑ and reverse‑mode Jacobians match
+    (when checkpointing is available).
+    """
+    comp_cls, _, init_time, _ = component_case
+    rk = rk_problem(
+        comp_cls=comp_cls,
+        tableau=tableau,
+        quantities=["x"],
+        controller=integral,
+        measurer=SimpleErrorMeasurer(),
+        checkpoint_impl=ckpt_impl,
+        init_time=init_time,
+    )
+    run_and_check_partials(rk, ckpt_impl)
+
+
+@pytest.mark.parametrize("tableau", TABLEAUX[0:3])
+def test_if_adaptive(rk_problem, timestep_log, component_case, tableau):
+    """
+    Ensure that the integrator really changes its step size
+    (i.e. logs >1 distinct values).
+    """
+    callbacks = [timestep_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    comp_cls, _, init_time, _ = component_case
+    rk = rk_problem(
+        comp_cls=comp_cls,
+        tableau=tableau,
+        quantities=["x"],
+        controller=integral,
+        measurer=SimpleErrorMeasurer(),
+        callbacks=callbacks,
+        init_time=init_time,
+    )
+    rk.run_model()
+    if MPI.COMM_WORLD.Get_rank() == 0:
+        steps = timestep_log.time_steps
+        assert len(steps) > 1, "Only one time step was recorded"
+        assert len(set(steps)) > 1, "All recorded time steps are identical"
+
+
+def test_new_old_adaptive_comparison(rk_problem, timestep_log):
+    """
+    Ensure that the integrator change steps size are identical to the one in './data.'
+    """
+    callbacks = [timestep_log] if MPI.COMM_WORLD.Get_rank() == 0 else []
+    rk = rk_problem(
+        comp_cls=TestComp1,
+        tableau=heun_euler,
+        quantities=["x"],
+        controller=integral,
+        measurer=SimpleErrorMeasurer(),
+        callbacks=callbacks,
+        init_time=0.0,
+    )
+    rk.run_model()
+    if MPI.COMM_WORLD.Get_rank() == 0:
+        steps_new = np.array(timestep_log.time_steps)
+        steps_old = np.array(read_data(f"tests/data/time_step_{0}.txt"))
+        assert np.allclose(steps_new, steps_old)
