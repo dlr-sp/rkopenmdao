@@ -122,6 +122,10 @@ def test_error_controller_step_size_estimation(
     Tests correct estimation of next step by the error controller.
     """
     status = controller(
-        error_measure, delta_t, remaining_time, error_history, step_size_history
+        error_measure=error_measure,
+        delta_t=delta_t,
+        remaining_time=remaining_time,
+        error_history=error_history,
+        step_size_history=step_size_history,
     )
     assert status == pytest.approx(expected_status)

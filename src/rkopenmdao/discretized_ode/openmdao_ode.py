@@ -159,9 +159,7 @@ class OpenMDAOODE(DiscretizedODE):
         self._om_data_exchange.step_size = step_size
         self._om_data_exchange.stage_factor = stage_factor
         self._time_stage_problem.model.run_linearize()
-        (_, d_outputs, d_residuals) = (
-            self._time_stage_problem.model.get_linear_vectors()
-        )
+        _, d_outputs, d_residuals = self._time_stage_problem.model.get_linear_vectors()
         d_residuals.asarray()[:] *= 0.0
         self._input_state_to_om_vector(
             np.array([ode_input_perturbation.time]),
@@ -197,9 +195,7 @@ class OpenMDAOODE(DiscretizedODE):
         self._om_data_exchange.step_size = step_size
         self._om_data_exchange.stage_factor = stage_factor
         self._time_stage_problem.model.run_linearize()
-        (_, d_outputs, d_residuals) = (
-            self._time_stage_problem.model.get_linear_vectors()
-        )
+        _, d_outputs, d_residuals = self._time_stage_problem.model.get_linear_vectors()
         d_outputs.asarray()[:] *= 0.0
         self._output_state_to_om_vector(
             ode_result_perturbation.stage_update,

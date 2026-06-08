@@ -9,7 +9,7 @@ from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
 
 
-class ErrorMeasurer(ABC):
+class ErrorMeasurer(ABC):  # pylint: disable=too-few-public-methods
     """
     Interface for classes that compute a measure of the error for the use in an error
     controller for adaptive time stepping.
@@ -38,7 +38,7 @@ class ErrorMeasurer(ABC):
         """
 
 
-class SimpleErrorMeasurer(ErrorMeasurer):
+class SimpleErrorMeasurer(ErrorMeasurer):  # pylint: disable=too-few-public-methods
     """
     A simple error measure that only uses the norm of the error estimate.
     """

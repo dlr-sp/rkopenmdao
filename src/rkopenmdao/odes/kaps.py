@@ -1,3 +1,5 @@
+"""Kaps' problem's components"""
+
 import numpy as np
 import openmdao.api as om
 
@@ -333,6 +335,7 @@ class KapsGroup(om.Group):
 
     @staticmethod
     def get_initial_values():
+        """Returns a vector of initial values."""
         return np.array([1.0, 1.0])
 
     @staticmethod
