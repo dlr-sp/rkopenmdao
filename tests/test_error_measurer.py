@@ -57,11 +57,9 @@ def test_error_measurer(
     """
     Tests the correct calculation of the error measure based on an estimate and ODE.
     """
-
     result = measurer.get_measure(
         DiscretizedODEResultState(None, estimate, None),
         DiscretizedODEResultState(None, state, None),
         ode,
     )
-
     assert result == pytest.approx(expected_measure)
