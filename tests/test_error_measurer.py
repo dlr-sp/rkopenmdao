@@ -48,10 +48,10 @@ from .odes import RootODE
     ],
 )
 def test_error_measurer(
-    measurer,
+    measurer: ErrorMeasurer,
     estimate: np.ndarray,
     state: np.ndarray,
-    ode,
+    ode: DiscretizedODE,
     expected_measure: float,
 ):
     """
