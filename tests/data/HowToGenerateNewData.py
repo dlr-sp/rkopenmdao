@@ -1,6 +1,6 @@
 """
 Reference script that generates `time_step_0.txt` for a regression test, configured
-with the following parameters:with the following settings:
+with the following parameters:
 - `Test case`: `TestComp1`
 - `Initial time`: `0.0`
 - `End time`: `0.01`,
