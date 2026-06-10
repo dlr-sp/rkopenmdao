@@ -11,8 +11,8 @@ from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk,
     embedded_second_order_three_stage_esdirk,
     implicit_euler,
-    fourth_order_five_stage_sdirk,
-    runge_kutta_four,
+    embedded_fourth_order_five_stage_sdirk,
+    embedded_runge_kutta_four,
 )
 
 
@@ -122,8 +122,8 @@ def fixture_ode_collection(request):
     [
         (implicit_euler, 0.1),
         (embedded_second_order_two_stage_sdirk, 0.1),
-        (runge_kutta_four, 0.1),
-        (fourth_order_five_stage_sdirk, 0.1),
+        (embedded_runge_kutta_four, 0.1),
+        (embedded_fourth_order_five_stage_sdirk, 0.1),
     ],
 )
 def test_convergence(
@@ -156,8 +156,8 @@ def test_convergence(
     "butcher_tableau",
     [
         implicit_euler,
-        runge_kutta_four,
-        fourth_order_five_stage_sdirk,
+        embedded_runge_kutta_four,
+        embedded_fourth_order_five_stage_sdirk,
         embedded_second_order_two_stage_sdirk,
         embedded_second_order_three_stage_esdirk,
     ],
@@ -229,8 +229,8 @@ def test_step_duality(butcher_tableau: ButcherTableau, ode: DiscretizedODE, seed
     "butcher_tableau",
     [
         implicit_euler,
-        runge_kutta_four,
-        fourth_order_five_stage_sdirk,
+        embedded_runge_kutta_four,
+        embedded_fourth_order_five_stage_sdirk,
     ],
 )
 def test_starting_scheme_duality(butcher_tableau: ButcherTableau):
@@ -275,8 +275,8 @@ def test_starting_scheme_duality(butcher_tableau: ButcherTableau):
     "butcher_tableau",
     [
         implicit_euler,
-        runge_kutta_four,
-        fourth_order_five_stage_sdirk,
+        embedded_runge_kutta_four,
+        embedded_fourth_order_five_stage_sdirk,
     ],
 )
 def test_finalization_scheme_duality(
