@@ -20,11 +20,13 @@ ALL_TABLEAUX = [
     explicit_euler,
     implicit_euler,
     implicit_midpoint,
+    fifth_order_five_stage_sdirk,
+    third_order_two_stage_sdirk,
+    runge_kutta_four,
 ]
 
 EMBEDDED_TABLEAUX = [
     embedded_heun_euler,
-    embedded_third_order_two_stage_sdirk,
     embedded_second_order_two_stage_sdirk,
     embedded_second_order_three_stage_esdirk,
     embedded_third_order_three_stage_sdirk1,
@@ -38,12 +40,9 @@ EMBEDDED_TABLEAUX = [
     embedded_fourth_order_four_stage_sdirk,
     embedded_fourth_order_six_stage_esdirk,
     embedded_fourth_order_third_weak_stage_order_six_stage_dirk,
-    embedded_runge_kutta_four,
     embedded_fourth_order_five_stage_esdirk,
     embedded_runge_kutta_fehlberg,
-    embedded_fifth_order_six_stage_esdirk1,
-    embedded_fifth_order_six_stage_esdirk2,
-    embedded_fifth_order_five_stage_sdirk,
+    embedded_fifth_order_six_stage_esdirk,
     embedded_fourth_order_five_stage_sdirk,
 ]
 

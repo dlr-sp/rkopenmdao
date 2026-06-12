@@ -25,11 +25,12 @@ __all__ = [
     "explicit_euler",
     "implicit_euler",
     "implicit_midpoint",
-    "embedded_runge_kutta_four",
+    "third_order_two_stage_sdirk",
+    "runge_kutta_four",
+    "fifth_order_five_stage_sdirk",
     "embedded_heun_euler",
     "embedded_second_order_two_stage_sdirk",
     "embedded_second_order_three_stage_esdirk",
-    "embedded_third_order_two_stage_sdirk",
     "embedded_third_order_three_stage_sdirk1",
     "embedded_third_order_three_stage_sdirk2",
     "embedded_third_order_three_stage_esdirk",
@@ -44,9 +45,7 @@ __all__ = [
     "embedded_fourth_order_six_stage_esdirk",
     "embedded_fourth_order_third_weak_stage_order_six_stage_dirk",
     "embedded_runge_kutta_fehlberg",
-    "embedded_fifth_order_five_stage_sdirk",
-    "embedded_fifth_order_six_stage_esdirk1",
-    "embedded_fifth_order_six_stage_esdirk2",
+    "embedded_fifth_order_six_stage_esdirk",
 ]
 
 # one stage methods
@@ -74,11 +73,26 @@ implicit_midpoint = ButcherTableau(
     name="Implicit Midpoint",
 )
 
-# Embedded Schemes
-# ------------------
+
+def create_third_order_two_stage_sdirk():
+    # No practical embedded pair exists:
+    # 2-stage 3rd-order SDIRK is at the limit of order conditions,
+    # and any embedded estimator is either degenerate or numerically ill-conditioned.
+    gamma = 0.5 + np.sqrt(3.0) / 6
+    c2 = 0.5 - np.sqrt(3.0) / 6
+    tableau = ButcherTableau(
+        butcher_matrix=np.array([[gamma, 0.0], [c2 - gamma, gamma]]),
+        butcher_weight_vector=np.array([0.5, 0.5]),
+        butcher_time_stages=np.array([gamma, c2]),
+        p=3,
+        name="SDIRK 2-stage, 3rd order",
+    )
+    return tableau
 
 
-embedded_runge_kutta_four = EmbeddedButcherTableau(
+third_order_two_stage_sdirk = create_third_order_two_stage_sdirk()
+
+runge_kutta_four = ButcherTableau(
     butcher_matrix=np.array(
         [
             [0.0, 0.0, 0.0, 0.0],
@@ -88,13 +102,67 @@ embedded_runge_kutta_four = EmbeddedButcherTableau(
         ]
     ),
     butcher_weight_vector=np.array([1 / 6, 1 / 3, 1 / 3, 1 / 6]),
-    butcher_adaptive_weights=np.array([0.0, 0.5, 0.5, 0.0]),
     butcher_time_stages=np.array([0.0, 0.5, 0.5, 1.0]),
     p=4,
-    phat=2,
     name="RK4 with simple embedded 2nd-order estimator",
 )
 
+
+fifth_order_five_stage_sdirk = ButcherTableau(
+    butcher_matrix=np.array(
+        [
+            [4024571134387 / 14474071345096, 0.0, 0.0, 0.0, 0.0],
+            [
+                9365021263232 / 12572342979331,
+                4024571134387 / 14474071345096,
+                0.0,
+                0.0,
+                0.0,
+            ],
+            [
+                2144716224527 / 9320917548702,
+                -397905335951 / 4008788611757,
+                4024571134387 / 14474071345096,
+                0.0,
+                0.0,
+            ],
+            [
+                -291541413000 / 6267936762551,
+                226761949132 / 4473940808273,
+                -1282248297070 / 9697416712681,
+                4024571134387 / 14474071345096,
+                0.0,
+            ],
+            [
+                -2481679516057 / 4626464057815,
+                -197112422687 / 6604378783090,
+                3952887910906 / 9713059315593,
+                4906835613583 / 8134926921134,
+                4024571134387 / 14474071345096,
+            ],
+        ]
+    ),
+    butcher_weight_vector=np.array(
+        [
+            -2522702558582 / 12162329469185,
+            1018267903655 / 12907234417901,
+            4542392826351 / 13702606430957,
+            5001116467727 / 12224457745473,
+            1509636094297 / 3891594770934,
+        ]
+    ),
+    butcher_time_stages=np.array(
+        [
+            4024571134387 / 14474071345096,
+            5555633399575 / 5431021154178,
+            5255299487392 / 12852514622453,
+            3 / 20,
+            10449500210709 / 14474071345096,
+        ]
+    ),
+    p=5,
+    name="SDIRK 5-stage, 5th order",
+)
 
 embedded_heun_euler = EmbeddedButcherTableau(
     butcher_matrix=np.array([[0.0, 0.0], [1.0, 0.0]]),
@@ -150,27 +218,6 @@ def create_second_order_three_stage_esdirk():
 
 
 embedded_second_order_three_stage_esdirk = create_second_order_three_stage_esdirk()
-
-
-def create_third_order_two_stage_sdirk():
-    # No practical embedded pair exists:
-    # 2-stage 3rd-order SDIRK is at the limit of order conditions,
-    # and any embedded estimator is either degenerate or numerically ill-conditioned.
-    gamma = 0.5 + np.sqrt(3.0) / 6
-    c2 = 0.5 - np.sqrt(3.0) / 6
-    tableau = EmbeddedButcherTableau(
-        butcher_matrix=np.array([[gamma, 0.0], [c2 - gamma, gamma]]),
-        butcher_weight_vector=np.array([0.5, 0.5]),
-        butcher_adaptive_weights=np.array([1.0, 0.0]),
-        butcher_time_stages=np.array([gamma, c2]),
-        p=3,
-        phat=1,  # degenerate 2nd order
-        name="SDIRK 2-stage, 3rd order",
-    )
-    return tableau
-
-
-embedded_third_order_two_stage_sdirk = create_third_order_two_stage_sdirk()
 
 
 def create_third_order_three_stage_sdirk():
@@ -852,163 +899,7 @@ embedded_runge_kutta_fehlberg = EmbeddedButcherTableau(
 )
 
 
-embedded_fifth_order_five_stage_sdirk = EmbeddedButcherTableau(
-    butcher_matrix=np.array(
-        [
-            [4024571134387 / 14474071345096, 0.0, 0.0, 0.0, 0.0],
-            [
-                9365021263232 / 12572342979331,
-                4024571134387 / 14474071345096,
-                0.0,
-                0.0,
-                0.0,
-            ],
-            [
-                2144716224527 / 9320917548702,
-                -397905335951 / 4008788611757,
-                4024571134387 / 14474071345096,
-                0.0,
-                0.0,
-            ],
-            [
-                -291541413000 / 6267936762551,
-                226761949132 / 4473940808273,
-                -1282248297070 / 9697416712681,
-                4024571134387 / 14474071345096,
-                0.0,
-            ],
-            [
-                -2481679516057 / 4626464057815,
-                -197112422687 / 6604378783090,
-                3952887910906 / 9713059315593,
-                4906835613583 / 8134926921134,
-                4024571134387 / 14474071345096,
-            ],
-        ]
-    ),
-    butcher_weight_vector=np.array(
-        [
-            -2522702558582 / 12162329469185,
-            1018267903655 / 12907234417901,
-            4542392826351 / 13702606430957,
-            5001116467727 / 12224457745473,
-            1509636094297 / 3891594770934,
-        ]
-    ),
-    butcher_adaptive_weights=np.array(
-        [
-            0.082137758777,
-            0.169073257560,
-            0.420788617885,
-            0.182967020924,
-            0.145033344853,
-        ]
-    ),
-    butcher_time_stages=np.array(
-        [
-            4024571134387 / 14474071345096,
-            5555633399575 / 5431021154178,
-            5255299487392 / 12852514622453,
-            3 / 20,
-            10449500210709 / 14474071345096,
-        ]
-    ),
-    p=5,
-    phat=3,  # has a degenerate 4th order
-    name="SDIRK 5-stage, 5th order",
-)
-
-
-def create_fifth_order_six_stage_esdirk():
-    a = np.array(
-        [
-            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-            [
-                3282482714977 / 11805205429139,
-                3282482714977 / 11805205429139,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-            ],
-            [
-                606638434273 / 1934588254988,
-                2719561380667 / 6223645057524,
-                3282482714977 / 11805205429139,
-                0.0,
-                0.0,
-                0.0,
-            ],
-            [
-                -651839358321 / 6893317340882,
-                -1510159624805 / 11312503783159,
-                235043282255 / 4700683032009,
-                3282482714977 / 11805205429139,
-                0.0,
-                0.0,
-            ],
-            [
-                -5266892529762 / 23715740857879,
-                -1007523679375 / 10375683364751,
-                521543607658 / 16698046240053,
-                514935039541 / 7366641897523,
-                3282482714977 / 11805205429139,
-                0.0,
-            ],
-            [
-                -6225479754948 / 6925873918471,
-                6894665360202 / 11185215031699,
-                -2508324082331 / 20512393166649,
-                -7289596211309 / 4653106810017,
-                39811658682819 / 14781729060964,
-                3282482714977 / 11805205429139,
-            ],
-        ]
-    )
-    c = np.array(
-        [
-            0.0,
-            4024571134387 / 7237035672548,
-            14228244952610 / 13832614967709,
-            0.1,
-            3 / 50,
-            1.0,
-        ]
-    )
-    b = np.array(
-        [
-            -6225479754948 / 6925873918471,
-            6894665360202 / 11185215031699,
-            -2508324082331 / 20512393166649,
-            -7289596211309 / 4653106810017,
-            39811658682819 / 14781729060964,
-            3282482714977 / 11805205429139,
-        ]
-    )
-    bhat = np.array(
-        [
-            -2512930284403 / 5616797563683,
-            5849584892053 / 8244045029872,
-            -718651703996 / 6000050726475,
-            -18982822128277 / 13735826808854,
-            23127941173280 / 11608435116569,
-            2847520232427 / 11515777524847,
-        ]
-    )
-    return EmbeddedButcherTableau(
-        butcher_matrix=a,
-        butcher_weight_vector=b,
-        butcher_adaptive_weights=bhat,
-        butcher_time_stages=c,
-        p=5,
-        phat=3,
-        name="ESDIRK 6-stage, 5th order",
-    )
-
-
-embedded_fifth_order_six_stage_esdirk1 = create_fifth_order_six_stage_esdirk()
-
-embedded_fifth_order_six_stage_esdirk2 = EmbeddedButcherTableau(
+embedded_fifth_order_six_stage_esdirk = EmbeddedButcherTableau(
     butcher_matrix=np.array(
         [
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
