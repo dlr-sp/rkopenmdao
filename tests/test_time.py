@@ -8,7 +8,7 @@ from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
-    embedded_runge_kutta_four,
+    runge_kutta_four,
     embedded_third_order_four_stage_sdirk,
 )
 from rkopenmdao.components import ExplicitUnsteadyComponent
@@ -48,7 +48,7 @@ class DummyComponent(ExplicitUnsteadyComponent):
 
 @pytest.mark.parametrize(
     "butcher_tableau",
-    [implicit_euler, embedded_runge_kutta_four, embedded_third_order_four_stage_sdirk],
+    [implicit_euler, runge_kutta_four, embedded_third_order_four_stage_sdirk],
 )
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize("delta_t", [0.1, 0.01])

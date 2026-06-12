@@ -15,7 +15,7 @@ from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     embedded_second_order_two_stage_sdirk as two_stage_dirk,
-    embedded_runge_kutta_four,
+    runge_kutta_four,
 )
 from rkopenmdao.checkpoint_interface.no_checkpointer import NoCheckpointer
 from rkopenmdao.checkpoint_interface.all_checkpointer import AllCheckpointer
@@ -96,7 +96,7 @@ def test_component_partials(test_class, time, butcher_diagonal_element):
     ),
 )
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, embedded_runge_kutta_four]
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 @pytest.mark.parametrize("quantities", [["x"]])
 def test_component_integration(
@@ -156,7 +156,7 @@ def test_component_integration(
 )
 @pytest.mark.parametrize("parameter", [-1.0, 0.0, 2.0])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, embedded_runge_kutta_four]
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 @pytest.mark.parametrize("quantities", [["x"]])
 def test_component_integration_with_parameter(
@@ -214,7 +214,7 @@ def test_component_integration_with_parameter(
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize("initial_values", [[1.0, 1.0]])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, embedded_runge_kutta_four]
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 def test_component_splitting(initial_time, initial_values, butcher_tableau):
     """Tests the time integration of the problem that is split over multiple
@@ -291,7 +291,7 @@ def test_component_splitting(initial_time, initial_values, butcher_tableau):
 )
 @pytest.mark.parametrize(
     "butcher_tableau",
-    [implicit_euler, two_stage_dirk, embedded_runge_kutta_four],
+    [implicit_euler, two_stage_dirk, runge_kutta_four],
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
@@ -351,7 +351,7 @@ def test_time_integration_partials(
     [
         implicit_euler,
         two_stage_dirk,
-        embedded_runge_kutta_four,
+        runge_kutta_four,
     ],
 )
 @pytest.mark.parametrize(
@@ -403,7 +403,7 @@ def test_time_integration_with_parameter_partials(
 
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, two_stage_dirk, embedded_runge_kutta_four]
+    "butcher_tableau", [implicit_euler, two_stage_dirk, runge_kutta_four]
 )
 @pytest.mark.parametrize(
     "checkpointing_implementation",
