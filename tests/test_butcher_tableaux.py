@@ -16,7 +16,7 @@ from rkopenmdao.butcher_tableau import EmbeddedButcherTableau
 
 from .test_components import TestComp1, solution_test1
 
-ALL_TABLEAUX = [
+NON_EMBEDDED_TABLEAUX = [
     explicit_euler,
     implicit_euler,
     implicit_midpoint,
@@ -101,8 +101,8 @@ def satisfies_order_conditions(a, b, c, order, atol=1e-10):
 
 @pytest.mark.parametrize(
     "tableau",
-    ALL_TABLEAUX + EMBEDDED_TABLEAUX,
-    ids=[tableau.name for tableau in ALL_TABLEAUX + EMBEDDED_TABLEAUX],
+    NON_EMBEDDED_TABLEAUX + EMBEDDED_TABLEAUX,
+    ids=[tableau.name for tableau in NON_EMBEDDED_TABLEAUX + EMBEDDED_TABLEAUX],
 )
 def test_stage_consistency(tableau):
     """
@@ -205,8 +205,8 @@ def assert_order(errors, step_sizes, expected_order):
 
 @pytest.mark.parametrize(
     "tableau",
-    ALL_TABLEAUX + EMBEDDED_TABLEAUX,
-    ids=[tableau.name for tableau in ALL_TABLEAUX + EMBEDDED_TABLEAUX],
+    NON_EMBEDDED_TABLEAUX + EMBEDDED_TABLEAUX,
+    ids=[tableau.name for tableau in NON_EMBEDDED_TABLEAUX + EMBEDDED_TABLEAUX],
 )
 def test_tableau_order(tableau):
     """
