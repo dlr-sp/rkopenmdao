@@ -9,7 +9,7 @@ from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.butcher_tableaux import (
     implicit_euler,
     runge_kutta_four,
-    third_order_four_stage_sdirk,
+    embedded_third_order_four_stage_sdirk,
 )
 from rkopenmdao.components import ExplicitUnsteadyComponent
 from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
@@ -47,7 +47,8 @@ class DummyComponent(ExplicitUnsteadyComponent):
 
 
 @pytest.mark.parametrize(
-    "butcher_tableau", [implicit_euler, runge_kutta_four, third_order_four_stage_sdirk]
+    "butcher_tableau",
+    [implicit_euler, runge_kutta_four, embedded_third_order_four_stage_sdirk],
 )
 @pytest.mark.parametrize("initial_time", [0.0, 1.0])
 @pytest.mark.parametrize("delta_t", [0.1, 0.01])
