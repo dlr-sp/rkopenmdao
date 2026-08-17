@@ -54,6 +54,10 @@ from .odes import (
     root_ode_solution,
     root_ode_solution_derivative,
     root_ode_solution_adjoint_derivative,
+    TwoDimODE,
+    two_dim_ode_solution,
+    two_dim_ode_solution_derivative,
+    two_dim_ode_solution_adjoint_derivative,
 )
 
 
@@ -226,6 +230,15 @@ suitable_odes_for_any_time_integration = [
         root_ode_solution_derivative,
         root_ode_solution_adjoint_derivative,
     ),
+    ODEWithReferenceStatesAndSolutions(
+        TwoDimODE(),
+        StartingValues(0.0, np.ones(2), np.zeros(0)),
+        StartingValues(0.0, np.ones(2), np.zeros(0)),
+        FinalizationValues(0.0, np.ones(2), np.zeros(0)),
+        two_dim_ode_solution,
+        two_dim_ode_solution_derivative,
+        two_dim_ode_solution_adjoint_derivative,
+    ),
 ]
 
 
@@ -372,7 +385,8 @@ def adaptive_error_controller_and_measurer(
     """
     return (
         lambda p: request.param(
-            p, config=ErrorControllerConfig(tol=1e-3, lower_bound=1e-4)
+            p,
+            config=ErrorControllerConfig(tol=1e-3, lower_bound=1e-4, safety_factor=0.8),
         ),
         error_measurer,
     )

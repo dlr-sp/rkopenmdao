@@ -48,6 +48,10 @@ class TimeDiscretizationStateInterface(ABC):
             Dictionary from which a time discretization state is created.
         """
 
+    @abstractmethod
+    def __eq__(self, other):
+        pass
+
 
 @dataclass
 class StartingValues:
@@ -232,4 +236,12 @@ class TimeIntegrationState:
             time_state_dict["step_size_suggestion"][0],
             time_state_dict["step_size_history"],
             time_state_dict["error_history"],
+        )
+
+    def __eq__(self, other: TimeIntegrationState):
+        return (
+            self.discretization_state == other.discretization_state
+            and np.all(self.step_size_suggestion == other.step_size_suggestion)
+            and np.all(self.step_size_history == other.step_size_history)
+            and np.all(self.error_history == other.error_history)
         )

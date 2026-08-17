@@ -267,7 +267,8 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
         3. Apply the reverse strategy to integrate backward through time
         4. Apply the reverse operator to complete the integration from t=-1 to t=0
         """
-        if not self._revolver:
+        need_primal_pass = not self._revolver or self._cached_input != initial_state
+        if need_primal_pass:
             self.integrate(initial_state)
         self._pyrevolve_state_perturbations.set(final_state_perturbations[0])
         self._revolver.apply_reverse()
@@ -275,7 +276,11 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
             self._first_complete_state
         )
         self._revolver.rev_operator.apply(t_start=-1, t_end=0)
-        return self._revolver.rev_operator.time_integration_state_perturbations
+        initial_state_perturbations = (
+            self._revolver.rev_operator.time_integration_state_perturbations
+        )
+        self._revolver = None
+        return initial_state_perturbations
 
 
 class TimeIntegrationCheckpoint(pr.Checkpoint):

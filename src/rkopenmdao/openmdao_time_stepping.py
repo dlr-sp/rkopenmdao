@@ -15,7 +15,7 @@ from rkopenmdao.time_integration_interface import TimeIntegrationInterface
 from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
 
 
-class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
+class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
     """Outer component for solving time-dependent problems with explicit or diagonally
     implicit Runge-Kutta schemes. One stage of the scheme is modelled by an inner
     OpenMDAO-problem.
@@ -28,11 +28,11 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
         self.options.declare(
             "time_integrator",
             types=TimeIntegrationInterface,
-            check_valid=self.check_checkpointing_type,
+            check_valid=self.has_om_ode,
         )
 
     @staticmethod
-    def check_checkpointing_type(name: str, value: TimeIntegrationInterface):
+    def has_om_ode(name: str, value: TimeIntegrationInterface):
         if hasattr(value, "ode"):
             if isinstance(value.ode, OpenMDAOODE):
                 return
@@ -42,6 +42,7 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
 
     def setup(self):
         self._time_integrator = self.options["time_integrator"]
+        self._cached_final_state = None
         self._add_inputs_and_outputs()
 
     def _add_inputs_and_outputs(self):
@@ -64,7 +65,7 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
                         # Arrays of size 0 tend to have the wrong shape when aquired
                         # from OpenMDAO, making a manual reshape necessary in that
                         # case.
-                        self._time_integrator.ode.time_stage_problem.get_val(
+                        self._time_integrator.ode._time_stage_problem.get_val(
                             quantity.translation_metadata.step_input_var,
                         ).reshape(quantity.array_metadata.shape)
                         if quantity.translation_metadata.step_input_var is not None
@@ -101,10 +102,10 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
 
     def _get_starting_values_from_inputs(self, inputs):
         time_integration_metadata: TimeIntegrationMetadata = (
-            self._time_integrator._ode.time_integration_metadata
+            self._time_integrator.ode.time_integration_metadata
         )
         starting_values = StartingValues(
-            initial_time=inputs["time_initial"],
+            initial_time=inputs["time_initial"][0],
             initial_values=np.zeros(
                 time_integration_metadata.time_integration_array_size
             ),
@@ -139,9 +140,9 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
 
     def _add_starting_values_to_inputs(self, starting_values, inputs):
         time_integration_metadata: TimeIntegrationMetadata = (
-            self._time_integrator._ode.time_integration_metadata
+            self._time_integrator.ode.time_integration_metadata
         )
-        inputs["time_initial"][0] += starting_values.initial_time
+        inputs["time_initial"] += starting_values.initial_time
         for quantity in time_integration_metadata.time_integration_quantity_list:
             inputs[quantity.name + "_initial"] += starting_values.initial_values[
                 quantity.array_metadata.start_index : quantity.array_metadata.end_index
@@ -153,10 +154,10 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
 
     def _get_finalization_values_from_outputs(self, outputs):
         time_integration_metadata: TimeIntegrationMetadata = (
-            self._time_integrator._ode.time_integration_metadata
+            self._time_integrator.ode.time_integration_metadata
         )
         finalization_values = FinalizationValues(
-            final_time=outputs["time_final"],
+            final_time=outputs["time_final"][0],
             final_values=np.zeros(
                 time_integration_metadata.time_integration_array_size
             ),
@@ -171,8 +172,9 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
 
     def _get_outputs_from_finalization_values(self, finalization_values, outputs):
         time_integration_metadata: TimeIntegrationMetadata = (
-            self._time_integrator._ode.time_integration_metadata
+            self._time_integrator.ode.time_integration_metadata
         )
+        outputs["time_final"][0] = finalization_values.final_time
         for quantity in time_integration_metadata.time_integration_quantity_list:
             outputs[quantity.name + "_final"] = finalization_values.final_values[
                 quantity.array_metadata.start_index : quantity.array_metadata.end_index
@@ -180,8 +182,9 @@ class OpenMDAOODETimeSteppingIntegrator(OpenMDAOTimeIntegrationWrapper):
 
     def _add_finalization_values_to_outputs(self, finalization_values, outputs):
         time_integration_metadata: TimeIntegrationMetadata = (
-            self._time_integrator._ode.time_integration_metadata
+            self._time_integrator.ode.time_integration_metadata
         )
+        outputs["time_final"][0] += finalization_values.final_time
         for quantity in time_integration_metadata.time_integration_quantity_list:
             outputs[quantity.name + "_final"] += finalization_values.final_values[
                 quantity.array_metadata.start_index : quantity.array_metadata.end_index

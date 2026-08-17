@@ -166,6 +166,9 @@ class MockDiscretizationState(TimeDiscretizationStateInterface):
         """
         return MockDiscretizationState()
 
+    def __eq__(self, other):
+        return True
+
 
 class MockDiscretization(TimeDiscretizationSchemeInterface):
     """Mock time discretization scheme for testing.

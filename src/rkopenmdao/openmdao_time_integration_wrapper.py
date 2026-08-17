@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from copy import deepcopy
 
 import openmdao.api as om
 from openmdao.vectors.vector import Vector
@@ -9,12 +10,14 @@ from rkopenmdao.time_integration_interface import TimeIntegrationInterface
 
 class OpenMDAOTimeIntegrationWrapper(om.ExplicitComponent, ABC):
     _time_integrator: TimeIntegrationInterface | None
+    _cached_final_state: TimeIntegrationInterface | None
 
     def compute(self, inputs, outputs, discrete_inputs=None, discrete_outputs=None):
         starting_values = self._get_starting_values_from_inputs(inputs)
         state = self._time_integrator.starting_scheme(starting_values)
         state = self._time_integrator.integrate(state)
-        finalization_values = self._time_integrator.finalization_scheme(state)
+        self._cached_final_state = deepcopy(state[-1])
+        finalization_values = self._time_integrator.finalization_scheme(state[-1])
         self._get_outputs_from_finalization_values(finalization_values, outputs)
 
     def compute_jacvec_product(
@@ -34,27 +37,31 @@ class OpenMDAOTimeIntegrationWrapper(om.ExplicitComponent, ABC):
             )
             finalization_value_perturbations = (
                 self._time_integrator.finalization_scheme_derivative(
-                    state, state_perturbations
+                    state, state_perturbations[1][-1]
                 )
             )
             self._add_finalization_values_to_outputs(
                 finalization_value_perturbations, d_outputs
             )
         if mode == "rev":
+            if self._cached_final_state is None:
+                self.compute(inputs, self._outputs)
             finalization_value_perturbations = (
                 self._get_finalization_values_from_outputs(d_outputs)
             )
             state_perturbations = (
                 self._time_integrator.finalization_scheme_adjoint_derivative(
-                    state, finalization_value_perturbations
+                    self._cached_final_state, finalization_value_perturbations
                 )
             )
-            state_perturbations = self._time_integrator.integrate_adjoint_derivative(
-                state, state_perturbations
+            initial_state_perturbations = (
+                self._time_integrator.integrate_adjoint_derivative(
+                    state, [state_perturbations]
+                )
             )
             starting_value_perturbations = (
                 self._time_integrator.starting_scheme_adjoint_derivative(
-                    starting_values, state_perturbations
+                    starting_values, initial_state_perturbations
                 )
             )
             self._add_starting_values_to_inputs(starting_value_perturbations, d_inputs)

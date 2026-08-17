@@ -1,19 +1,20 @@
 """Tests for the usage of pyrevolve in rkopenmdao."""
 
-import openmdao.api as om
-from openmdao.utils.assert_utils import assert_check_partials
-
+import numpy as np
 import pytest
 
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 from rkopenmdao.butcher_tableaux import implicit_euler
-from rkopenmdao.checkpoint_interface.pyrevolve_time_integration import (
+from rkopenmdao.checkpointed_time_integration.pyrevolve_time_integration import (
     PyrevolveTimeIntegration,
 )
 from rkopenmdao.integration_config import IntegrationConfig
+from rkopenmdao.states import StartingValues, FinalizationValues
 from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
+from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization import (
+    StageOrderedRungeKuttaDiscretization,
+)
 
-from .test_components import TestComp6
+from .odes import RootODE, root_ode_solution_adjoint_derivative
 
 revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
 
@@ -57,32 +58,35 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
         ["Disk", {"n_checkpoints": 10}],
     ),
 )
-def test_rk_integrator_revolver_options(revolver_type, revolver_options):
+def test_pyrevolve_time_integration_options(revolver_type, revolver_options):
     """Tests that the options given to the RungeKuttaIntegrator are passed through to
     the Revolver."""
-    integration_config = IntegrationConfig(False, PredefinedNumberOfSteps(10), 0.01)
-
-    inner_prob = om.Problem()
-    inner_prob.model.add_subsystem("test", TestComp6())
-    runge_kutta_prob = om.Problem()
-
-    runge_kutta_prob.model.add_subsystem(
-        "rk",
-        RungeKuttaIntegrator(
-            time_stage_problem=inner_prob,
-            butcher_tableau=implicit_euler,
-            integration_config=integration_config,
-            time_integration_quantities=["x"],
-            checkpointing_type=PyrevolveTimeIntegration,
-            checkpoint_options={
-                "revolver_type": revolver_type,
-                "revolver_options": revolver_options,
-            },
+    time_integration = PyrevolveTimeIntegration(
+        ode=RootODE(),
+        time_discretization_scheme=StageOrderedRungeKuttaDiscretization(implicit_euler),
+        time_integration_config=IntegrationConfig(
+            False, PredefinedNumberOfSteps(100), 0.001
         ),
+        revolver_type=revolver_type,
+        revolver_options=revolver_options,
     )
-    runge_kutta_prob.setup()
-    runge_kutta_prob.run_model()
-
-    data = runge_kutta_prob.check_partials()
-
-    assert_check_partials(data)
+    initial_state = time_integration.starting_scheme(
+        StartingValues(1.0, np.ones(1), np.zeros(0))
+    )
+    final_state_perturbations = time_integration.finalization_scheme_adjoint_derivative(
+        initial_state, FinalizationValues(0.0, np.ones(1), np.zeros(0))
+    )
+    initial_state_perturbation = time_integration.integrate_adjoint_derivative(
+        initial_state, [final_state_perturbations]
+    )
+    starting_value_perturbation = time_integration.starting_scheme_adjoint_derivative(
+        StartingValues(1.0, np.ones(1), np.zeros(0)), initial_state_perturbation
+    )
+    reference = root_ode_solution_adjoint_derivative(
+        StartingValues(1.0, np.ones(1), np.zeros(0)),
+        FinalizationValues(0.0, np.ones(1), np.zeros(0)),
+        0.1,
+    )
+    assert starting_value_perturbation.initial_values == pytest.approx(
+        reference.initial_values
+    )

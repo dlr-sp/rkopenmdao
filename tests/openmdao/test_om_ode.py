@@ -12,8 +12,7 @@ from rkopenmdao.discretized_ode.discretized_ode import (
 )
 from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
 
-from .test_components import TestComp1
-from .distributed_variables_test import Test2Component1, Test2Component2
+from om_components import ODE1dParameter, ODE4dDistributedSplit1, ODE4dDistributedSplit2
 
 DELTA_T = 0.1
 
@@ -22,7 +21,7 @@ DELTA_T = 0.1
 def fixture_identity_openmdao_ode() -> OpenMDAOODE:
     """Creates an OpenMDAO ODE for the identity ODE x'=x."""
     test_problem = om.Problem()
-    test_problem.model.add_subsystem("comp", TestComp1(), promotes=["*"])
+    test_problem.model.add_subsystem("comp", ODE1dParameter(), promotes=["*"])
     test_problem.setup()
     test_problem.final_setup()
     test_time_integration_quantities = ["x"]
@@ -180,15 +179,15 @@ def fixture_complicated_openmdao_ode() -> OpenMDAOODE:
     """More complicated OpenMDAO ODE with a mix of distributed and non-distributed
     variables. Is used here only for the calculation of the norm."""
     test_problem = om.Problem()
-    test_problem.model.add_subsystem("comp", TestComp1(), promotes=["*"])
+    test_problem.model.add_subsystem("comp", ODE1dParameter(), promotes=["*"])
     test_problem.model.add_subsystem(
         "comp_1",
-        Test2Component1(),
+        ODE4dDistributedSplit1(),
         promotes=["*"],
     )
     test_problem.model.add_subsystem(
         "comp_2",
-        Test2Component2(),
+        ODE4dDistributedSplit2(),
         promotes=["*"],
     )
     ivc = om.IndepVarComp()

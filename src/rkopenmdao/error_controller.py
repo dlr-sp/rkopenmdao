@@ -48,7 +48,7 @@ class ErrorControllerConfig:
     tol: float = 1e-6
     lower_bound: float = 0
     upper_bound: float = np.inf
-    safety_factor: float = 0.8
+    safety_factor: float = 0.95
     max_iter: int = 5
 
 

@@ -88,12 +88,12 @@ class TestNoCheckpointTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
         return NoCheckpointTimeIntegration(
             MockODE(),
             MockDiscretization(),
-            homogeneous_error_controller_and_measurer[0],
-            homogeneous_error_controller_and_measurer[1],
             IntegrationConfig(False, PredefinedNumberOfSteps(5), 1.0),
             [],
             [],
             [],
+            homogeneous_error_controller_and_measurer[0],
+            homogeneous_error_controller_and_measurer[1],
         )
 
     def test_integrate_adjoint_derivative(
@@ -155,12 +155,12 @@ class TestAllCheckpointTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
         return AllCheckpointTimeIntegration(
             MockODE(),
             MockDiscretization(),
-            homogeneous_error_controller_and_measurer[0],
-            homogeneous_error_controller_and_measurer[1],
             IntegrationConfig(False, PredefinedNumberOfSteps(5), 1.0),
             [],
             [],
             [],
+            homogeneous_error_controller_and_measurer[0],
+            homogeneous_error_controller_and_measurer[1],
         )
 
 
@@ -194,12 +194,12 @@ class TestPyrevolveTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
         return PyrevolveTimeIntegration(
             MockODE(),
             MockDiscretization(),
-            homogeneous_error_controller_and_measurer[0],
-            homogeneous_error_controller_and_measurer[1],
             IntegrationConfig(False, PredefinedNumberOfSteps(5), 1.0),
             [],
             [],
             [],
+            homogeneous_error_controller_and_measurer[0],
+            homogeneous_error_controller_and_measurer[1],
         )
 
     def test_setup_revolver_class_error(

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from rkopenmdao.callback import Callback
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.error_controller import ErrorController
-from rkopenmdao.error_measurer import ErrorMeasurer
+from rkopenmdao.error_controllers import pseudo
+from rkopenmdao.error_measurer import ErrorMeasurer, SimpleErrorMeasurer
 from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
@@ -103,14 +104,14 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
     ode: DiscretizedODE
     time_discretization_scheme: TimeDiscretizationSchemeInterface
 
-    error_controller: ErrorController
-    error_measurer: ErrorMeasurer
-
     time_integration_config: IntegrationConfig
 
-    integrate_callbacks: list[Callback]
-    integrate_derivative_callbacks: list[Callback]
-    integrate_adjoint_derivative_callbacks: list[Callback]
+    integrate_callbacks: list[Callback] = field(default_factory=list)
+    integrate_derivative_callbacks: list[Callback] = field(default_factory=list)
+    integrate_adjoint_derivative_callbacks: list[Callback] = field(default_factory=list)
+
+    error_controller: ErrorController = field(default_factory=lambda: pseudo(1))
+    error_measurer: ErrorMeasurer = field(default_factory=lambda: SimpleErrorMeasurer())
 
     def create_empty_primal_integration_state(self) -> TimeIntegrationState:
         """
