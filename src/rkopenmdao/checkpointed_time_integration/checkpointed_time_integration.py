@@ -37,7 +37,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
     - Forward integration of single time steps with adaptive stepping
     - Derivative integration if single time steps following the same step size
     - Derivative integration for the whole time domain
-    - Adjoint derivative integration of single time steps following the adaptive step size
+    - Adjoint derivative integration of single time steps following the adaptive step
+      size
 
     Subclasses must implement checkpoint-specific integration methods:
     - integrate(): Forward integration of the whole time domain with checkpointing
@@ -174,7 +175,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             Primal integration state containing:
             - discretization_state: Linearization point (unperturbed initial values)
             - step_size_suggestion: Initial step size suggestion
-            - step_size_history: Initial step size history (often filled with same value)
+            - step_size_history: Initial step size history (often filled with same
+              value)
             - error_history: Initial error history (often filled with tolerance)
 
         initial_state_perturbation : TimeIntegrationState
@@ -188,8 +190,9 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - List with final primal state (same as integrate)
             - List containing the final perturbation state
         """
+        criterion = self.time_integration_config.termination_criterion
         iteration = 0
-        while not self.time_integration_config.termination_criterion.is_iteration_finished(
+        while not criterion.is_iteration_finished(
             iteration, initial_state, self.ode, self.time_discretization_scheme
         ):
             iteration += 1
@@ -388,14 +391,17 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         else:
             error_measure = 0.0
 
+        criterion = self.time_integration_config.termination_criterion
+        scheme = self.time_discretization_scheme
+
         stall_counter = 0
         while True:
             if hasattr(
                 self.time_integration_config.termination_criterion,
                 "remaining_time",
             ):
-                remaining_time = self.time_integration_config.termination_criterion.remaining_time(
-                    self.time_discretization_scheme.time_discretization_finalization_scheme(
+                remaining_time = criterion.remaining_time(
+                    scheme.time_discretization_finalization_scheme(
                         self.ode,
                         temp_discretization_state,
                         time_integration_state.step_size_suggestion[0],
@@ -453,8 +459,9 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - step_size_history: Filled with initial_step_size
             - error_history: Filled with error_controller tolerance
         """
+        scheme = self.time_discretization_scheme
         return TimeIntegrationState(
-            discretization_state=self.time_discretization_scheme.time_discretization_starting_scheme(
+            discretization_state=scheme.time_discretization_starting_scheme(
                 self.ode,
                 starting_values,
                 self.time_integration_config.initial_step_size,
@@ -474,7 +481,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         starting_value_perturbations: StartingValues,
     ) -> TimeIntegrationState:
         """
-        Computes the derivative of initialization with respect to perturbed starting values.
+        Computes the derivative of initialization with respect to perturbed starting
+        values.
 
         Parameters
         ----------
@@ -490,13 +498,15 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - discretization_state: Derivative of initial state w.r.t. starting values
             - Empty step_size_suggestion, step_size_history, error_history
         """
+        scheme = self.time_discretization_scheme
+        state = scheme.time_discretization_starting_scheme_derivative(
+            self.ode,
+            starting_values,
+            starting_value_perturbations,
+            self.time_integration_config.initial_step_size,
+        )
         return TimeIntegrationState(
-            discretization_state=self.time_discretization_scheme.time_discretization_starting_scheme_derivative(
-                self.ode,
-                starting_values,
-                starting_value_perturbations,
-                self.time_integration_config.initial_step_size,
-            ),
+            discretization_state=state,
             step_size_suggestion=np.zeros(0),
             step_size_history=np.zeros(0),
             error_history=np.zeros(0),
@@ -522,7 +532,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         StartingValues
             Perturbation of starting values (gradient)
         """
-        return self.time_discretization_scheme.time_discretization_starting_scheme_adjoint_derivative(
+        scheme = self.time_discretization_scheme
+        return scheme.time_discretization_starting_scheme_adjoint_derivative(
             self.ode,
             starting_values,
             integration_state_perturbations.discretization_state,
@@ -571,7 +582,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         FinalizationValues
             Perturbation of final values
         """
-        return self.time_discretization_scheme.time_discretization_finalization_scheme_derivative(
+        scheme = self.time_discretization_scheme
+        return scheme.time_discretization_finalization_scheme_derivative(
             self.ode,
             integration_state.discretization_state,
             integration_state_perturbations.discretization_state,
@@ -598,13 +610,15 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         TimeIntegrationState
             Perturbation of final integration state
         """
+        scheme = self.time_discretization_scheme
+        state = scheme.time_discretization_finalization_scheme_adjoint_derivative(
+            self.ode,
+            integration_state.discretization_state,
+            finalization_value_perturbations,
+            integration_state.step_size_history[0],
+        )
         return TimeIntegrationState(
-            discretization_state=self.time_discretization_scheme.time_discretization_finalization_scheme_adjoint_derivative(
-                self.ode,
-                integration_state.discretization_state,
-                finalization_value_perturbations,
-                integration_state.step_size_history[0],
-            ),
+            discretization_state=state,
             step_size_suggestion=np.zeros(0),
             step_size_history=np.zeros(0),
             error_history=np.zeros(0),

@@ -59,7 +59,8 @@ class AllCheckpointTimeIntegration(CheckpointedTimeIntegration):
         """
         self._storage.clear()
         iteration = 0
-        while not self.time_integration_config.termination_criterion.is_iteration_finished(
+        criterion = self.time_integration_config.termination_criterion
+        while not criterion.is_iteration_finished(
             iteration, initial_state, self.ode, self.time_discretization_scheme
         ):
             iteration += 1
@@ -93,7 +94,8 @@ class AllCheckpointTimeIntegration(CheckpointedTimeIntegration):
         -------
         TimeIntegrationState
             The perturbation of the initial state after reverse integration.
-            Contains the gradient of the cost function with respect to initial conditions.
+            Contains the gradient of the cost function with respect to initial
+            conditions.
 
         Notes
         -----

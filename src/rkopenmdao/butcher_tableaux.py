@@ -17,6 +17,10 @@ Prefixes:
 # No need to write this into doc again.
 # pylint: disable=missing-function-docstring
 
+# All butcher tableaux should reside in one file, artificially splitting this
+# will only hinder readability.
+# pylint: disable=too-many-lines
+
 import numpy as np
 
 from rkopenmdao.butcher_tableau import ButcherTableau, EmbeddedButcherTableau

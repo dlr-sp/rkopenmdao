@@ -43,8 +43,10 @@ class NoCheckpointTimeIntegration(CheckpointedTimeIntegration):
         list[TimeIntegrationState]
             List containing the final state after completing all time steps.
         """
+        criterion = self.time_integration_config.termination_criterion
+
         iteration = 0
-        while not self.time_integration_config.termination_criterion.is_iteration_finished(
+        while not criterion.is_iteration_finished(
             iteration, initial_state, self.ode, self.time_discretization_scheme
         ):
             iteration += 1

@@ -77,11 +77,13 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
 
     **MultiLevelRevolver Warning:**
     The MultiLevelRevolver has known issues where certain numbers of checkpoints work
-    while others don't, without an obvious pattern. Use with caution and test thoroughly.
+    while others don't, without an obvious pattern. Use with caution and test
+    thoroughly.
 
     **Storage Options:**
     For 'MultiLevel' strategy, the 'storage_list' option accepts a list of
-    (storage_type, options) tuples where storage_type can be 'Numpy', 'Disk', or 'Bytes'.
+    (storage_type, options) tuples where storage_type can be 'Numpy', 'Disk', or
+    'Bytes'.
     """
 
     revolver_type: str = "Memory"
@@ -248,8 +250,8 @@ class PyrevolveTimeIntegration(CheckpointedTimeIntegration):
 
         final_state_perturbations : list[TimeIntegrationState]
             List containing the final state perturbation (adjoint variable) which
-            represents the gradient of the cost function with respect to the final state.
-            Must contain exactly one element.
+            represents the gradient of the cost function with respect to the final
+            state. Must contain exactly one element.
 
         Returns
         -------
@@ -317,7 +319,7 @@ class TimeIntegrationCheckpoint(pr.Checkpoint):
         self._time_integration_state = time_integration_state
         self._symbols = time_integration_state.to_dict()
 
-    def get_data_location(self, timestep) -> list:
+    def get_data_location(self, timestep) -> list:  # pylint: disable=unused-argument
         """
         Gets memory locations for checkpoint data at a given time step.
 

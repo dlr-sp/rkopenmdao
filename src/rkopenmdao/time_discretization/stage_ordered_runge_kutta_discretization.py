@@ -577,6 +577,7 @@ class EmbeddedRungeKuttaMixin:
             step_size * self.butcher_tableau.butcher_adaptive_weights,
         )
 
+    # pylint: disable=unused-argument
     def get_ode_error_estimate(
         self,
         ode: DiscretizedODE,
