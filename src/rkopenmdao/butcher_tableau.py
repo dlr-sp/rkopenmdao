@@ -53,6 +53,7 @@ class ButcherTableau:
 
     def __init__(
         self,
+        *,
         butcher_matrix: np.ndarray,
         butcher_weight_vector: np.ndarray,
         butcher_time_stages: np.ndarray,
@@ -249,6 +250,7 @@ class EmbeddedButcherTableau(ButcherTableau):
 
     def __init__(
         self,
+        *,
         butcher_matrix: np.ndarray,
         butcher_weight_vector: np.ndarray,
         butcher_adaptive_weights: np.ndarray,
@@ -258,7 +260,11 @@ class EmbeddedButcherTableau(ButcherTableau):
         name: str = "Adaptive Runge-Kutta method",
     ):
         super().__init__(
-            butcher_matrix, butcher_weight_vector, butcher_time_stages, p, name
+            butcher_matrix=butcher_matrix,
+            butcher_weight_vector=butcher_weight_vector,
+            butcher_time_stages=butcher_time_stages,
+            p=p,
+            name=name,
         )
         self._phat = phat
         self.butcher_adaptive_weights = butcher_adaptive_weights
@@ -292,13 +298,13 @@ class EmbeddedButcherTableau(ButcherTableau):
             name = "Adaptive " + butcher_tableau.name
 
         return cls(
-            butcher_tableau.butcher_matrix,
-            butcher_tableau.butcher_weight_vector,
-            butcher_adaptive_weights,
-            butcher_tableau.butcher_time_stages,
-            butcher_tableau.p,
-            phat,
-            name,
+            butcher_matrix=butcher_tableau.butcher_matrix,
+            butcher_weight_vector=butcher_tableau.butcher_weight_vector,
+            butcher_adaptive_weights=butcher_adaptive_weights,
+            butcher_time_stages=butcher_tableau.butcher_time_stages,
+            p=butcher_tableau.p,
+            phat=phat,
+            name=name,
         )
 
     @property
@@ -340,9 +346,9 @@ class EmbeddedButcherTableau(ButcherTableau):
             The main segment of the Butcher table as independent Butcher table
         """
         return ButcherTableau(
-            self.butcher_matrix,
-            self.butcher_weight_vector,
-            self.butcher_time_stages,
+            butcher_matrix=self.butcher_matrix,
+            butcher_weight_vector=self.butcher_weight_vector,
+            butcher_time_stages=self.butcher_time_stages,
             p=self._p,
             name="Main: " + self.name,
         )
@@ -356,9 +362,9 @@ class EmbeddedButcherTableau(ButcherTableau):
               The embedded segment of the Butcher table as independent table
         """
         return ButcherTableau(
-            self.butcher_matrix,
-            self.butcher_adaptive_weights,
-            self.butcher_time_stages,
+            butcher_matrix=self.butcher_matrix,
+            butcher_weight_vector=self.butcher_adaptive_weights,
+            butcher_time_stages=self.butcher_time_stages,
             p=self._phat,
             name="Embedded: " + self.name,
         )

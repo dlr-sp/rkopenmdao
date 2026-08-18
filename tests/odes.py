@@ -1,6 +1,8 @@
 """Some direct implementations of DiscretizedODE to test time discretizations."""
 
-from dataclasses import dataclass
+# pylint: disable=unnecessary-lambda
+
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -198,7 +200,7 @@ def time_ode_solution_adjoint_derivative(
 ) -> StartingValues:
     return StartingValues(
         final_value_perturbations.final_time
-        + passed_time * final_value_perturbations.final_values,
+        + passed_time * final_value_perturbations.final_values[0],
         final_value_perturbations.final_values,
         np.zeros(0),
     )
@@ -210,7 +212,7 @@ class TimeScaledIdentityODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = t*x(t).
     """
 
-    _cached_linearization: np.ndarray = np.zeros(3)
+    _cached_linearization: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
     def compute_update(
         self,
@@ -352,9 +354,9 @@ def time_scaled_identity_ode_solution_adjoint_derivative(
     return StartingValues(
         final_value_perturbations.final_time
         + exp_factor
-        * initial_values.initial_values
+        * initial_values.initial_values[0]
         * passed_time
-        * final_value_perturbations.final_values,
+        * final_value_perturbations.final_values[0],
         exp_factor * final_value_perturbations.final_values,
         np.zeros(0),
     )
@@ -467,7 +469,7 @@ class RootODE(DiscretizedODE):
     Discretized ODE implementation for the ODE x'(t) = sqrt(x(t)).
     """
 
-    _cached_linearization: np.ndarray = np.zeros(2)
+    _cached_linearization: np.ndarray = field(default_factory=lambda: np.zeros(2))
 
     def compute_update(
         self,

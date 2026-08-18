@@ -405,11 +405,11 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
                 remaining_time = np.inf
 
             error_controller_status = self.error_controller(
-                error_measure,
-                time_integration_state.step_size_suggestion[0],
-                remaining_time,
-                time_integration_state.error_history,
-                time_integration_state.step_size_history,
+                error_measure=error_measure,
+                delta_t=time_integration_state.step_size_suggestion[0],
+                remaining_time=remaining_time,
+                error_history=time_integration_state.error_history,
+                step_size_history=time_integration_state.step_size_history,
             )
 
             if error_controller_status.acceptance or stall_counter > 4:

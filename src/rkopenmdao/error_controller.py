@@ -85,6 +85,7 @@ class ErrorController:
 
     def __init__(
         self,
+        *,
         alpha,
         beta: float = 0,
         gamma: float = 0,
@@ -111,6 +112,7 @@ class ErrorController:
 
     def __call__(
         self,
+        *,
         error_measure: float,
         delta_t: float,
         remaining_time: float,
@@ -139,7 +141,11 @@ class ErrorController:
             Suggested step size and acceptance of current time step.
         """
         status = self._run(
-            error_measure, delta_t, remaining_time, error_history, step_size_history
+            error_measure=error_measure,
+            delta_t=delta_t,
+            remaining_time=remaining_time,
+            error_history=error_history,
+            step_size_history=step_size_history,
         )
         if not status.acceptance:
             if status.step_size_suggestion > delta_t and self._inner_most:
@@ -151,6 +157,7 @@ class ErrorController:
 
     def _run(
         self,
+        *,
         error_measure: float,
         delta_t: float,
         remaining_time: float,
@@ -190,7 +197,10 @@ class ErrorController:
 
         if error_measure != 0:
             new_delta_t = self._estimate_next_step_function(
-                error_measure, delta_t, error_history, step_size_history
+                error_measure=error_measure,
+                delta_t=delta_t,
+                error_history=error_history,
+                step_size_history=step_size_history,
             )
         else:
             new_delta_t = delta_t
@@ -209,6 +219,7 @@ class ErrorController:
 
     def _estimate_next_step_function(
         self,
+        *,
         error_measure: float,
         delta_t: float,
         error_history: np.ndarray,
@@ -302,6 +313,7 @@ class ErrorControllerDecorator(ErrorController):
 
     def __init__(
         self,
+        *,
         alpha,
         error_controller: ErrorController,
         beta: float = 0,
@@ -329,6 +341,7 @@ class ErrorControllerDecorator(ErrorController):
 
     def __call__(
         self,
+        *,
         error_measure: float,
         delta_t: float,
         remaining_time: float,
@@ -338,11 +351,11 @@ class ErrorControllerDecorator(ErrorController):
         if self._is_not_inner:
             try:
                 status = self.error_controller(
-                    error_measure,
-                    delta_t,
-                    remaining_time,
-                    error_history,
-                    step_size_history,
+                    error_measure=error_measure,
+                    delta_t=delta_t,
+                    remaining_time=remaining_time,
+                    error_history=error_history,
+                    step_size_history=step_size_history,
                 )
                 if not status.acceptance:
                     self._outer_counter += 1
@@ -358,19 +371,19 @@ class ErrorControllerDecorator(ErrorController):
                 return status
             except OuterErrorControllerError:
                 return self._run(
-                    error_measure,
-                    delta_t,
-                    remaining_time,
-                    error_history,
-                    step_size_history,
+                    error_measure=error_measure,
+                    delta_t=delta_t,
+                    remaining_time=remaining_time,
+                    error_history=error_history,
+                    step_size_history=step_size_history,
                 )
         else:
             return self._run(
-                error_measure,
-                delta_t,
-                remaining_time,
-                error_history,
-                step_size_history,
+                error_measure=error_measure,
+                delta_t=delta_t,
+                remaining_time=remaining_time,
+                error_history=error_history,
+                step_size_history=step_size_history,
             )
 
     def __str__(self):
@@ -382,6 +395,7 @@ class ErrorControllerDecorator(ErrorController):
 
     def _run(
         self,
+        *,
         error_measure: float,
         delta_t: float,
         remaining_time: float,
@@ -390,7 +404,11 @@ class ErrorControllerDecorator(ErrorController):
     ) -> ErrorControllerStatus:
         self._is_not_inner = True
         status = super()._run(
-            error_measure, delta_t, remaining_time, error_history, step_size_history
+            error_measure=error_measure,
+            delta_t=delta_t,
+            remaining_time=remaining_time,
+            error_history=error_history,
+            step_size_history=step_size_history,
         )
         if not status.acceptance:
             self._is_not_inner = False

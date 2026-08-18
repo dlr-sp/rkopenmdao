@@ -162,7 +162,6 @@ def discretization_order_pair(
     DiscretizationOrderPair
         Pair containing the time discretization scheme and its order.
     """
-    print(request.param.time_discretization.butcher_tableau)
     return request.param
 
 
@@ -184,7 +183,6 @@ def adaptive_discretization_order_pair(
     DiscretizationOrderPair
         Pair containing the embedded Runge-Kutta discretization and its order.
     """
-    print(request.param.time_discretization.butcher_tableau)
     return request.param
 
 

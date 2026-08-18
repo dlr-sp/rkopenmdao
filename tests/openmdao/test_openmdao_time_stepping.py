@@ -6,7 +6,7 @@ import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_partials
 import pytest
 
-from rkopenmdao.butcher_tableaux import fourth_order_five_stage_sdirk
+from rkopenmdao.butcher_tableaux import embedded_fourth_order_five_stage_sdirk
 from rkopenmdao.checkpointed_time_integration.pyrevolve_time_integration import (
     PyrevolveTimeIntegration,
 )
@@ -55,7 +55,7 @@ def single_component_om_time_integrator(single_component_problem):
     time_integration = PyrevolveTimeIntegration(
         ode=OpenMDAOODE(single_component_problem, ["x"]),
         time_discretization_scheme=StageOrderedRungeKuttaDiscretization(
-            fourth_order_five_stage_sdirk
+            embedded_fourth_order_five_stage_sdirk
         ),
         time_integration_config=IntegrationConfig(
             False, PredefinedNumberOfSteps(100), 0.01
@@ -76,7 +76,7 @@ def split_component_om_time_integrator(split_component_problem):
     time_integration = PyrevolveTimeIntegration(
         ode=OpenMDAOODE(split_component_problem, ["x", "y"]),
         time_discretization_scheme=StageOrderedRungeKuttaDiscretization(
-            fourth_order_five_stage_sdirk
+            embedded_fourth_order_five_stage_sdirk
         ),
         time_integration_config=IntegrationConfig(
             False, PredefinedNumberOfSteps(100), 0.01
