@@ -1000,7 +1000,7 @@ butcher_tableau_collection = [
     embedded_third_order_four_stage_sdirk,
     embedded_third_order_second_weak_stage_order_four_stage_dirk,
     # That one tends to fail adaptively
-    # embedded_third_order_third_weak_stage_order_four_stage_dirk,
+    embedded_third_order_third_weak_stage_order_four_stage_dirk,
     embedded_third_order_four_stage_esdirk,
     embedded_third_order_five_stage_esdirk,
     embedded_fourth_order_four_stage_sdirk,

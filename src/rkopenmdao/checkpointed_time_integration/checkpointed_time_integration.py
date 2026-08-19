@@ -366,36 +366,36 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - step_size_history: Updated with most recent accepted step size
             - error_history: Updated with most recent error measure
         """
-        temp_discretization_state = deepcopy(
-            time_integration_state.discretization_state
-        )
-        temp_discretization_state = self.time_discretization_scheme.compute_step(
-            self.ode,
-            temp_discretization_state,
-            time_integration_state.step_size_suggestion[0],
-        )
-        ode_state = self.time_discretization_scheme.get_ode_state(
-            self.ode,
-            temp_discretization_state,
-            time_integration_state.step_size_suggestion[0],
-        )
-        ode_error_estimate = self.time_discretization_scheme.get_ode_error_estimate(
-            self.ode,
-            temp_discretization_state,
-            time_integration_state.step_size_suggestion[0],
-        )
-        if ode_error_estimate:
-            error_measure = self.error_measurer.get_measure(
-                ode_error_estimate, ode_state, self.ode
-            )
-        else:
-            error_measure = 0.0
-
         criterion = self.time_integration_config.termination_criterion
         scheme = self.time_discretization_scheme
 
         stall_counter = 0
         while True:
+            temp_discretization_state = deepcopy(
+                time_integration_state.discretization_state
+            )
+            temp_discretization_state = self.time_discretization_scheme.compute_step(
+                self.ode,
+                temp_discretization_state,
+                time_integration_state.step_size_suggestion[0],
+            )
+            ode_state = self.time_discretization_scheme.get_ode_state(
+                self.ode,
+                temp_discretization_state,
+                time_integration_state.step_size_suggestion[0],
+            )
+            ode_error_estimate = self.time_discretization_scheme.get_ode_error_estimate(
+                self.ode,
+                temp_discretization_state,
+                time_integration_state.step_size_suggestion[0],
+            )
+            if ode_error_estimate:
+                error_measure = self.error_measurer.get_measure(
+                    ode_error_estimate, ode_state, self.ode
+                )
+            else:
+                error_measure = 0.0
+
             if hasattr(
                 self.time_integration_config.termination_criterion,
                 "remaining_time",

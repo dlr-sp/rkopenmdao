@@ -817,7 +817,7 @@ class TestAdaptiveNoCheckpointTimeIntegrationSystem(
                 1
             ].time_discretization,
             error_controller=adaptive_time_integration_test_case[2][0](
-                adaptive_time_integration_test_case[1].order
+                adaptive_time_integration_test_case[1].min_order
             ),
             error_measurer=adaptive_time_integration_test_case[2][1],
             time_integration_config=IntegrationConfig(
@@ -896,7 +896,7 @@ class TestAdaptiveAllCheckpointTimeIntegrationSystem(
                 1
             ].time_discretization,
             error_controller=adaptive_time_integration_test_case[2][0](
-                adaptive_time_integration_test_case[1].order
+                adaptive_time_integration_test_case[1].min_order
             ),
             error_measurer=adaptive_time_integration_test_case[2][1],
             time_integration_config=IntegrationConfig(

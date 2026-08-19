@@ -62,7 +62,7 @@ from .odes import (
 
 
 @dataclass
-class DiscretizationOrderPair:
+class DiscretizationOrderInfo:
     """Pair of time discretization scheme and its convergence order.
 
     Used to parameterize tests over different time discretization methods with
@@ -78,6 +78,7 @@ class DiscretizationOrderPair:
 
     time_discretization: TimeDiscretizationSchemeInterface
     order: float
+    min_order: float
 
 
 @dataclass
@@ -129,14 +130,18 @@ class ODEWithReferenceStatesAndSolutions:
 
 
 non_embedded_rk_pairs = [
-    DiscretizationOrderPair(StageOrderedRungeKuttaDiscretization(tableau), tableau.p)
+    DiscretizationOrderInfo(
+        StageOrderedRungeKuttaDiscretization(tableau), tableau.p, tableau.min_p_order()
+    )
     for tableau in butcher_tableau_collection
     if not tableau.is_embedded
 ]
 
 embedded_rk_tableaus = [
-    DiscretizationOrderPair(
-        StageOrderedEmbeddedRungeKuttaDiscretization(tableau), tableau.p
+    DiscretizationOrderInfo(
+        StageOrderedEmbeddedRungeKuttaDiscretization(tableau),
+        tableau.p,
+        tableau.min_p_order(),
     )
     for tableau in butcher_tableau_collection
     if tableau.is_embedded
@@ -146,7 +151,7 @@ embedded_rk_tableaus = [
 @pytest.fixture(params=non_embedded_rk_pairs + embedded_rk_tableaus)
 def discretization_order_pair(
     request,
-) -> DiscretizationOrderPair:
+) -> DiscretizationOrderInfo:
     """Parameterized fixture providing all Runge-Kutta discretizations.
 
     Combines non-embedded and embedded Runge-Kutta pairs to test
@@ -168,7 +173,7 @@ def discretization_order_pair(
 @pytest.fixture(params=embedded_rk_tableaus)
 def adaptive_discretization_order_pair(
     request,
-) -> DiscretizationOrderPair:
+) -> DiscretizationOrderInfo:
     """Parameterized fixture providing embedded Runge-Kutta discretizations.
 
     Embedded pairs are used for adaptive time stepping with error estimation.
