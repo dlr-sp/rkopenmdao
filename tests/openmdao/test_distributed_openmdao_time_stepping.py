@@ -7,6 +7,12 @@ from openmdao.utils.assert_utils import assert_check_totals
 import numpy as np
 import pytest
 
+from om_components import (
+    ODE4dDistributedSplit1,
+    ODE4dDistributedSplit2,
+    ode4d_analytical_solution,
+)
+
 from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk,
 )
@@ -24,15 +30,10 @@ from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization imp
     StageOrderedRungeKuttaDiscretization,
 )
 
-from om_components import (
-    ODE4dDistributedSplit1,
-    ODE4dDistributedSplit2,
-    ode4d_analytical_solution,
-)
 
-
-@pytest.fixture(params=["fwd", "rev"])
-def distributed_problem(request):
+@pytest.fixture(params=["fwd", "rev"], name="distributed_problem")
+def distributed_problem_fixture(request):
+    """TODO"""
     problem = om.Problem()
     ivc = om.IndepVarComp()
     ivc.add_output("x12_old", shape=1, distributed=True)
@@ -53,8 +54,12 @@ def distributed_problem(request):
     return problem
 
 
-@pytest.fixture(params=[AllCheckpointTimeIntegration, PyrevolveTimeIntegration])
-def distributed_om_time_integration(distributed_problem, request):
+@pytest.fixture(
+    params=[AllCheckpointTimeIntegration, PyrevolveTimeIntegration],
+    name="distributed_om_time_integration",
+)
+def distributed_om_time_integration_fixture(distributed_problem, request):
+    """TODO"""
     time_integration = request.param(
         ode=OpenMDAOODE(distributed_problem, ["x12", "x43"]),
         time_discretization_scheme=StageOrderedRungeKuttaDiscretization(
@@ -80,6 +85,7 @@ def distributed_om_time_integration(distributed_problem, request):
 
 
 def test_distributed_time_integration(distributed_om_time_integration):
+    """TODO"""
     distributed_om_time_integration.run_model()
 
     analytical_solution = ode4d_analytical_solution(0.1, np.ones(4))
@@ -100,6 +106,7 @@ def test_distributed_time_integration(distributed_om_time_integration):
 
 
 def test_distributed_time_intetgration_totals(distributed_om_time_integration):
+    """TODO"""
     distributed_om_time_integration.run_model()
     if distributed_om_time_integration.comm.rank > 0:
         data = distributed_om_time_integration.check_totals(

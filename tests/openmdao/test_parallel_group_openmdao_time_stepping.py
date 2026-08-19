@@ -5,6 +5,13 @@ import openmdao.api as om
 from openmdao.utils.assert_utils import assert_check_totals
 import pytest
 
+from om_components import (
+    FirstParallelGroupChain,
+    SecondParallelGroupChain1,
+    SecondParallelGroupChain2,
+    ThirdParallelGroupChain,
+    parallel_group_chain_solution,
+)
 
 from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk,
@@ -23,17 +30,10 @@ from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization imp
     StageOrderedRungeKuttaDiscretization,
 )
 
-from om_components import (
-    FirstParallelGroupChain,
-    SecondParallelGroupChain1,
-    SecondParallelGroupChain2,
-    ThirdParallelGroupChain,
-    parallel_group_chain_solution,
-)
 
-
-@pytest.fixture(params=["fwd", "rev"])
-def parallel_group_problem(request):
+@pytest.fixture(params=["fwd", "rev"], name="parallel_group_problem")
+def parallel_group_problem_fixture(request):
+    """TODO"""
     problem = om.Problem()
     problem.model.add_subsystem("First", FirstParallelGroupChain())
     par_group = om.ParallelGroup()
@@ -65,13 +65,17 @@ def parallel_group_problem(request):
     problem.model.connect("First.d_state", "Second.Second_2.d")
     problem.model.connect("Second.Second_1.c_state", "Third.c")
     problem.model.connect("Second.Second_2.b_state", "Third.b")
-    problem.setup()
+    problem.setup(mode=request.param)
     problem.final_setup()
     return problem
 
 
-@pytest.fixture(params=[AllCheckpointTimeIntegration, PyrevolveTimeIntegration])
-def parallel_group_om_time_integration(parallel_group_problem, request):
+@pytest.fixture(
+    params=[AllCheckpointTimeIntegration, PyrevolveTimeIntegration],
+    name="parallel_group_om_time_integration",
+)
+def parallel_group_om_time_integration_fixture(parallel_group_problem, request):
+    """TODO"""
     time_integration = request.param(
         ode=OpenMDAOODE(parallel_group_problem, ["a", "b", "c", "d"]),
         time_discretization_scheme=StageOrderedRungeKuttaDiscretization(
@@ -96,6 +100,7 @@ def parallel_group_om_time_integration(parallel_group_problem, request):
 
 
 def test_parallel_group_time_integration(parallel_group_om_time_integration):
+    """TODO"""
     parallel_group_om_time_integration.run_model()
     analytical_solution = parallel_group_chain_solution(0.1, np.ones(4))[
         [0, 1 if parallel_group_om_time_integration.comm.rank == 0 else 2, 3]
@@ -118,6 +123,7 @@ def test_parallel_group_time_integration(parallel_group_om_time_integration):
 
 
 def test_parallel_group_time_integration_totals(parallel_group_om_time_integration):
+    """TODO"""
     parallel_group_om_time_integration.run_model()
     if parallel_group_om_time_integration.comm.rank == 0:
         data = parallel_group_om_time_integration.check_totals(

@@ -11,6 +11,8 @@ import numpy as np
 import openmdao.api as om
 import pytest
 
+from om_components import ODE2dSplit1, ODE2dSplit2, ode2d_analytical_solution
+
 from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk,
 )
@@ -19,10 +21,9 @@ from rkopenmdao.checkpointed_time_integration.no_checkpoint_time_integration imp
 )
 from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
 from rkopenmdao.error_controller import ErrorController
-from rkopenmdao.error_controllers import pseudo, integral
+from rkopenmdao.error_controllers import pseudo
 from rkopenmdao.file_writer import (
     read_hdf5_file,
-    read_last_local_error,
     OpenMDAOHDF5Callback,
 )
 from rkopenmdao.integration_config import IntegrationConfig
@@ -36,8 +37,6 @@ from rkopenmdao.termination_criterion import (
 from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization import (
     StageOrderedRungeKuttaDiscretization,
 )
-
-from om_components import ODE2dSplit1, ODE2dSplit2, ode2d_analytical_solution
 
 # ########################
 # Helper funnctions

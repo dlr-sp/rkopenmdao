@@ -6,13 +6,13 @@ import openmdao.api as om
 import numpy as np
 import pytest
 
+from om_components import ODE1dParameter, ODE4dDistributedSplit1, ODE4dDistributedSplit2
+
 from rkopenmdao.discretized_ode.discretized_ode import (
     DiscretizedODEInputState,
     DiscretizedODEResultState,
 )
 from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
-
-from om_components import ODE1dParameter, ODE4dDistributedSplit1, ODE4dDistributedSplit2
 
 DELTA_T = 0.1
 

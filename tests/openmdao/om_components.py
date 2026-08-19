@@ -1,5 +1,14 @@
+"""TODO"""
+
 import numpy as np
 from rkopenmdao.components import ExplicitUnsteadyComponent, ImplicitUnsteadyComponent
+
+# OpenMDAO requires excessive branching, circumventing that would cause more work than
+# it would help.
+# pylint: disable=too-many-branches
+
+# Furthermore, we don't need the discrete variables from OpenMDAO
+# pylint: disable=unused-argument
 
 
 class ODE1dParameter(ExplicitUnsteadyComponent):
@@ -22,14 +31,14 @@ class ODE1dParameter(ExplicitUnsteadyComponent):
         self.add_input("b", val=1, shape=1, tags=["time_independent_input_var", "b"])
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, *args):
         outputs["x_stage"] = (
             inputs["b"]
             * (inputs["x"] + self.om_data_exchange.step_size * inputs["acc_stages"])
             / (1 - self.om_data_exchange.step_size * self.om_data_exchange.stage_factor)
         )
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode, *args):
         divisor = (
             1 - self.om_data_exchange.step_size * self.om_data_exchange.stage_factor
         )
@@ -93,7 +102,7 @@ class ODE2dUnified(ExplicitUnsteadyComponent):
         self.add_input("acc_stages", shape=2, tags=["accumulated_stage_var", "x"])
         self.add_output("x_stage", shape=2, tags=["stage_output_var", "x"])
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, *args):
         factor = self.om_data_exchange.step_size * self.om_data_exchange.stage_factor
         outputs["x_stage"][0] = (
             factor * inputs["x"][0]
@@ -108,7 +117,7 @@ class ODE2dUnified(ExplicitUnsteadyComponent):
             * (inputs["acc_stages"][0] + factor * inputs["acc_stages"][1])
         ) / (1 - factor**2)
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode, *args):
         factor = self.om_data_exchange.step_size * self.om_data_exchange.stage_factor
 
         if mode == "fwd":
@@ -170,7 +179,7 @@ class ODE2dSplit1(ExplicitUnsteadyComponent):
         self.add_input("y_stage", shape=1)
         self.add_output("x_stage", shape=1, tags=["stage_output_var", "x"])
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, *args):
         outputs["x_stage"] = (
             inputs["y"]
             + self.om_data_exchange.step_size * inputs["acc_stages_y"]
@@ -179,7 +188,7 @@ class ODE2dSplit1(ExplicitUnsteadyComponent):
             * inputs["y_stage"]
         )
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode, *args):
         if mode == "fwd":
             d_outputs["x_stage"] += d_inputs["y"]
             d_outputs["x_stage"] += (
@@ -220,7 +229,7 @@ class ODE2dSplit2(ExplicitUnsteadyComponent):
         self.add_input("x_stage", shape=1)
         self.add_output("y_stage", shape=1, tags=["stage_output_var", "y"])
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, *args):
         outputs["y_stage"] = (
             inputs["x"]
             + self.om_data_exchange.step_size * inputs["acc_stages_x"]
@@ -229,7 +238,7 @@ class ODE2dSplit2(ExplicitUnsteadyComponent):
             * inputs["x_stage"]
         )
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode, *args):
         if mode == "fwd":
             d_outputs["y_stage"] += d_inputs["x"]
             d_outputs["y_stage"] += (
@@ -467,7 +476,7 @@ class FirstParallelGroupChain(ExplicitUnsteadyComponent):
         self.add_output("d_update", shape=1, tags=["d", "stage_output_var"])
         self.add_output("d_state", shape=1)
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, *args):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element == 0.0:
@@ -478,7 +487,7 @@ class FirstParallelGroupChain(ExplicitUnsteadyComponent):
         outputs["d_update"] = factor * old_influence
         outputs["d_state"] = factor * old_influence
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode, *args):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element == 0.0:
@@ -529,7 +538,7 @@ class SecondParallelGroupChain1(ExplicitUnsteadyComponent):
         self.add_output("c_update", shape=1, tags=["c", "stage_output_var"])
         self.add_output("c_state", shape=1)
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, *args):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         old_influence = inputs["c_old"] + delta_t * inputs["c_accumulated_stages"]
@@ -544,7 +553,7 @@ class SecondParallelGroupChain1(ExplicitUnsteadyComponent):
             outputs["c_update"] = old_influence - inputs["d"]
             outputs["c_state"] = old_influence
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode, *args):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element != 0.0:
@@ -614,7 +623,7 @@ class SecondParallelGroupChain2(ExplicitUnsteadyComponent):
         self.add_output("b_update", shape=1, tags=["b", "stage_output_var"])
         self.add_output("b_state", shape=1)
 
-    def compute(self, inputs, outputs):
+    def compute(self, inputs, outputs, *args):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         old_influence = inputs["b_old"] + delta_t * inputs["b_accumulated_stages"]
@@ -629,7 +638,7 @@ class SecondParallelGroupChain2(ExplicitUnsteadyComponent):
             outputs["b_update"] = old_influence + inputs["d"]
             outputs["b_state"] = old_influence
 
-    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode):
+    def compute_jacvec_product(self, inputs, d_inputs, d_outputs, mode, *args):
         delta_t = self.om_data_exchange.step_size
         butcher_diagonal_element = self.om_data_exchange.stage_factor
         if butcher_diagonal_element != 0.0:
