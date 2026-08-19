@@ -33,6 +33,7 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
 
     @staticmethod
     def has_om_ode(name: str, value: TimeIntegrationInterface):
+        """TODO"""
         if hasattr(value, "ode"):
             if isinstance(value.ode, OpenMDAOODE):
                 return
@@ -52,11 +53,8 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
     def _add_time_integration_inputs_and_outputs(self):
         self.add_input("time_initial", shape=1, val=0.0)
         self.add_output("time_final", shape=1)
-        for (
-            quantity
-        ) in (
-            self._time_integrator.ode.time_integration_metadata.time_integration_quantity_list
-        ):
+        time_integration_metadata = self._time_integrator.ode.time_integration_metadata
+        for quantity in time_integration_metadata.time_integration_quantity_list:
             if quantity.array_metadata.local:
                 self.add_input(
                     quantity.name + "_initial",
@@ -86,11 +84,8 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
             )
 
     def _add_time_independent_inputs(self):
-        for (
-            quantity
-        ) in (
-            self._time_integrator.ode.time_integration_metadata.time_independent_input_quantity_list
-        ):
+        time_integration_metadata = self._time_integrator.ode.time_integration_metadata
+        for quantity in time_integration_metadata.time_independent_input_quantity_list:
             self.add_input(
                 quantity.name,
                 shape=quantity.array_metadata.shape,

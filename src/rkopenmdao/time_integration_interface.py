@@ -1,4 +1,6 @@
-"""Abstract interface for time integration schemes with primal and derivative support."""
+"""
+Abstract interface for time integration schemes with primal and derivative support.
+"""
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
@@ -14,7 +16,8 @@ class TimeIntegrationInterface(ABC):
     """
     Abstract base class for time integration schemes.
 
-    This interface defines the contract for time integration implementations that support:
+    This interface defines the contract for time integration implementations that
+    support:
     - Primal integration (forward in time)
     - Derivative integration (linearized forward in time)
     - Adjoint derivative integration (reverse in time)
@@ -67,7 +70,8 @@ class TimeIntegrationInterface(ABC):
             Empty state for derivative integration with:
             - Zero-filled discretization_state matching ODE dimensions
             - Empty or zero step_size_suggestion (fixed step for derivative)
-            - Empty step_size_history and error_history (derivative uses same steps as primal)
+            - Empty step_size_history and error_history (derivative uses same steps as
+              primal)
 
         Notes
         -----
@@ -91,7 +95,8 @@ class TimeIntegrationInterface(ABC):
             The initial state containing:
             - discretization_state: Initial values of state variables
             - step_size_suggestion: Initial step size suggestion
-            - step_size_history: Initial step size history (often filled with same value)
+            - step_size_history: Initial step size history (often filled with same
+              value)
             - error_history: Initial error history (often filled with tolerance)
 
         Returns
@@ -102,8 +107,8 @@ class TimeIntegrationInterface(ABC):
 
         Notes
         -----
-        The integration continues until the termination_criterion in time_integration_config
-        indicates completion. This may be based on:
+        The integration continues until the termination_criterion in
+        time_integration_config indicates completion. This may be based on:
         - Fixed number of steps
         - Reaching a specific final time
         - Other convergence criteria
@@ -128,7 +133,8 @@ class TimeIntegrationInterface(ABC):
             The primal integration state (linearization point) containing:
             - discretization_state: State variables at initial time
             - step_size_suggestion: Initial step size suggestion
-            - step_size_history: Initial step size history (often filled with same value)
+            - step_size_history: Initial step size history (often filled with same
+              value)
             - error_history: Initial error history (often filled with tolerance)
 
         initial_state_perturbation : TimeIntegrationState
@@ -164,7 +170,8 @@ class TimeIntegrationInterface(ABC):
             The primal integration state (linearization point) containing:
             - discretization_state: State variables at initial time
             - step_size_suggestion: Initial step size suggestion
-            - step_size_history: Initial step size history (often filled with same value)
+            - step_size_history: Initial step size history (often filled with same
+              value)
             - error_history: Initial error history (often filled with tolerance)
 
         final_state_perturbations : list[TimeIntegrationState]
@@ -178,7 +185,8 @@ class TimeIntegrationInterface(ABC):
         TimeIntegrationState
             The perturbation of the initial state after reverse integration.
             Contains:
-            - discretization_state: Adjoint of the final state with respect to initial conditions
+            - discretization_state: Adjoint of the final state with respect to initial
+              conditions
             - Empty or zero step_size_suggestion, step_size_history, error_history).
         """
 
@@ -215,7 +223,8 @@ class TimeIntegrationInterface(ABC):
         starting_value_perturbations: StartingValues,
     ) -> TimeIntegrationState:
         """
-        Computes the derivative of the initialization with respect to perturbed starting values.
+        Computes the derivative of the initialization with respect to perturbed
+        starting values.
 
         Computes how the initial integration state changes when starting values are
         perturbed. This is the Jacobian-vector product for the initialization step.
@@ -245,8 +254,8 @@ class TimeIntegrationInterface(ABC):
         Computes the adjoint (reverse-mode) derivative of the initialization.
 
         Computes how perturbations in the initial integration state affect the
-        starting values. This is the vector-Jacobian product for the initialization step,
-        used in reverse-mode differentiation.
+        starting values. This is the vector-Jacobian product for the initialization
+        step, used in reverse-mode differentiation.
 
         Parameters
         ----------
@@ -258,7 +267,8 @@ class TimeIntegrationInterface(ABC):
         Returns
         -------
         StartingValues
-            Perturbation of starting values (gradient of initial integration state w.r.t. initial conditions)
+            Perturbation of starting values (gradient of initial integration state
+            w.r.t. initial conditions)
         """
 
     @abstractmethod
