@@ -112,7 +112,7 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
     integrate_adjoint_derivative_callbacks: list[Callback] = field(default_factory=list)
 
     error_controller: ErrorController = field(default_factory=lambda: pseudo(1))
-    error_measurer: ErrorMeasurer = field(default_factory=lambda: SimpleErrorMeasurer())
+    error_measurer: ErrorMeasurer = field(default_factory=SimpleErrorMeasurer)
 
     def create_empty_primal_integration_state(self) -> TimeIntegrationState:
         """

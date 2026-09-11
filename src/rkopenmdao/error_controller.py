@@ -150,7 +150,7 @@ class ErrorController:
         if not status.acceptance:
             if status.step_size_suggestion > delta_t and self._inner_most:
                 raise OuterErrorControllerError(
-                    f"""Suggested delta T {status.step_size_suggestion} is larger than 
+                    f"""Suggested delta T {status.step_size_suggestion} is larger than
                     delta t {delta_t} on failure."""
                 )
         return status
@@ -363,7 +363,7 @@ class ErrorControllerDecorator(ErrorController):
                         and self._outer_counter <= self.config.max_iter
                     ):
                         raise OuterErrorControllerError(
-                            f"""Suggested delta T {status.step_size_suggestion} is 
+                            f"""Suggested delta T {status.step_size_suggestion} is
                             larger than delta t {delta_t} on failure."""
                         )
                 self._outer_counter = 0
@@ -413,7 +413,7 @@ class ErrorControllerDecorator(ErrorController):
             self._is_not_inner = False
             if status.step_size_suggestion > delta_t and self._inner_most:
                 raise InnerErrorControllerError(
-                    f"""Suggested delta T {status.step_size_suggestion} is larger than 
+                    f"""Suggested delta T {status.step_size_suggestion} is larger than
                     delta t {delta_t} on failure."""
                 )
         return status
