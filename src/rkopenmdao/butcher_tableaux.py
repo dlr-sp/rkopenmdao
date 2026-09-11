@@ -17,6 +17,10 @@ Prefixes:
 # No need to write this into doc again.
 # pylint: disable=missing-function-docstring
 
+# All butcher tableaux should reside in one file, artificially splitting this
+# will only hinder readability.
+# pylint: disable=too-many-lines
+
 import numpy as np
 
 from rkopenmdao.butcher_tableau import ButcherTableau, EmbeddedButcherTableau
@@ -46,6 +50,7 @@ __all__ = [
     "embedded_fourth_order_third_weak_stage_order_six_stage_dirk",
     "embedded_runge_kutta_fehlberg",
     "embedded_fifth_order_six_stage_esdirk",
+    "butcher_tableau_collection",
 ]
 
 # one stage methods
@@ -979,3 +984,30 @@ embedded_fifth_order_six_stage_esdirk = EmbeddedButcherTableau(
     phat=4,
     name="ESDIRK 6-stage, 5th order",
 )
+
+butcher_tableau_collection = [
+    explicit_euler,
+    implicit_euler,
+    implicit_midpoint,
+    third_order_two_stage_sdirk,
+    fifth_order_five_stage_sdirk,
+    embedded_heun_euler,
+    embedded_second_order_two_stage_sdirk,
+    embedded_second_order_three_stage_esdirk,
+    embedded_third_order_three_stage_sdirk1,
+    embedded_third_order_three_stage_sdirk2,
+    embedded_third_order_three_stage_esdirk,
+    embedded_third_order_four_stage_sdirk,
+    embedded_third_order_second_weak_stage_order_four_stage_dirk,
+    # That one tends to fail adaptively
+    embedded_third_order_third_weak_stage_order_four_stage_dirk,
+    embedded_third_order_four_stage_esdirk,
+    embedded_third_order_five_stage_esdirk,
+    embedded_fourth_order_four_stage_sdirk,
+    embedded_fourth_order_five_stage_sdirk,
+    embedded_fourth_order_five_stage_esdirk,
+    embedded_fourth_order_six_stage_esdirk,
+    embedded_fourth_order_third_weak_stage_order_six_stage_dirk,
+    embedded_runge_kutta_fehlberg,
+    embedded_fifth_order_six_stage_esdirk,
+]

@@ -6,9 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 
 
-from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
-    TimeDiscretizationStateInterface,
-)
+from rkopenmdao.states import TimeDiscretizationStateInterface
 
 
 @dataclass(init=False)
@@ -154,6 +152,26 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         state.linearization_points = state_dict["linearization_points"]
         return state
 
+    def __eq__(self, other: RungeKuttaDiscretizationState):
+        return (
+            np.all(self.start_state == other.start_state)
+            and np.all(self.start_state == other.start_state)
+            and np.all(self.stage_states == other.stage_states)
+            and np.all(self.stage_updates == other.stage_updates)
+            and np.all(self.independent_inputs == other.independent_inputs)
+            and np.all(
+                self.stage_independent_outputs == other.stage_independent_outputs
+            )
+            and np.all(
+                self.final_independent_outputs == other.final_independent_outputs
+            )
+            and np.all(self.start_time == other.start_time)
+            and np.all(self.stage_times == other.stage_times)
+            and np.all(self.final_time == other.final_time)
+            and np.all(self.step_size == other.step_size)
+            and np.all(self.linearization_points == other.linearization_points)
+        )
+
 
 @dataclass(init=False)
 class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
@@ -227,3 +245,10 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
         state = super().from_dict(state_dict)
         state.embedded_state = state_dict["embedded_dict"]
         state.error_estimate = state_dict["error_estimate"]
+
+    def __eq__(self, other: EmbeddedRungeKuttaDiscretizationState):
+        return (
+            super().__eq__(other)
+            and np.all(self.embedded_state == other.embedded_state)
+            and np.all(self.error_estimate == other.error_estimate)
+        )

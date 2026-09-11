@@ -3,92 +3,14 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
-import numpy as np
-
+from rkopenmdao.states import (
+    TimeDiscretizationStateInterface,
+    StartingValues,
+    FinalizationValues,
+    DiscretizedODEResultState,
+)
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
-
-
-class TimeDiscretizationStateInterface(ABC):
-    """Interface required for general states of time discretizations."""
-
-    @abstractmethod
-    def set(self, other: TimeDiscretizationStateInterface):
-        """
-        Sets the contents of this instance of the time discretization state to the
-        contents of `other`. Note that it is *required* that this performs a copy into
-        the existing internal data structures, as else checkpointing would break.
-
-        Parameters
-        ----------
-        other: TimeDiscetizationStateInterface
-            State that contains the data copied over into the internal structures.
-        """
-
-    @abstractmethod
-    def to_dict(self) -> dict[np.ndarray]:
-        """
-        Exports the internal data into a dict of numpy arrays.
-
-        Returns
-        -------
-        time_step_dict: dict
-            Internal data represented as dict of numpy arrays.
-        """
-
-    @classmethod
-    @abstractmethod
-    def from_dict(cls, state_dict: dict):
-        """
-        Creates a new time discretization state from a dict. Dicts created by `to_dict`
-        must be supported by this method.
-
-        Parameters
-        ----------
-        state_dict: dict
-            Dictionary from which a time discretization state is created.
-        """
-
-
-@dataclass
-class TimeDiscretizationStartingValues:
-    """
-    Dataclass containing data for starting a time discretization.
-
-    Parameters
-    ----------
-    initial_time: float
-        Time at start of time integration.
-    initial_values: np.ndarray
-        Initial values for initial value problem.
-    independent_inputs: np.ndarray
-        Independent inputs for time integration.
-    """
-
-    initial_time: float
-    initial_values: np.ndarray
-    independent_inputs: np.ndarray
-
-
-@dataclass
-class TimeDiscretizationFinalizationValues:
-    """
-    Dataclass containing data for finalozing a time discretization.
-
-    Parameters
-    ----------
-    final_time: float
-        Time at end of time integration.
-    final_values: np.ndarray
-        Values for end of time integration.
-    final_independent_outputs: np.ndarray
-        Independent outputs at end of time integration.
-    """
-
-    final_time: float
-    final_values: np.ndarray
-    final_independent_outputs: np.ndarray
 
 
 class TimeDiscretizationSchemeInterface(ABC):
@@ -218,7 +140,7 @@ class TimeDiscretizationSchemeInterface(ABC):
     def time_discretization_starting_scheme(
         self,
         ode: DiscretizedODE,
-        starting_values: TimeDiscretizationStartingValues,
+        starting_values: StartingValues,
         step_size: float,
     ) -> TimeDiscretizationStateInterface:
         """
@@ -230,7 +152,7 @@ class TimeDiscretizationSchemeInterface(ABC):
         ----------
         ode: DiscretizedODE
             ODE on which time integration is performed.
-        starting_values: TimeDiscretizationStartingValues
+        starting_values: StartingValues
             Values on which the starting scheme is performed.
         step_size: float
             Step size for the starting scheme.
@@ -246,8 +168,8 @@ class TimeDiscretizationSchemeInterface(ABC):
     def time_discretization_starting_scheme_derivative(
         self,
         ode: DiscretizedODE,
-        starting_values: TimeDiscretizationStartingValues,
-        starting_value_perturbations: TimeDiscretizationStartingValues,
+        starting_values: StartingValues,
+        starting_value_perturbations: StartingValues,
         step_size: float,
     ) -> TimeDiscretizationStateInterface:
         """
@@ -257,9 +179,9 @@ class TimeDiscretizationSchemeInterface(ABC):
         ----------
         ode: DiscretizedODE
             ODE on which time integration is performed.
-        starting_values: TimeDiscretizationStartingValues
+        starting_values: StartingValues
             Linearization point for the jacobian of the starting scheme.
-        starting_value_perturbations: TimeDiscretizationStartingValues
+        starting_value_perturbations: StartingValues
             Perturbations to be multiplied with the jacobian of the starting scheme.
         step_size: float
             Step size for the starting scheme.
@@ -274,10 +196,10 @@ class TimeDiscretizationSchemeInterface(ABC):
     def time_discretization_starting_scheme_adjoint_derivative(
         self,
         ode: DiscretizedODE,
-        starting_values: TimeDiscretizationStartingValues,
+        starting_values: StartingValues,
         started_discretization_state_perturbations: TimeDiscretizationStateInterface,
         step_size: float,
-    ) -> TimeDiscretizationStartingValues:
+    ) -> StartingValues:
         """
         Reverse-mode differentiated version of starting scheme.
 
@@ -285,7 +207,7 @@ class TimeDiscretizationSchemeInterface(ABC):
         ----------
         ode: DiscretizedODE
             ODE on which time integration is performed.
-        starting_values: TimeDiscretizationStartingValues
+        starting_values: StartingValues
             Linearization point for the adjoint jacobian of the starting scheme.
         started_discretization_state_perturbations: TimeDiscretizationStateInterface
             Perturbations to be multiplied with the adjoint jacobian of the starting
@@ -295,7 +217,7 @@ class TimeDiscretizationSchemeInterface(ABC):
 
         Returns
         -------
-        starting_value_perturbations: TimeDiscretizationStartingValues
+        starting_value_perturbations: StartingValues
             Result of the adjoint jacvec-product of the starting scheme.
         """
 
@@ -305,7 +227,7 @@ class TimeDiscretizationSchemeInterface(ABC):
         ode: DiscretizedODE,
         discretization_state: TimeDiscretizationStateInterface,
         step_size: float,
-    ) -> TimeDiscretizationFinalizationValues:
+    ) -> FinalizationValues:
         """
         Finalization scheme of the time discretization for converting a state specific
         to the discretization back to one compatible with an ODE.
@@ -321,7 +243,7 @@ class TimeDiscretizationSchemeInterface(ABC):
 
         Returns
         -------
-        finalization_values: TimeDiscretizationFinalizationValues
+        finalization_values: FinalizationValues
             Converted version of `final_time_discretization_state` compatible with the
             used ODE.
         """
@@ -333,7 +255,7 @@ class TimeDiscretizationSchemeInterface(ABC):
         discretization_state: TimeDiscretizationStateInterface,
         discretization_state_perturbations: TimeDiscretizationStateInterface,
         step_size: float,
-    ) -> TimeDiscretizationFinalizationValues:
+    ) -> FinalizationValues:
         """
         Forward-mode differentiated version of finalization scheme.
 
@@ -351,7 +273,7 @@ class TimeDiscretizationSchemeInterface(ABC):
 
         Returns
         -------
-        finalization_value_perturbations: TimeDiscretizationFinalizationValues
+        finalization_value_perturbations: FinalizationValues
             Result of the jacvec-product of the finalization scheme.
         """
 
@@ -360,7 +282,7 @@ class TimeDiscretizationSchemeInterface(ABC):
         self,
         ode: DiscretizedODE,
         discretization_state: TimeDiscretizationStateInterface,
-        finalization_value_perturbations: TimeDiscretizationFinalizationValues,
+        finalization_value_perturbations: FinalizationValues,
         step_size: float,
     ) -> TimeDiscretizationStateInterface:
         """
@@ -372,7 +294,7 @@ class TimeDiscretizationSchemeInterface(ABC):
             ODE on which time integration is performed.
         discretization_state: TimeDiscretizationStateInterface
             Linearization point for the adjoint jacobian of the finalization scheme.
-        finalization_value_perturbations: TimeDiscretizationFinalizationValues
+        finalization_value_perturbations: FinalizationValues
             Perturbations to be multiplied with the adjoint jacobian of the
             finalization scheme.
         step_size: float
@@ -382,4 +304,56 @@ class TimeDiscretizationSchemeInterface(ABC):
         -------
         discretization_state_perturbations: TimeDiscretizationStateInterface
             Result of the adjoint jacvec-product of the finalization scheme.
+        """
+
+    @abstractmethod
+    def get_ode_state(
+        self,
+        ode: DiscretizedODE,
+        discretization_state: TimeDiscretizationStateInterface,
+        step_size: float,
+    ) -> DiscretizedODEResultState:
+        """
+        Uses the contents of `discretization_state` to create a valid result state for
+        the passed ode containing state data.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: TimeDiscretizationStateInterface
+            Discretization state from which data is used.
+        step_size: float
+            Step size that is possibly necessary for some calculations.
+
+        Returns
+        -------
+        ode_state: DiscretizedODEResultState
+            ODE-compatible result state containing discretization state data.
+        """
+
+    @abstractmethod
+    def get_ode_error_estimate(
+        self,
+        ode: DiscretizedODE,
+        discretization_state: TimeDiscretizationStateInterface,
+        step_size: float,
+    ) -> DiscretizedODEResultState | None:
+        """
+        Uses the contents of `discretization_state` to create a valid result state for
+        the passed ode containing error estimate data.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: TimeDiscretizationStateInterface
+            Discretization state from which data is used.
+        step_size: float
+            Step size that is possibly necessary for some calculations.
+
+        Returns
+        -------
+        ode_error_estimate: DiscretizedODEResultState
+            ODE-compatible result state containing error estimate data.
         """

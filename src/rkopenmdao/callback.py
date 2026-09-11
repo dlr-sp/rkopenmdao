@@ -8,7 +8,7 @@ from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
 )
-from rkopenmdao.time_integration_state import TimeIntegrationState
+from rkopenmdao.states import TimeIntegrationState
 
 
 class Callback(ABC):

@@ -7,14 +7,8 @@ import numpy as np
 import pytest
 import openmdao.api as om
 
-from rkopenmdao.integration_config import IntegrationConfig
-from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
 
 from rkopenmdao.butcher_tableaux import *  # pylint:disable=unused-wildcard-import,wildcard-import
-from rkopenmdao.butcher_tableau import EmbeddedButcherTableau
-
-from .test_components import TestComp1, solution_test1
 
 NON_EMBEDDED_TABLEAUX = [
     explicit_euler,

@@ -150,7 +150,7 @@ class ErrorController:
         if not status.acceptance:
             if status.step_size_suggestion > delta_t and self._inner_most:
                 raise OuterErrorControllerError(
-                    f"""Suggested delta T {status.step_size_suggestion} is larger than 
+                    f"""Suggested delta T {status.step_size_suggestion} is larger than
                     delta t {delta_t} on failure."""
                 )
         return status
@@ -188,11 +188,7 @@ class ErrorController:
             Suggested step size and acceptance of current time step.
         """
         success = False
-        if (
-            np.abs(delta_t - self.config.lower_bound) < 1e-10
-            or np.abs(delta_t - remaining_time) < 1e-10
-            or error_measure <= self.config.tol
-        ):
+        if np.abs(delta_t - remaining_time) < 1e-10 or error_measure <= self.config.tol:
             success = True
 
         if error_measure != 0:
@@ -206,11 +202,18 @@ class ErrorController:
             new_delta_t = delta_t
             warnings.warn("""Current error norm is 0, can't estimate new step size
                 and using old one.""")
-
         new_delta_t = max(
             self.config.lower_bound, min(self.config.upper_bound, new_delta_t)
         )
-        new_delta_t = min(remaining_time + (1 - success) * delta_t, new_delta_t)
+        if not success:
+            remaining_time += delta_t
+        new_delta_t = min(remaining_time, new_delta_t)
+        print(new_delta_t)
+        # The error controller won't generate anything lower than that by itself
+        # so we might as well accept it at that point.
+        if new_delta_t < self.config.lower_bound:
+            success = True
+
         return ErrorControllerStatus(new_delta_t, success)
 
     def _estimate_next_step_function(
@@ -360,7 +363,7 @@ class ErrorControllerDecorator(ErrorController):
                         and self._outer_counter <= self.config.max_iter
                     ):
                         raise OuterErrorControllerError(
-                            f"""Suggested delta T {status.step_size_suggestion} is 
+                            f"""Suggested delta T {status.step_size_suggestion} is
                             larger than delta t {delta_t} on failure."""
                         )
                 self._outer_counter = 0
@@ -410,7 +413,7 @@ class ErrorControllerDecorator(ErrorController):
             self._is_not_inner = False
             if status.step_size_suggestion > delta_t and self._inner_most:
                 raise InnerErrorControllerError(
-                    f"""Suggested delta T {status.step_size_suggestion} is larger than 
+                    f"""Suggested delta T {status.step_size_suggestion} is larger than
                     delta t {delta_t} on failure."""
                 )
         return status
