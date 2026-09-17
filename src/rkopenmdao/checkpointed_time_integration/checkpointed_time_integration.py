@@ -34,23 +34,22 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
     Checkpointing strategies determine how intermediate states are stored and retrieved
     during reverse-mode (adjoint) integration. The base class provides common operations
     for:
-    - Forward integration of single time steps with adaptive stepping
-    - Derivative integration if single time steps following the same step size
-    - Derivative integration for the whole time domain
-    - Adjoint derivative integration of single time steps following the adaptive step
-      size
+    - Primal time integration of single time steps with adaptive stepping
+    - Forward-mode differentiated integration of single time steps
+    - Forward-mode differentiated integration for the whole time domain
+    - Reverse-mode differentiated integration of single time steps
 
     Subclasses must implement checkpoint-specific integration methods:
-    - integrate(): Forward integration of the whole time domain with checkpointing
-    - integrate_adjoint_derivative(): Reverse adjoint integration of the whole time
+    - integrate(): primal time integration of the whole time domain with checkpointing
+    - integrate_adjoint_derivative(): Reverse-mode differentiated integration of the whole time
       domain with checkpointing
 
     Parameters
     ----------
     ode : DiscretizedODE
         The discretized ordinary differential equation system to integrate.
-        Contains the problem definition, including methods for computing solution,
-        error estimates, and derivatives
+        Contains the problem definition, including methods for computing solutions
+        and their derivatives
 
     time_discretization_scheme : TimeDiscretizationSchemeInterface
         The time discretization scheme to use.
@@ -80,7 +79,7 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         - after_iteration(): After each integration step
 
     integrate_derivative_callbacks : list[Callback]
-        List of callback objects invoked during derivative integration, called at:
+        List of callback objects invoked during direct derivative integration, called at:
         - before_iteration(): Before each integration step
         - after_iteration(): After each integration step
 
@@ -89,17 +88,6 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         called at:
         - before_iteration(): Before each integration step
         - after_iteration(): After each integration step
-
-    Notes
-    -----
-    This class provides default implementations for derivative integration that
-    simply follow the same time steps as the primal integration. The checkpointing
-    subclasses must override integrate() and integrate_adjoint_derivative() to
-    implement their specific checkpointing strategies.
-
-    The callback system allows monitoring of the integration process.
-    Callbacks can inspect or modify the integration state, access error measures,
-    or trigger external actions like visualization or data writing.
     """
 
     ode: DiscretizedODE
@@ -138,10 +126,11 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
 
     def create_empty_derivative_integration_state(self) -> TimeIntegrationState:
         """
-        Creates an empty state for derivative integration.
+        Creates an empty state for differentiated integration.
 
-        The state is sized for the derivative computation, which may have different
-        array sizes than the primal state.
+        The state is sized for the differentiated computation, as currently,
+        derivatives are not taken into account by the error control, and as the
+        step sizes are the same as for the primal integration.
 
         Returns
         -------
@@ -163,9 +152,9 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         initial_state_perturbation: TimeIntegrationState,
     ) -> tuple[list[TimeIntegrationState], list[TimeIntegrationState]]:
         """
-        Performs derivative integration following the same steps as primal integration.
+        Performs differentiated integration following the same steps as primal integration.
 
-        The derivative integration uses the exact same time steps as the primal
+        The differentiated integration uses the exact same time steps as the primal
         integration (from initial_state.step_size_history), ensuring consistent
         linearization.
 
@@ -253,7 +242,7 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         time_integration_state_perturbations: TimeIntegrationState,
     ) -> None:
         """
-        Executes one derivative integration step with callback support.
+        Executes one differentiated integration step with callback support.
 
         Advances both the primal state and the perturbation state by one time step.
         The perturbation state is updated using the time discretization scheme's
@@ -301,7 +290,7 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         time_integration_state_perturbations: TimeIntegrationState,
     ) -> None:
         """
-        Executes one adjoint derivative integration step with callback support.
+        Executes one adjoint differentiated integration step with callback support.
 
         Advances the perturbation state backward in time using the adjoint of
         the time discretization scheme's Jacobian.

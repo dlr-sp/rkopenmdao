@@ -70,7 +70,23 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         number_of_stages: int,
         linearization_point_size: int,
     ):
+        """
+        Initializes the state with zeroed arrays for a single time step of the
+        Runge-Kutta scheme.
 
+        Parameters
+        ----------
+        ode_state_size: int
+            Size of the ODE state vector.
+        independent_input_size: int
+            Size of the independent input vector.
+        independent_output_size: int
+            Size of the independent output vector.
+        number_of_stages: int
+            Number of stages of the Runge-Kutta scheme.
+        linearization_point_size: int
+            Size of the linearization point vector per stage.
+        """
         self.start_state = np.zeros(ode_state_size)
         self.stage_states = np.zeros((number_of_stages, ode_state_size))
         self.stage_updates = np.zeros((number_of_stages, ode_state_size))
@@ -94,6 +110,15 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         )
 
     def set(self, other: RungeKuttaDiscretizationState):
+        """
+        Sets the contents of this state to the contents of other.
+
+        Parameters
+        ----------
+        other: RungeKuttaDiscretizationState
+            State that contains the data copied over into the internal
+            structures.
+        """
         self.start_state[:] = other.start_state[:]
         self.stage_states[:] = other.stage_states[:]
         self.stage_updates[:] = other.stage_updates[:]
@@ -108,6 +133,15 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         self.linearization_points[:] = other.linearization_points[:]
 
     def to_dict(self) -> dict:
+        """
+        Exports the internal data into a dict of numpy arrays, where each
+        stage carries its own sub-dict.
+
+        Returns
+        -------
+        time_step_dict: dict
+            Internal data represented as dict of numpy arrays.
+        """
         time_step_dict = {"start_state": self.start_state}
         time_step_dict["start_time"] = self.start_time
         number_of_stages = self.stage_states.shape[0]
@@ -128,6 +162,14 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
 
     @classmethod
     def from_dict(cls, state_dict: dict):
+        """
+        Creates a new discretization state from a dict created by `to_dict`.
+
+        Parameters
+        ----------
+        state_dict: dict
+            Dictionary from which a discretization state is created.
+        """
         number_of_stages = len(state_dict["linearization_points"])
         state = cls(
             ode_state_size=state_dict["final_state"].size,
@@ -153,6 +195,7 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         return state
 
     def __eq__(self, other: RungeKuttaDiscretizationState):
+        """Returns True if the other state holds the same content."""
         return (
             np.all(self.start_state == other.start_state)
             and np.all(self.start_state == other.start_state)
@@ -224,6 +267,24 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
         number_of_stages: int,
         linearization_point_size: int,
     ):
+        """
+        Initializes the state with zeroed arrays for a single time step of the
+        embedded Runge-Kutta scheme, including the state of the embedded scheme
+        and the error estimate.
+
+        Parameters
+        ----------
+        ode_state_size: int
+            Size of the ODE state vector.
+        independent_input_size: int
+            Size of the independent input vector.
+        independent_output_size: int
+            Size of the independent output vector.
+        number_of_stages: int
+            Number of stages of the Runge-Kutta scheme.
+        linearization_point_size: int
+            Size of the linearization point vector per stage.
+        """
         super().__init__(
             ode_state_size=ode_state_size,
             independent_input_size=independent_input_size,
@@ -235,6 +296,15 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
         self.error_estimate = np.zeros_like(self.start_state)
 
     def to_dict(self) -> dict:
+        """
+        Exports the internal data into a dict of numpy arrays, extending the
+        base dict with the embedded state and the error estimate.
+
+        Returns
+        -------
+        time_step_dict: dict
+            Internal data represented as dict of numpy arrays.
+        """
         time_step_dict = super().to_dict()
         time_step_dict["embedded_state"] = self.embedded_state
         time_step_dict["error_estimate"] = self.error_estimate
@@ -242,11 +312,21 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
 
     @classmethod
     def from_dict(cls, state_dict: dict):
+        """
+        Creates a new embedded discretization state from a dict created by
+        `to_dict`.
+
+        Parameters
+        ----------
+        state_dict: dict
+            Dictionary from which a discretization state is created.
+        """
         state = super().from_dict(state_dict)
         state.embedded_state = state_dict["embedded_dict"]
         state.error_estimate = state_dict["error_estimate"]
 
     def __eq__(self, other: EmbeddedRungeKuttaDiscretizationState):
+        """Returns True if the other state holds the same content."""
         return (
             super().__eq__(other)
             and np.all(self.embedded_state == other.embedded_state)

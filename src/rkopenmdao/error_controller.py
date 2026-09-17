@@ -94,6 +94,28 @@ class ErrorController:
         config: ErrorControllerConfig = ErrorControllerConfig(),
         name: str = "ErrorController",
     ):
+        """
+        Initializes the error controller with the exponents of the step size
+        estimation equation and the configuration options.
+
+        Parameters
+        ----------
+        alpha: float
+            The exponent constant to the tolerance by the current norm.
+        beta: float
+            The exponent constant to the current norm by the last norm.
+        gamma: float
+            The exponent constant to the last norm by the prior norm.
+        a: float
+            The exponent constant to the current time-difference by the last
+            time-difference.
+        b: float
+            The exponent constant to the last time-difference by the prior one.
+        config: ErrorControllerConfig
+            Configuration options for the error controller.
+        name: str
+            Name of the error controller.
+        """
         # Constant parameters for the error controller equation
         # -----------
         # 1. General parameters
@@ -321,6 +343,28 @@ class ErrorControllerDecorator(ErrorController):
         b: float = 0,
         name: str = "ErrorController",
     ):
+        """
+        Initializes the decorator that wraps a base error controller and acts as a
+        fallback in case the step size estimation of the base controller fails.
+
+        Parameters
+        ----------
+        alpha: float
+            The exponent constant to the tolerance by the current norm.
+        error_controller: ErrorController
+            The base error controller that is wrapped by this decorator.
+        beta: float
+            The exponent constant to the current norm by the last norm.
+        gamma: float
+            The exponent constant to the last norm by the prior norm.
+        a: float
+            The exponent constant to the current time-difference by the last
+            time-difference.
+        b: float
+            The exponent constant to the last time-difference by the prior one.
+        name: str
+            Name of the error controller.
+        """
         self.error_controller = error_controller
         self.error_controller._inner_most = False
         self.error_controller._name = self.error_controller._name.replace(
@@ -347,6 +391,29 @@ class ErrorControllerDecorator(ErrorController):
         error_history: np.ndarray,
         step_size_history: np.ndarray,
     ) -> ErrorControllerStatus:
+        """
+        Assesses the acceptance of the current time step, delegating to the
+        wrapped base error controller and falling back to the own step size
+        estimation when the base controller fails.
+
+        Parameters
+        ----------
+        error_measure: float
+            Measure for the error of the current step.
+        delta_t: float
+            Step size of the current step
+        remaining_time: float
+            Time remaining for the time integration.
+        error_history: np.ndarray
+            Error measures of the two last time steps.
+        step_size_history: np.ndarray
+            History of the last two accepted steps.
+
+        Returns
+        -------
+        status: ErrorControllerStatus
+            Suggested step size and acceptance of current time step.
+        """
         if self._is_not_inner:
             try:
                 status = self.error_controller(
@@ -401,6 +468,29 @@ class ErrorControllerDecorator(ErrorController):
         error_history: np.ndarray,
         step_size_history: np.ndarray,
     ) -> ErrorControllerStatus:
+        """
+        Estimates the next possible step size and reports a suggested step size
+        that is larger than the failed step size as an inner error controller
+        failure.
+
+        Parameters
+        ----------
+        error_measure: float
+            Measure for the error of the current step.
+        delta_t: float
+            Step size of the current step
+        remaining_time: float
+            Time remaining for the time integration.
+        error_history: np.ndarray
+            Error measures of the two last time steps.
+        step_size_history: np.ndarray
+            History of the last two accepted steps.
+
+        Returns
+        -------
+        status: ErrorControllerStatus
+            Suggested step size and acceptance of current time step.
+        """
         self._is_not_inner = True
         status = super()._run(
             error_measure=error_measure,

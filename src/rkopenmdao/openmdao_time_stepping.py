@@ -25,6 +25,7 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
     """
 
     def initialize(self):
+        """Declares the `time_integrator` option, validated by `has_om_ode`."""
         self.options.declare(
             "time_integrator",
             types=TimeIntegrationInterface,
@@ -33,7 +34,18 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
 
     @staticmethod
     def has_om_ode(name: str, value: TimeIntegrationInterface):
-        """TODO"""
+        """
+        Validates a candidate value for the `time_integrator` option by requiring it
+        to have an attribute `ode` of type `OpenMDAOODE`, raising a ValueError
+        otherwise.
+
+        Parameters
+        ----------
+        name: str
+            Name of the option that is checked.
+        value: TimeIntegrationInterface
+            Candidate value for the option that is checked.
+        """
         if hasattr(value, "ode"):
             if isinstance(value.ode, OpenMDAOODE):
                 return
@@ -42,15 +54,24 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
         )
 
     def setup(self):
+        """Stores the time integrator from the options and adds the inputs and
+        outputs of the component."""
         self._time_integrator = self.options["time_integrator"]
         self._cached_final_state = None
         self._add_inputs_and_outputs()
 
     def _add_inputs_and_outputs(self):
+        """Adds all inputs and outputs of the component, namely the time
+        integrated quantities and the time independent inputs."""
         self._add_time_integration_inputs_and_outputs()
         self._add_time_independent_inputs()
 
     def _add_time_integration_inputs_and_outputs(self):
+        """
+        Adds the `time_initial` and `time_final` variables and, for each time
+        integrated quantity, an input named after the quantity with the suffix
+        `_initial` and the corresponding output with the suffix `_final`.
+        """
         self.add_input("time_initial", shape=1, val=0.0)
         self.add_output("time_final", shape=1)
         time_integration_metadata = self._time_integrator.ode.time_integration_metadata
@@ -84,6 +105,10 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
             )
 
     def _add_time_independent_inputs(self):
+        """
+        Adds one input for each time independent input quantity, initialized with
+        the current value of the quantity in the inner OpenMDAO problem.
+        """
         time_integration_metadata = self._time_integrator.ode.time_integration_metadata
         for quantity in time_integration_metadata.time_independent_input_quantity_list:
             self.add_input(
@@ -96,6 +121,20 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
             )
 
     def _get_starting_values_from_inputs(self, inputs):
+        """
+        Collects the starting values for the time integration from the OpenMDAO
+        inputs of the component.
+
+        Parameters
+        ----------
+        inputs: Vector
+            OpenMDAO input vector of the component.
+
+        Returns
+        -------
+        starting_values: StartingValues
+            Starting values for the time integration.
+        """
         time_integration_metadata: TimeIntegrationMetadata = (
             self._time_integrator.ode.time_integration_metadata
         )
@@ -120,6 +159,16 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
         return starting_values
 
     def _get_inputs_from_starting_values(self, starting_values, inputs: Vector):
+        """
+        Transfers the given starting values to the OpenMDAO inputs of the component.
+
+        Parameters
+        ----------
+        starting_values: StartingValues
+            Starting values to be written to the inputs.
+        inputs: Vector
+            OpenMDAO input vector of the component.
+        """
         time_integration_metadata: TimeIntegrationMetadata = (
             self._time_integrator._ode.time_integration_metadata
         )
@@ -134,6 +183,17 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
             ].reshape(quantity.array_metadata.shape)
 
     def _add_starting_values_to_inputs(self, starting_values, inputs):
+        """
+        Adds the given starting values to the OpenMDAO inputs of the component, as
+        needed when applying perturbations.
+
+        Parameters
+        ----------
+        starting_values: StartingValues
+            Starting values to be added to the inputs.
+        inputs: Vector
+            OpenMDAO input vector of the component.
+        """
         time_integration_metadata: TimeIntegrationMetadata = (
             self._time_integrator.ode.time_integration_metadata
         )
@@ -148,6 +208,20 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
             ].reshape(quantity.array_metadata.shape)
 
     def _get_finalization_values_from_outputs(self, outputs):
+        """
+        Collects the finalization values of the time integration from the OpenMDAO
+        outputs of the component.
+
+        Parameters
+        ----------
+        outputs: Vector
+            OpenMDAO output vector of the component.
+
+        Returns
+        -------
+        finalization_values: FinalizationValues
+            Finalization values of the time integration.
+        """
         time_integration_metadata: TimeIntegrationMetadata = (
             self._time_integrator.ode.time_integration_metadata
         )
@@ -166,6 +240,17 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
         return finalization_values
 
     def _get_outputs_from_finalization_values(self, finalization_values, outputs):
+        """
+        Transfers the given finalization values to the OpenMDAO outputs of the
+        component.
+
+        Parameters
+        ----------
+        finalization_values: FinalizationValues
+            Finalization values to be written to the outputs.
+        outputs: Vector
+            OpenMDAO output vector of the component.
+        """
         time_integration_metadata: TimeIntegrationMetadata = (
             self._time_integrator.ode.time_integration_metadata
         )
@@ -176,6 +261,17 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
             ].reshape(quantity.array_metadata.shape)
 
     def _add_finalization_values_to_outputs(self, finalization_values, outputs):
+        """
+        Adds the given finalization values to the OpenMDAO outputs of the component,
+        as needed when applying perturbations.
+
+        Parameters
+        ----------
+        finalization_values: FinalizationValues
+            Finalization values to be added to the outputs.
+        outputs: Vector
+            OpenMDAO output vector of the component.
+        """
         time_integration_metadata: TimeIntegrationMetadata = (
             self._time_integrator.ode.time_integration_metadata
         )

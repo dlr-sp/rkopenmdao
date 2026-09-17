@@ -59,6 +59,7 @@ class PredefinedNumberOfSteps(TerminationCriterion):
         ode: DiscretizedODE,
         discretization_scheme: TimeDiscretizationSchemeInterface,
     ) -> bool:
+        """Returns True once the predefined number of steps has been reached."""
         return iteration >= self.number_of_steps
 
 
@@ -82,6 +83,7 @@ class PredefinedFinalTime(TerminationCriterion):
         ode: DiscretizedODE,
         discretization_scheme: TimeDiscretizationSchemeInterface,
     ) -> bool:
+        """Returns True once the predefined termination time has been reached."""
         time = discretization_scheme.time_discretization_finalization_scheme(
             ode,
             time_integration_state.discretization_state,

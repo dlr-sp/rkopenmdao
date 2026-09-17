@@ -50,6 +50,7 @@ class TimeDiscretizationStateInterface(ABC):
 
     @abstractmethod
     def __eq__(self, other):
+        """Returns True if the other state holds the same content."""
         pass
 
 
@@ -239,6 +240,7 @@ class TimeIntegrationState:
         )
 
     def __eq__(self, other: TimeIntegrationState):
+        """Returns True if the other state holds the same content."""
         return (
             self.discretization_state == other.discretization_state
             and np.all(self.step_size_suggestion == other.step_size_suggestion)
