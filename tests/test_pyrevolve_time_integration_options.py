@@ -59,8 +59,8 @@ revolver_set = {"SingleLevel", "MultiLevel", "Memory", "Disk", "Base"}
     ),
 )
 def test_pyrevolve_time_integration_options(revolver_type, revolver_options):
-    """Tests that the options given to the RungeKuttaIntegrator are passed through to
-    the Revolver."""
+    """Tests that the options given to PyrevolveTimeIntegration are passed
+    through to the Revolver."""
     time_integration = PyrevolveTimeIntegration(
         ode=RootODE(),
         time_discretization_scheme=StageOrderedRungeKuttaDiscretization(implicit_euler),

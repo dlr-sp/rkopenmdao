@@ -1,4 +1,7 @@
-"""TODO"""
+"""
+OpenMDAO unsteady components modeling the stages of various ODEs, along with their
+analytical solutions, to test the time integration against an OpenMDAO model.
+"""
 
 import numpy as np
 from rkopenmdao.components import ExplicitUnsteadyComponent, ImplicitUnsteadyComponent

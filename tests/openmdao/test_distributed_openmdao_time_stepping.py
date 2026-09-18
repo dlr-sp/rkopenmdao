@@ -33,7 +33,13 @@ from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization imp
 
 @pytest.fixture(params=["fwd", "rev"], name="distributed_problem")
 def distributed_problem_fixture(request):
-    """TODO"""
+    """Provide an OpenMDAO problem with the ODE4dDistributedSplit components.
+
+    The problem models the ODE system x1' = x4, x2' = x1, x3' = x2,
+    x4' = x3 with two components on distributed variables, solved with a
+    Newton solver, in the mode given by the fixture parameter, and is set
+    up already, i.e. its final_setup() method has been called.
+    """
     problem = om.Problem()
     ivc = om.IndepVarComp()
     ivc.add_output("x12_old", shape=1, distributed=True)
@@ -59,7 +65,15 @@ def distributed_problem_fixture(request):
     name="distributed_om_time_integration",
 )
 def distributed_om_time_integration_fixture(distributed_problem, request):
-    """TODO"""
+    """Provide an OpenMDAO problem time integrating the distributed ODE.
+
+    Wraps ``distributed_problem`` into an OpenMDAOODE, which is integrated
+    by the checkpointed time integration implementation selected by the
+    fixture parameter with the embedded second order SDIRK scheme for 10
+    steps of size 0.01, and embeds the integration into a new OpenMDAO
+    problem as an OpenMDAOTimeStepping component with distributed initial
+    values.
+    """
     time_integration = request.param(
         ode=OpenMDAOODE(distributed_problem, ["x12", "x43"]),
         time_discretization_scheme=StageOrderedRungeKuttaDiscretization(
@@ -85,7 +99,9 @@ def distributed_om_time_integration_fixture(distributed_problem, request):
 
 
 def test_distributed_time_integration(distributed_om_time_integration):
-    """TODO"""
+    """Integrate the distributed ODE and compare the final state of this
+    rank to the analytical solution at time 0.1 for the initial value
+    (1, 1, 1, 1)."""
     distributed_om_time_integration.run_model()
 
     analytical_solution = ode4d_analytical_solution(0.1, np.ones(4))
@@ -106,7 +122,8 @@ def test_distributed_time_integration(distributed_om_time_integration):
 
 
 def test_distributed_time_intetgration_totals(distributed_om_time_integration):
-    """TODO"""
+    """Run the time integration and check that the total derivatives of the
+    final state with respect to the initial values are correct."""
     distributed_om_time_integration.run_model()
     if distributed_om_time_integration.comm.rank > 0:
         data = distributed_om_time_integration.check_totals(

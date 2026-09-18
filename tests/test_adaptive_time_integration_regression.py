@@ -1,3 +1,12 @@
+"""
+Regression test for the adaptive time integration implementation.
+
+Integrates the ODE x'(t) = x(t) adaptively with the embedded Heun-Euler
+method and the integral error controller until the final time 0.01 is
+reached and compares the step sizes taken against the reference data saved
+in tests/data/time_step_0.txt.
+"""
+
 import numpy as np
 import pytest
 
@@ -20,6 +29,8 @@ from rkopenmdao.error_measurer import SimpleErrorMeasurer
 
 
 def test_adaptive_step_size_regression():
+    """Integrate the ODE adaptively and compare the step sizes taken to the
+    reference data in ``tests/data/time_step_0.txt``."""
     time_step_log = TimeStepsLog()
     time_integration = NoCheckpointTimeIntegration(
         ode=IdentityODE(),

@@ -15,6 +15,10 @@ The tests cover three checkpointing strategies:
 - PyrevolveTimeIntegration (use pyrevolve for checkpointing)
 """
 
+# Tests for all checkpointed time integration implementations should reside in
+# one file, artificially splitting this will only hinder readability.
+# pylint: disable=too-many-lines
+
 import pytest
 
 from rkopenmdao.callback import Callback
@@ -424,6 +428,20 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 class TestHomogeneousNoCheckpointTimeIntegrationSystem(
     AbstractTestHomogeneousCheckpointedTimeIntegrationSystem
 ):
+    """System tests for the NoCheckpointTimeIntegration implementation.
+
+    This class tests the numerical accuracy of the
+    NoCheckpointTimeIntegration implementation for homogeneous ODEs with
+    fixed step sizes. It verifies the convergence orders of the solution,
+    derivative, and adjoint derivative computations and the duality of the
+    forward and adjoint derivative computations.
+
+    Notes
+    -----
+    This class inherits the fixtures and tests from
+    AbstractTestHomogeneousCheckpointedTimeIntegrationSystem and only
+    provides the time_integrator_creator fixture.
+    """
 
     @pytest.fixture
     def time_integrator_creator(self, homogeneous_time_integration_test_case):
@@ -538,6 +556,21 @@ class TestHomogeneousNoCheckpointTimeIntegrationSystem(
 class TestHomogeneousAllCheckpointTimeIntegrationSystem(
     AbstractTestHomogeneousCheckpointedTimeIntegrationSystem
 ):
+    """System tests for the AllCheckpointTimeIntegration implementation.
+
+    This class tests the numerical accuracy of the
+    AllCheckpointTimeIntegration implementation for homogeneous ODEs with
+    fixed step sizes. It verifies the convergence orders of the solution,
+    derivative, and adjoint derivative computations and the duality of the
+    forward and adjoint derivative computations.
+
+    Notes
+    -----
+    This class inherits the fixtures and tests from
+    AbstractTestHomogeneousCheckpointedTimeIntegrationSystem and only
+    provides the time_integrator_creator fixture.
+    """
+
     @pytest.fixture
     def time_integrator_creator(self, homogeneous_time_integration_test_case):
         """Create AllCheckpointTimeIntegration for homogeneous time integration tests.
@@ -573,6 +606,21 @@ class TestHomogeneousAllCheckpointTimeIntegrationSystem(
 class TestHomogeneousPyrevolveTimeIntegrationSystem(
     AbstractTestHomogeneousCheckpointedTimeIntegrationSystem
 ):
+    """System tests for the PyrevolveTimeIntegration implementation.
+
+    This class tests the numerical accuracy of the
+    PyrevolveTimeIntegration implementation for homogeneous ODEs with
+    fixed step sizes. It verifies the convergence orders of the solution,
+    derivative, and adjoint derivative computations and the duality of the
+    forward and adjoint derivative computations.
+
+    Notes
+    -----
+    This class inherits the fixtures and tests from
+    AbstractTestHomogeneousCheckpointedTimeIntegrationSystem and only
+    provides the time_integrator_creator fixture.
+    """
+
     @pytest.fixture
     def time_integrator_creator(self, homogeneous_time_integration_test_case):
         """Create PyrevolveTimeIntegration for homogeneous time integration tests.
@@ -640,6 +688,20 @@ def adaptive_time_integration_test_case(
 class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
     AbstractTestAdaptiveTimeIntegrationSystem
 ):
+    """Abstract base class for adaptive checkpointed time integration system
+    tests.
+
+    This class provides fixtures for testing adaptive checkpointed time
+    integration systems (NoCheckpoint, AllCheckpoint, Pyrevolve) and
+    extracts the test data from the adaptive_time_integration_test_case
+    fixture.
+
+    Notes
+    -----
+    This class is suitable for testing checkpointed time integration
+    schemes with adaptive step sizes and predefined termination criteria.
+    """
+
     @pytest.fixture
     def initial_state(self, adaptive_time_integration_test_case):
         """Extract initial state from test case.
@@ -783,6 +845,13 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
 
 class RecordStepSizes(Callback):
+    """Callback that records the step sizes of a time integration.
+
+    Stores the step size taken at each iteration in ``step_sizes``. This
+    allows tests to verify that an adaptive time integrator varies its
+    step sizes during the integration.
+    """
+
     def __init__(self):
         self.step_sizes = set()
 
@@ -795,6 +864,21 @@ class RecordStepSizes(Callback):
 class TestAdaptiveNoCheckpointTimeIntegrationSystem(
     AbstractTestAdaptiveCheckpointedTimeIntegrationSystem
 ):
+    """System tests for the adaptive NoCheckpointTimeIntegration
+    implementation.
+
+    This class tests the numerical accuracy of the adaptive
+    NoCheckpointTimeIntegration implementation for homogeneous ODEs. It
+    verifies that the global error stays within the requested tolerance and
+    that the integrator varies its step sizes during the integration.
+
+    Notes
+    -----
+    NoCheckpointTimeIntegration does not support derivative duality
+    computations, so the corresponding test verifies that a
+    NotImplementedError is raised.
+    """
+
     @pytest.fixture
     def time_integrator_creator(self, adaptive_time_integration_test_case):
         """Create NoCheckpointTimeIntegration for adaptive time integration tests.
@@ -874,6 +958,15 @@ class TestAdaptiveNoCheckpointTimeIntegrationSystem(
 class TestAdaptiveAllCheckpointTimeIntegrationSystem(
     AbstractTestAdaptiveCheckpointedTimeIntegrationSystem
 ):
+    """System tests for the adaptive AllCheckpointTimeIntegration
+    implementation.
+
+    This class tests the numerical accuracy of the adaptive
+    AllCheckpointTimeIntegration implementation for homogeneous ODEs. It
+    verifies that the global error stays within the requested tolerance and
+    that the integrator varies its step sizes during the integration.
+    """
+
     @pytest.fixture
     def time_integrator_creator(self, adaptive_time_integration_test_case):
         """Create AllCheckpointTimeIntegration for adaptive time integration tests.

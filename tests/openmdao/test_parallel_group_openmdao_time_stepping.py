@@ -33,7 +33,13 @@ from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization imp
 
 @pytest.fixture(params=["fwd", "rev"], name="parallel_group_problem")
 def parallel_group_problem_fixture(request):
-    """TODO"""
+    """Provide an OpenMDAO problem with the parallel group chain components.
+
+    The problem models the ODE system d' = d, c' = c - d, b' = b + d,
+    a' = a + b + c with the c' and b' equations evaluated in a parallel
+    group, in the mode given by the fixture parameter, and is set up
+    already, i.e. its final_setup() method has been called.
+    """
     problem = om.Problem()
     problem.model.add_subsystem("First", FirstParallelGroupChain())
     par_group = om.ParallelGroup()
@@ -75,7 +81,15 @@ def parallel_group_problem_fixture(request):
     name="parallel_group_om_time_integration",
 )
 def parallel_group_om_time_integration_fixture(parallel_group_problem, request):
-    """TODO"""
+    """Provide an OpenMDAO problem time integrating the parallel group ODE.
+
+    Wraps ``parallel_group_problem`` into an OpenMDAOODE, which is
+    integrated by the checkpointed time integration implementation selected
+    by the fixture parameter with the embedded second order SDIRK scheme
+    for 100 steps of size 0.001, and embeds the integration into a new
+    OpenMDAO problem as an OpenMDAOTimeStepping component with distributed
+    initial values.
+    """
     time_integration = request.param(
         ode=OpenMDAOODE(parallel_group_problem, ["a", "b", "c", "d"]),
         time_discretization_scheme=StageOrderedRungeKuttaDiscretization(
@@ -100,7 +114,9 @@ def parallel_group_om_time_integration_fixture(parallel_group_problem, request):
 
 
 def test_parallel_group_time_integration(parallel_group_om_time_integration):
-    """TODO"""
+    """Integrate the parallel group ODE and compare the final state of this
+    rank to the analytical solution at time 0.1 for the initial value
+    (1, 1, 1, 1)."""
     parallel_group_om_time_integration.run_model()
     analytical_solution = parallel_group_chain_solution(0.1, np.ones(4))[
         [0, 1 if parallel_group_om_time_integration.comm.rank == 0 else 2, 3]
@@ -123,7 +139,8 @@ def test_parallel_group_time_integration(parallel_group_om_time_integration):
 
 
 def test_parallel_group_time_integration_totals(parallel_group_om_time_integration):
-    """TODO"""
+    """Run the time integration and check that the total derivatives of the
+    final state with respect to the initial values are correct."""
     parallel_group_om_time_integration.run_model()
     if parallel_group_om_time_integration.comm.rank == 0:
         data = parallel_group_om_time_integration.check_totals(

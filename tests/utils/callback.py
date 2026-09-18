@@ -1,4 +1,7 @@
-"""Callback utiliies for `test_component_test_adaptive.py`"""
+"""
+Callback utilities for logging the step sizes of adaptive time integrations
+and reading the corresponding reference data.
+"""
 
 # pylint: disable=unnecessary-lambda
 
@@ -36,7 +39,7 @@ class TimeStepsLog(Callback):
 
 def save_data(timesteps_log: TimeStepsLog, write_file: str):
     """
-    Utility to save the data created by ``TimeStepsLog`` by generating a file
+    Utility to save the data created by ``TimeStepsLog`` to a file
     """
     path = Path(write_file)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,7 +50,7 @@ def save_data(timesteps_log: TimeStepsLog, write_file: str):
 
 def read_data(read_file: str) -> list[float]:
     """
-    Utility to read the data created by ``TimeStepsLog`` by generating a file
+    Utility to read the data created by ``TimeStepsLog`` from a file
     """
     assert Path(read_file).exists()
 

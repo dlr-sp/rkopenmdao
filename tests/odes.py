@@ -1,5 +1,9 @@
 """Some direct implementations of DiscretizedODE to test time discretizations."""
 
+# All ODE test implementations and their reference solutions should reside in
+# one file, artificially splitting this will only hinder readability.
+# pylint: disable=too-many-lines
+
 # pylint: disable=unnecessary-lambda
 
 from dataclasses import dataclass, field
@@ -76,6 +80,24 @@ class IdentityODE(DiscretizedODE):
 def identity_ode_solution(
     initial_values: StartingValues, passed_time: float
 ) -> FinalizationValues:
+    """Compute the analytic solution of the ODE x'(t) = x(t).
+
+    Evaluates x(t0 + s) = x0 * e^s, where t0 and x0 are the initial time
+    and values, and s is the passed time.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Solution at time t0 + s, including final time, values, and
+        independent outputs.
+    """
     return FinalizationValues(
         passed_time + initial_values.initial_time,
         initial_values.initial_values * np.e**passed_time,
@@ -88,6 +110,27 @@ def identity_ode_solution_derivative(
     initial_value_perturbations: StartingValues,
     passed_time: float,
 ) -> FinalizationValues:
+    """Compute the derivative of the solution of the ODE x'(t) = x(t) with
+    respect to the initial values.
+
+    Evaluates the derivative of x(t0 + s) = x0 * e^s applied to the given
+    perturbations of the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    initial_value_perturbations: StartingValues
+        Perturbations of the initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Perturbed solution at time t0 + s, including final time, values,
+        and independent outputs.
+    """
     return FinalizationValues(
         initial_value_perturbations.initial_time,
         initial_value_perturbations.initial_values * np.e**passed_time,
@@ -100,6 +143,27 @@ def identity_ode_solution_adjoint_derivative(
     final_value_perturbations: FinalizationValues,
     passed_time: float,
 ) -> StartingValues:
+    """Compute the adjoint derivative of the solution of the ODE
+    x'(t) = x(t) with respect to the initial values.
+
+    Propagates the given perturbations of the final values of the solution
+    x(t0 + s) = x0 * e^s back to the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    final_value_perturbations: FinalizationValues
+        Perturbations of the final time, values, and independent outputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    StartingValues
+        Perturbations of the initial values induced by
+        ``final_value_perturbations``.
+    """
     return StartingValues(
         final_value_perturbations.final_time,
         final_value_perturbations.final_values * np.e**passed_time,
@@ -171,6 +235,24 @@ class TimeODE(DiscretizedODE):
 def time_ode_solution(
     initial_values: StartingValues, passed_time: float
 ) -> FinalizationValues:
+    """Compute the analytic solution of the ODE x'(t) = t.
+
+    Evaluates x(t0 + s) = x0 + t0 * s + s**2 / 2, where t0 and x0 are the
+    initial time and values, and s is the passed time.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Solution at time t0 + s, including final time, values, and
+        independent outputs.
+    """
     return FinalizationValues(
         passed_time + initial_values.initial_time,
         initial_values.initial_values
@@ -185,6 +267,28 @@ def time_ode_solution_derivative(
     initial_value_perturbations: StartingValues,
     passed_time: float,
 ) -> FinalizationValues:
+    """Compute the derivative of the solution of the ODE x'(t) = t with
+    respect to the initial values.
+
+    Evaluates the derivative of x(t0 + s) = x0 + t0 * s + s**2 / 2 with
+    respect to t0 and x0 applied to the given perturbations of the initial
+    values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    initial_value_perturbations: StartingValues
+        Perturbations of the initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Perturbed solution at time t0 + s, including final time, values,
+        and independent outputs.
+    """
     return FinalizationValues(
         initial_value_perturbations.initial_time,
         initial_value_perturbations.initial_values
@@ -198,6 +302,27 @@ def time_ode_solution_adjoint_derivative(
     final_value_perturbations: FinalizationValues,
     passed_time: float,
 ) -> StartingValues:
+    """Compute the adjoint derivative of the solution of the ODE x'(t) = t
+    with respect to the initial values.
+
+    Propagates the given perturbations of the final values of the solution
+    x(t0 + s) = x0 + t0 * s + s**2 / 2 back to the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    final_value_perturbations: FinalizationValues
+        Perturbations of the final time, values, and independent outputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    StartingValues
+        Perturbations of the initial values induced by
+        ``final_value_perturbations``.
+    """
     return StartingValues(
         final_value_perturbations.final_time
         + passed_time * final_value_perturbations.final_values[0],
@@ -314,6 +439,24 @@ class TimeScaledIdentityODE(DiscretizedODE):
 def time_scaled_identity_ode_solution(
     initial_values: StartingValues, passed_time: float
 ) -> FinalizationValues:
+    """Compute the analytic solution of the ODE x'(t) = t * x(t).
+
+    Evaluates x(t0 + s) = x0 * e^(t0 * s + s**2 / 2), where t0 and x0 are
+    the initial time and values, and s is the passed time.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Solution at time t0 + s, including final time, values, and
+        independent outputs.
+    """
     return FinalizationValues(
         passed_time + initial_values.initial_time,
         initial_values.initial_values
@@ -327,6 +470,28 @@ def time_scaled_identity_ode_solution_derivative(
     initial_value_perturbations: StartingValues,
     passed_time: float,
 ) -> FinalizationValues:
+    """Compute the derivative of the solution of the ODE x'(t) = t * x(t)
+    with respect to the initial values.
+
+    Evaluates the derivative of
+    x(t0 + s) = x0 * e^(t0 * s + s**2 / 2) with respect to t0 and x0
+    applied to the given perturbations of the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    initial_value_perturbations: StartingValues
+        Perturbations of the initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Perturbed solution at time t0 + s, including final time, values,
+        and independent outputs.
+    """
     exp_factor = np.exp(
         initial_values.initial_time * passed_time + 0.5 * passed_time**2
     )
@@ -348,6 +513,27 @@ def time_scaled_identity_ode_solution_adjoint_derivative(
     final_value_perturbations: FinalizationValues,
     passed_time: float,
 ) -> StartingValues:
+    """Compute the adjoint derivative of the solution of the ODE
+    x'(t) = t * x(t) with respect to the initial values.
+
+    Propagates the given perturbations of the final values of the solution
+    x(t0 + s) = x0 * e^(t0 * s + s**2 / 2) back to the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    final_value_perturbations: FinalizationValues
+        Perturbations of the final time, values, and independent outputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    StartingValues
+        Perturbations of the initial values induced by
+        ``final_value_perturbations``.
+    """
     exp_factor = np.exp(
         initial_values.initial_time * passed_time + 0.5 * passed_time**2
     )
@@ -431,6 +617,25 @@ class ParameterODE(DiscretizedODE):
 def parameter_ode_solution(
     initial_values: StartingValues, passed_time: float
 ) -> FinalizationValues:
+    """Compute the analytic solution of the ODE x'(t) = b.
+
+    Evaluates x(t0 + s) = x0 + s * b, where t0 and x0 are the initial time
+    and values, b is the time independent parameter given by the
+    independent inputs, and s is the passed time.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Solution at time t0 + s, including final time, values, and
+        independent outputs.
+    """
     return FinalizationValues(
         passed_time + initial_values.initial_time,
         initial_values.initial_values + passed_time * initial_values.independent_inputs,
@@ -443,6 +648,27 @@ def parameter_ode_solution_derivative(
     initial_value_perturbations: StartingValues,
     passed_time: float,
 ) -> FinalizationValues:
+    """Compute the derivative of the solution of the ODE x'(t) = b with
+    respect to the initial values.
+
+    Evaluates the derivative of x(t0 + s) = x0 + s * b with respect to
+    x0 and b applied to the given perturbations of the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    initial_value_perturbations: StartingValues
+        Perturbations of the initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Perturbed solution at time t0 + s, including final time, values,
+        and independent outputs.
+    """
     return FinalizationValues(
         initial_value_perturbations.initial_time,
         initial_value_perturbations.initial_values
@@ -456,6 +682,28 @@ def parameter_ode_solution_adjoint_derivative(
     final_value_perturbations: FinalizationValues,
     passed_time: float,
 ) -> StartingValues:
+    """Compute the adjoint derivative of the solution of the ODE x'(t) = b
+    with respect to the initial values.
+
+    Propagates the given perturbations of the final values of the solution
+    x(t0 + s) = x0 + s * b back to the initial values and the independent
+    inputs.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    final_value_perturbations: FinalizationValues
+        Perturbations of the final time, values, and independent outputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    StartingValues
+        Perturbations of the initial values induced by
+        ``final_value_perturbations``.
+    """
     return StartingValues(
         final_value_perturbations.final_time,
         final_value_perturbations.final_values,
@@ -561,6 +809,24 @@ class RootODE(DiscretizedODE):
 def root_ode_solution(
     initial_values: StartingValues, passed_time: float
 ) -> FinalizationValues:
+    """Compute the analytic solution of the ODE x'(t) = sqrt(x(t)).
+
+    Evaluates x(t0 + s) = x0 + s * sqrt(x0) + s**2 / 4, where t0 and x0
+    are the initial time and values, and s is the passed time.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Solution at time t0 + s, including final time, values, and
+        independent outputs.
+    """
     return FinalizationValues(
         passed_time + initial_values.initial_time,
         initial_values.initial_values
@@ -575,6 +841,28 @@ def root_ode_solution_derivative(
     initial_value_perturbations: StartingValues,
     passed_time: float,
 ) -> FinalizationValues:
+    """Compute the derivative of the solution of the ODE x'(t) = sqrt(x(t))
+    with respect to the initial values.
+
+    Evaluates the derivative of
+    x(t0 + s) = x0 + s * sqrt(x0) + s**2 / 4 with respect to x0 applied to
+    the given perturbations of the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    initial_value_perturbations: StartingValues
+        Perturbations of the initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Perturbed solution at time t0 + s, including final time, values,
+        and independent outputs.
+    """
     return FinalizationValues(
         initial_value_perturbations.initial_time,
         (1 + 0.5 * passed_time / (initial_values.initial_values**0.5))
@@ -588,6 +876,27 @@ def root_ode_solution_adjoint_derivative(
     final_value_perturbations: FinalizationValues,
     passed_time: float,
 ) -> StartingValues:
+    """Compute the adjoint derivative of the solution of the ODE
+    x'(t) = sqrt(x(t)) with respect to the initial values.
+
+    Propagates the given perturbations of the final values of the solution
+    x(t0 + s) = x0 + s * sqrt(x0) + s**2 / 4 back to the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    final_value_perturbations: FinalizationValues
+        Perturbations of the final time, values, and independent outputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    StartingValues
+        Perturbations of the initial values induced by
+        ``final_value_perturbations``.
+    """
     return StartingValues(
         final_value_perturbations.final_time,
         (1 + 0.5 * passed_time / (initial_values.initial_values**0.5))
@@ -604,6 +913,25 @@ class TwoDimODE(DiscretizedODE):
 
     @staticmethod
     def calculate_inv_matrix(step_size, stage_factor):
+        """Compute the inverse of M - factor * I for M = ((0, 1), (1, 0)).
+
+        With factor = step_size * stage_factor, the inverse is applied to
+        the step input and stage input in ``compute_update`` to obtain the
+        stage update of the ODE x'(t) = M x(t) for an implicit stage
+        evaluation.
+
+        Parameters
+        ----------
+        step_size: float
+            Size of the time step.
+        stage_factor: float
+            Butcher tableau stage factor of the current stage.
+
+        Returns
+        -------
+        np.ndarray
+            Inverse of ``M - step_size * stage_factor * I``.
+        """
         factor = step_size * stage_factor
         divisor = factor**2 - 1
         inv_matrix = np.zeros((2, 2))
@@ -685,6 +1013,25 @@ class TwoDimODE(DiscretizedODE):
 def two_dim_ode_solution(
     initial_values: StartingValues, passed_time: float
 ) -> FinalizationValues:
+    """Compute the analytic solution of the ODE x'(t) = M x(t).
+
+    Evaluates x(t0 + s) = cosh(s) * x0 + sinh(s) * M * x0 with
+    M = ((0, 1), (1, 0)), where t0 and x0 are the initial time and values,
+    and s is the passed time.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Solution at time t0 + s, including final time, values, and
+        independent outputs.
+    """
     return FinalizationValues(
         passed_time + initial_values.initial_time,
         np.array(
@@ -704,6 +1051,29 @@ def two_dim_ode_solution_derivative(
     initial_value_perturbations: StartingValues,
     passed_time: float,
 ) -> FinalizationValues:
+    """Compute the derivative of the solution of the ODE x'(t) = M x(t)
+    with respect to the initial values.
+
+    Evaluates the derivative of
+    x(t0 + s) = cosh(s) * x0 + sinh(s) * M * x0 with
+    M = ((0, 1), (1, 0)) applied to the given perturbations of the initial
+    values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    initial_value_perturbations: StartingValues
+        Perturbations of the initial time, values, and independent inputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    FinalizationValues
+        Perturbed solution at time t0 + s, including final time, values,
+        and independent outputs.
+    """
     return FinalizationValues(
         initial_value_perturbations.initial_time,
         np.array(
@@ -723,6 +1093,28 @@ def two_dim_ode_solution_adjoint_derivative(
     final_value_perturbations: FinalizationValues,
     passed_time: float,
 ) -> StartingValues:
+    """Compute the adjoint derivative of the solution of the ODE
+    x'(t) = M x(t) with respect to the initial values.
+
+    Propagates the given perturbations of the final values of the solution
+    x(t0 + s) = cosh(s) * x0 + sinh(s) * M * x0 with
+    M = ((0, 1), (1, 0)) back to the initial values.
+
+    Parameters
+    ----------
+    initial_values: StartingValues
+        Initial time, values, and independent inputs.
+    final_value_perturbations: FinalizationValues
+        Perturbations of the final time, values, and independent outputs.
+    passed_time: float
+        Time elapsed since the start of the integration.
+
+    Returns
+    -------
+    StartingValues
+        Perturbations of the initial values induced by
+        ``final_value_perturbations``.
+    """
     return StartingValues(
         final_value_perturbations.final_time,
         np.array(
