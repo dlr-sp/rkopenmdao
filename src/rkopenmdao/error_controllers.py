@@ -473,3 +473,23 @@ def h_330_general(
         config=config,
         name=name,
     )
+
+
+error_controller_collection = [
+    integral,
+    h0_110,
+    # h_211, step size loop
+    # h0_211, step size loop
+    # pc, inaccurate
+    # h0_220, inaccurate
+    # pid, step size loop
+    # h_312, step size loop
+    # h0_312, step size loop
+    # ppid, step size loop
+    # h_321, step size loop
+    h0_321,
+    # h0_330, inaccurate
+    # The following ones lead to test assertion failures for accuracy or fail to
+    # produce sensible step sizes while potentially being very slow
+    # TODO: Investigate further at later date (maybe a different recovery mechanism?)
+]

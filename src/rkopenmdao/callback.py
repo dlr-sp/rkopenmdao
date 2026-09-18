@@ -1,4 +1,4 @@
-"""Interface and implementations of criteria for terminating time integration."""
+"""Callback interface and implementations for use during time integration."""
 
 from abc import ABC
 from dataclasses import dataclass
@@ -8,7 +8,7 @@ from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
 )
-from rkopenmdao.time_integration_state import TimeIntegrationState
+from rkopenmdao.states import TimeIntegrationState
 
 
 class Callback(ABC):
@@ -20,7 +20,7 @@ class Callback(ABC):
     - the current iteration, in order to e.g. perform iteration-periodic tasks.
     - the current state of the time integration, e.g. to perform time-periodic tasks or
         use data created by the time integration.
-    - the ODE to be integrated over time, in order to have information avout the
+    - the ODE to be integrated over time, in order to have information about the
         composition of the states.
     - the discretization used by the time integration, in order to make use of the
         discretization-specific parts of the `time_integration_state`.
@@ -96,6 +96,7 @@ class IterationLogging(Callback):
         ode: DiscretizedODE,
         discretization_scheme: TimeDiscretizationSchemeInterface,
     ):
+        """Logs a message at the start of a time step."""
         print(f"Starting step <{iteration}> of {self.logged_function_name}.")
 
     def after_iteration(
@@ -105,6 +106,7 @@ class IterationLogging(Callback):
         ode: DiscretizedODE,
         discretization_scheme: TimeDiscretizationSchemeInterface,
     ):
+        """Logs a message at the end of a time step."""
         print(f"Finishing step <{iteration}> of {self.logged_function_name}.")
 
 
@@ -114,6 +116,7 @@ class WallClockMeasurement(Callback):
     """
 
     def __init__(self):
+        """Initializes the wall-clock timer with a zero start time."""
         self._before_time: float = 0.0
 
     def before_iteration(
@@ -123,6 +126,7 @@ class WallClockMeasurement(Callback):
         ode: DiscretizedODE,
         discretization_scheme: TimeDiscretizationSchemeInterface,
     ):
+        """Records the start of a time step on the wall-clock timer."""
         self._before_time = perf_counter()
 
     def after_iteration(
@@ -132,6 +136,7 @@ class WallClockMeasurement(Callback):
         ode: DiscretizedODE,
         discretization_scheme: TimeDiscretizationSchemeInterface,
     ):
+        """Prints the wall-clock time taken by the last time step."""
         after_time = perf_counter()
         elapsed_time = after_time - self._before_time
         print(f"Iteration took {elapsed_time} seconds.")
