@@ -112,9 +112,13 @@ class ODEWithReferenceStatesAndSolutions:
         Perturbations to final values for adjoint tests.
     reference_solution : Callable[[StartingValues, float], FinalizationValues]
         Function computing the exact solution given initial values and final time.
-    reference_derivative : Callable[[StartingValues, StartingValues, float], FinalizationValues]
+    reference_derivative : Callable[
+        [StartingValues, StartingValues, float], FinalizationValues
+    ]
         Function computing the derivative with respect to initial conditions.
-    reference_adjoint_derivative : Callable[[StartingValues, FinalizationValues, float], StartingValues]
+    reference_adjoint_derivative : Callable[
+        [StartingValues, FinalizationValues, float], StartingValues
+    ]
         Function computing the adjoint (reverse-mode) derivative.
     order_barrier : float, optional
         Minimum convergence order required for this ODE. ODEs with

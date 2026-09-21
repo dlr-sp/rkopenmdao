@@ -5,7 +5,6 @@ order.
 
 import numpy as np
 import pytest
-import openmdao.api as om
 
 
 from rkopenmdao.butcher_tableaux import *  # pylint:disable=unused-wildcard-import,wildcard-import

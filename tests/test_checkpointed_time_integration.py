@@ -339,9 +339,10 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial values from the ODE.
         """
-        return (
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
         )
+        return ode_with_reference_state_and_solution.initial_values
 
     @pytest.fixture
     def initial_state_perturbations(self, homogeneous_time_integration_test_case):
@@ -358,9 +359,10 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial value perturbations from the ODE.
         """
-        return (
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
         )
+        return ode_with_reference_state_and_solution.initial_value_perturbations
 
     @pytest.fixture
     def final_state_perturbations(self, homogeneous_time_integration_test_case):
@@ -377,9 +379,10 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
         FinalizationValues
             Final value perturbations from the ODE.
         """
-        return (
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
         )
+        return ode_with_reference_state_and_solution.final_value_perturbations
 
     @pytest.fixture
     def expected_order(self, homogeneous_time_integration_test_case):
@@ -400,9 +403,15 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
             Expected convergence order, bounded by the discretization order
             and the ODE's order barrier.
         """
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        discretization_order_pair = (
+            homogeneous_time_integration_test_case.discretization_order_pair
+        )
         return min(
-            homogeneous_time_integration_test_case.discretization_order_pair.order,
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.order_barrier,
+            discretization_order_pair.order,
+            ode_with_reference_state_and_solution.order_barrier,
         )
 
     @pytest.fixture
@@ -421,8 +430,11 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
             Reference solution computed at final time 1.0 using the
             ODE's reference_solution method.
         """
-        return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.reference_solution(
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        return ode_with_reference_state_and_solution.reference_solution(
+            ode_with_reference_state_and_solution.initial_values,
             1.0,
         )
 
@@ -443,9 +455,12 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
             ODE's reference_derivative method with initial state and
             initial state perturbations.
         """
-        return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.reference_derivative(
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations,
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        return ode_with_reference_state_and_solution.reference_derivative(
+            ode_with_reference_state_and_solution.initial_values,
+            ode_with_reference_state_and_solution.initial_value_perturbations,
             1.0,
         )
 
@@ -466,9 +481,12 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
             the ODE's reference_adjoint_derivative method with initial state
             and final state perturbations.
         """
-        return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.reference_adjoint_derivative(
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations,
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        return ode_with_reference_state_and_solution.reference_adjoint_derivative(
+            ode_with_reference_state_and_solution.initial_values,
+            ode_with_reference_state_and_solution.final_value_perturbations,
             1.0,
         )
 
@@ -509,13 +527,20 @@ class TestHomogeneousNoCheckpointTimeIntegrationSystem(
             Factory function that creates NoCheckpointTimeIntegration
             configured with the given step_size.
         """
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        discretization_order_pair = (
+            homogeneous_time_integration_test_case.discretization_order_pair
+        )
+        error_controller_and_measurer = (
+            homogeneous_time_integration_test_case.error_controller_and_measurer
+        )
         return lambda step_size: NoCheckpointTimeIntegration(
-            ode=homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.ode,
-            time_discretization_scheme=homogeneous_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(
-                0
-            ),
-            error_measurer=homogeneous_time_integration_test_case.error_controller_and_measurer.error_measurer,
+            ode=ode_with_reference_state_and_solution.ode,
+            time_discretization_scheme=discretization_order_pair.time_discretization,
+            error_controller=error_controller_and_measurer.controller_factory(0),
+            error_measurer=error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 False, PredefinedNumberOfSteps(int(1 / step_size)), step_size
             ),
@@ -637,13 +662,20 @@ class TestHomogeneousAllCheckpointTimeIntegrationSystem(
             Factory function that creates AllCheckpointTimeIntegration
             configured with the given step_size.
         """
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        discretization_order_pair = (
+            homogeneous_time_integration_test_case.discretization_order_pair
+        )
+        error_controller_and_measurer = (
+            homogeneous_time_integration_test_case.error_controller_and_measurer
+        )
         return lambda step_size: AllCheckpointTimeIntegration(
-            ode=homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.ode,
-            time_discretization_scheme=homogeneous_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(
-                0
-            ),
-            error_measurer=homogeneous_time_integration_test_case.error_controller_and_measurer.error_measurer,
+            ode=ode_with_reference_state_and_solution.ode,
+            time_discretization_scheme=discretization_order_pair.time_discretization,
+            error_controller=error_controller_and_measurer.controller_factory(0),
+            error_measurer=error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 False, PredefinedNumberOfSteps(int(1 / step_size)), step_size
             ),
@@ -687,13 +719,20 @@ class TestHomogeneousPyrevolveTimeIntegrationSystem(
             Factory function that creates PyrevolveTimeIntegration
             configured with the given step_size.
         """
+        ode_with_reference_state_and_solution = (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        discretization_order_pair = (
+            homogeneous_time_integration_test_case.discretization_order_pair
+        )
+        error_controller_and_measurer = (
+            homogeneous_time_integration_test_case.error_controller_and_measurer
+        )
         return lambda step_size: PyrevolveTimeIntegration(
-            ode=homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.ode,
-            time_discretization_scheme=homogeneous_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(
-                0
-            ),
-            error_measurer=homogeneous_time_integration_test_case.error_controller_and_measurer.error_measurer,
+            ode=ode_with_reference_state_and_solution.ode,
+            time_discretization_scheme=discretization_order_pair.time_discretization,
+            error_controller=error_controller_and_measurer.controller_factory(0),
+            error_measurer=error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 False, PredefinedNumberOfSteps(int(1 / step_size)), step_size
             ),
@@ -768,9 +807,10 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial values from the ODE.
         """
-        return (
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
         )
+        return ode_with_reference_state_and_solution.initial_values
 
     @pytest.fixture
     def initial_state_perturbations(self, adaptive_time_integration_test_case):
@@ -787,9 +827,10 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial value perturbations from the ODE.
         """
-        return (
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
         )
+        return ode_with_reference_state_and_solution.initial_value_perturbations
 
     @pytest.fixture
     def final_state_perturbations(self, adaptive_time_integration_test_case):
@@ -806,9 +847,10 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
         FinalizationValues
             Final value perturbations from the ODE.
         """
-        return (
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
         )
+        return ode_with_reference_state_and_solution.final_value_perturbations
 
     @pytest.fixture
     def expected_order(self, adaptive_time_integration_test_case):
@@ -829,9 +871,15 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
             Expected convergence order, bounded by the discretization order
             and the ODE's order barrier.
         """
+        discretization_order_pair = (
+            adaptive_time_integration_test_case.discretization_order_pair
+        )
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
+        )
         return min(
-            adaptive_time_integration_test_case.discretization_order_pair.order,
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.order_barrier,
+            discretization_order_pair.order,
+            ode_with_reference_state_and_solution.order_barrier,
         )
 
     @pytest.fixture
@@ -850,8 +898,11 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
             Reference solution computed at final time 1.0 using the
             ODE's reference_solution method.
         """
-        return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.reference_solution(
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        return ode_with_reference_state_and_solution.reference_solution(
+            ode_with_reference_state_and_solution.initial_values,
             1.0,
         )
 
@@ -872,9 +923,12 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
             ODE's reference_derivative method with initial state and
             initial state perturbations.
         """
-        return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.reference_derivative(
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations,
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        return ode_with_reference_state_and_solution.reference_derivative(
+            ode_with_reference_state_and_solution.initial_values,
+            ode_with_reference_state_and_solution.initial_value_perturbations,
             1.0,
         )
 
@@ -895,9 +949,12 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
             the ODE's reference_adjoint_derivative method with initial state
             and final state perturbations.
         """
-        return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.reference_adjoint_derivative(
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations,
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        return ode_with_reference_state_and_solution.reference_adjoint_derivative(
+            ode_with_reference_state_and_solution.initial_values,
+            ode_with_reference_state_and_solution.final_value_perturbations,
             1.0,
         )
 
@@ -936,18 +993,27 @@ class TestAdaptiveNoCheckpointTimeIntegrationSystem(
             Factory function that creates NoCheckpointTimeIntegration
             configured with the given step_size.
         """
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        discretization_order_pair = (
+            adaptive_time_integration_test_case.discretization_order_pair
+        )
+        error_controller_and_measurer = (
+            adaptive_time_integration_test_case.error_controller_and_measurer
+        )
         return lambda step_size: NoCheckpointTimeIntegration(
-            ode=adaptive_time_integration_test_case.ode_with_reference_state_and_solution.ode,
-            time_discretization_scheme=adaptive_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=adaptive_time_integration_test_case.error_controller_and_measurer.controller_factory(
-                adaptive_time_integration_test_case.discretization_order_pair.min_order
+            ode=ode_with_reference_state_and_solution.ode,
+            time_discretization_scheme=discretization_order_pair.time_discretization,
+            error_controller=error_controller_and_measurer.controller_factory(
+                discretization_order_pair.min_order
             ),
-            error_measurer=adaptive_time_integration_test_case.error_controller_and_measurer.error_measurer,
+            error_measurer=error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 True,
                 PredefinedFinalTime(
                     1.0
-                    + adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values.initial_time
+                    + ode_with_reference_state_and_solution.initial_values.initial_time
                 ),
                 step_size,
             ),
@@ -1022,18 +1088,27 @@ class TestAdaptiveAllCheckpointTimeIntegrationSystem(
             Factory function that creates AllCheckpointTimeIntegration
             configured with the given step_size.
         """
+        ode_with_reference_state_and_solution = (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution
+        )
+        discretization_order_pair = (
+            adaptive_time_integration_test_case.discretization_order_pair
+        )
+        error_controller_and_measurer = (
+            adaptive_time_integration_test_case.error_controller_and_measurer
+        )
         return lambda step_size: AllCheckpointTimeIntegration(
-            ode=adaptive_time_integration_test_case.ode_with_reference_state_and_solution.ode,
-            time_discretization_scheme=adaptive_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=adaptive_time_integration_test_case.error_controller_and_measurer.controller_factory(
-                adaptive_time_integration_test_case.discretization_order_pair.min_order
+            ode=ode_with_reference_state_and_solution.ode,
+            time_discretization_scheme=discretization_order_pair.time_discretization,
+            error_controller=error_controller_and_measurer.controller_factory(
+                discretization_order_pair.min_order
             ),
-            error_measurer=adaptive_time_integration_test_case.error_controller_and_measurer.error_measurer,
+            error_measurer=error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 True,
                 PredefinedFinalTime(
                     1.0
-                    + adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values.initial_time
+                    + ode_with_reference_state_and_solution.initial_values.initial_time
                 ),
                 step_size,
             ),

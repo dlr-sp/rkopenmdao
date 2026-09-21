@@ -139,9 +139,7 @@ class Problem:
             error_measurer=problem_config.error_measurer,
             integrate_callbacks=[
                 IterationLogging("compute"),
-                OpenMDAOHDF5Callback(
-                    generate_path(str(problem_config.write_file)), 1
-                ),
+                OpenMDAOHDF5Callback(generate_path(str(problem_config.write_file)), 1),
             ],
         )
         # initialize the OpenMDAO problem for the RK integration and add the
