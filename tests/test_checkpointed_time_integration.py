@@ -7,6 +7,7 @@ and adjoint derivative computations. It tests:
 
 - Unit-level interface compliance for different checkpointing strategies
 - System-level numerical accuracy and convergence orders
+- Adaptive-step system tests (error within tolerance, varying step sizes)
 - Special cases such as NotImplementedError for unsupported features
 
 The tests cover three checkpointing strategies:
@@ -56,14 +57,19 @@ from .utils.time_integration_test_utils import (
 
 @pytest.fixture(name="homogeneous_error_controller_and_measurer")
 def homogeneous_error_controller_and_measurer_fixture():
-    """Create error controller and measurer for homogeneous time integration tests.
+    """Create error controller and measurer pair for homogeneous tests.
+
+    The homogeneous (fixed step size) suites do not need an
+    order-dependent controller, so the factory ignores its order
+    argument and always creates a pseudo controller of order 1.
 
     Returns
     -------
-    tuple
-        Tuple containing:
-        - ErrorController: Pseudo error controller with order 1
-        - SimpleErrorMeasurer: Error measurer for computing errors
+    ErrorControllerMeasurerPair
+        Pair containing:
+        - controller_factory: Callable[[float], ErrorController]
+          ignoring its argument and returning ``pseudo(1)``.
+        - error_measurer: SimpleErrorMeasurer
     """
     return ErrorControllerMeasurerPair(lambda p: pseudo(1), SimpleErrorMeasurer())
 
@@ -87,8 +93,8 @@ class TestNoCheckpointTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
 
         Parameters
         ----------
-        homogeneous_error_controller_and_measurer : tuple
-            Error controller and measurer fixture.
+        homogeneous_error_controller_and_measurer : ErrorControllerMeasurerPair
+            Error controller and measurer pair.
 
         Returns
         -------
@@ -154,8 +160,8 @@ class TestAllCheckpointTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
 
         Parameters
         ----------
-        homogeneous_error_controller_and_measurer : tuple
-            Error controller and measurer fixture.
+        homogeneous_error_controller_and_measurer : ErrorControllerMeasurerPair
+            Error controller and measurer pair.
 
         Returns
         -------
@@ -193,8 +199,8 @@ class TestPyrevolveTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
 
         Parameters
         ----------
-        homogeneous_error_controller_and_measurer : tuple
-            Error controller and measurer fixture.
+        homogeneous_error_controller_and_measurer : ErrorControllerMeasurerPair
+            Error controller and measurer pair.
 
         Returns
         -------
@@ -231,14 +237,27 @@ class TestPyrevolveTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
         None
             The test passes if TypeError is raised for invalid input.
         """
-        # Access of that argument is the while point if the test.
+        # Access of that argument is the whole point of the test.
         # pylint: disable=protected-access
         with pytest.raises(TypeError):
             time_integrator._setup_revolver_class_type("foo")
 
 @dataclass
 class TimeIntegrationTestCase:
-    """
+    """Test case bundling the parameterized system-test fixtures.
+
+    Aggregates the ODE, the time discretization, and the error control
+    fixtures used by the system-level time integration test suites into
+    a single object.
+
+    Attributes
+    ----------
+    ode_with_reference_state_and_solution : ODEWithReferenceStatesAndSolutions
+        ODE problem with reference solutions for verification.
+    discretization_order_pair : DiscretizationOrderInfo
+        Time discretization scheme with its convergence orders.
+    error_controller_and_measurer : ErrorControllerMeasurerPair
+        Error controller factory and error measurer pair.
     """
     ode_with_reference_state_and_solution: ODEWithReferenceStatesAndSolutions
     discretization_order_pair: DiscretizationOrderInfo
@@ -250,26 +269,26 @@ def homogeneous_time_integration_test_case_fixture(
     discretization_order_pair,
     homogeneous_error_controller_and_measurer,
 ):
-    """Create test case tuple for homogeneous time integration system tests.
+    """Create test case for homogeneous time integration system tests.
 
     Parameters
     ----------
-    ode_with_reference_state_and_solution : tuple
+    ode_with_reference_state_and_solution : ODEWithReferenceStatesAndSolutions
         ODE with reference solution fixture containing ODE, initial values,
         reference solution, and perturbation information.
-    discretization_order_pair : tuple
+    discretization_order_pair : DiscretizationOrderInfo
         Discretization with order fixture containing time discretization
         scheme and convergence order.
-    homogeneous_error_controller_and_measurer : tuple
-        Error controller and measurer fixture.
+    homogeneous_error_controller_and_measurer : ErrorControllerMeasurerPair
+        Error controller and measurer pair fixture.
 
     Returns
     -------
-    tuple
-        Tuple containing:
+    TimeIntegrationTestCase
+        Test case bundling:
         - ODE with reference solution
         - Discretization with order
-        - Error controller and measurer
+        - Error controller and measurer pair
     """
     return TimeIntegrationTestCase(
         ode_with_reference_state_and_solution,
@@ -304,8 +323,8 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -321,8 +340,8 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -338,13 +357,13 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
         -------
-        StartingValues
+        FinalizationValues
             Final value perturbations from the ODE.
         """
         return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
@@ -358,8 +377,8 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -379,8 +398,8 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -399,8 +418,8 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -422,13 +441,13 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
         -------
-        FinalizationValues
+        StartingValues
             Reference adjoint derivative computed at final time 1.0 using
             the ODE's reference_adjoint_derivative method with initial state
             and final state perturbations.
@@ -447,15 +466,17 @@ class TestHomogeneousNoCheckpointTimeIntegrationSystem(
 
     This class tests the numerical accuracy of the
     NoCheckpointTimeIntegration implementation for homogeneous ODEs with
-    fixed step sizes. It verifies the convergence orders of the solution,
-    derivative, and adjoint derivative computations and the duality of the
-    forward and adjoint derivative computations.
+    fixed step sizes. It verifies the convergence orders of the primal
+    solution and the forward derivative.
 
     Notes
     -----
     This class inherits the fixtures and tests from
-    AbstractTestHomogeneousCheckpointedTimeIntegrationSystem and only
-    provides the time_integrator_creator fixture.
+    AbstractTestHomogeneousCheckpointedTimeIntegrationSystem and provides
+    the time_integrator_creator fixture. It additionally overrides
+    test_integrate_adjoint_derivative_order and test_derivative_duality,
+    expecting NotImplementedError since NoCheckpointTimeIntegration does
+    not support adjoint derivative computations.
     """
 
     @pytest.fixture
@@ -464,8 +485,8 @@ class TestHomogeneousNoCheckpointTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -507,7 +528,7 @@ class TestHomogeneousNoCheckpointTimeIntegrationSystem(
             Factory function that creates NoCheckpointTimeIntegration.
         initial_state : StartingValues
             Initial state for integration.
-        final_state_perturbations : StartingValues
+        final_state_perturbations : FinalizationValues
             Final state perturbations for adjoint computation.
         expected_order : float
             Expected convergence order (ignored).
@@ -549,7 +570,7 @@ class TestHomogeneousNoCheckpointTimeIntegrationSystem(
             Initial state for integration.
         initial_state_perturbations : StartingValues
             Initial state perturbations for derivative computation.
-        final_state_perturbations : StartingValues
+        final_state_perturbations : FinalizationValues
             Final state perturbations for adjoint computation.
 
         Returns
@@ -590,8 +611,8 @@ class TestHomogeneousAllCheckpointTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -638,8 +659,8 @@ class TestHomogeneousPyrevolveTimeIntegrationSystem(
 
         Parameters
         ----------
-        homogeneous_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            homogeneous_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -668,24 +689,25 @@ def adaptive_time_integration_test_case_fixture(
     adaptive_discretization_order_pair,
     adaptive_error_controller_and_measurer,
 ):
-    """Create test case tuple for adaptive time integration system tests.
+    """Create test case for adaptive time integration system tests.
 
     Parameters
     ----------
-    ode_with_reference_state_and_solution_for_adaptive : tuple
+    ode_with_reference_state_and_solution_for_adaptive :
+        ODEWithReferenceStatesAndSolutions
         ODE with reference solution fixture for adaptive tests.
-    adaptive_discretization_order_pair : tuple
+    adaptive_discretization_order_pair : DiscretizationOrderInfo
         Adaptive discretization with order fixture.
-    adaptive_error_controller_and_measurer : tuple
-        Adaptive error controller and measurer fixture.
+    adaptive_error_controller_and_measurer : ErrorControllerMeasurerPair
+        Adaptive error controller and measurer pair fixture.
 
     Returns
     -------
-    tuple
-        Tuple containing:
+    TimeIntegrationTestCase
+        Test case bundling:
         - ODE with reference solution for adaptive tests
         - Adaptive discretization with order
-        - Adaptive error controller and measurer
+        - Adaptive error controller and measurer pair
     """
     return TimeIntegrationTestCase(
         ode_with_reference_state_and_solution_for_adaptive,
@@ -717,8 +739,8 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -734,8 +756,8 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -751,13 +773,13 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
         -------
-        StartingValues
+        FinalizationValues
             Final value perturbations from the ODE.
         """
         return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
@@ -771,8 +793,8 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -792,8 +814,8 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -812,8 +834,8 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -835,13 +857,13 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
         -------
-        FinalizationValues
+        StartingValues
             Reference adjoint derivative computed at final time 1.0 using
             the ODE's reference_adjoint_derivative method with initial state
             and final state perturbations.
@@ -877,8 +899,8 @@ class TestAdaptiveNoCheckpointTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns
@@ -928,7 +950,7 @@ class TestAdaptiveNoCheckpointTimeIntegrationSystem(
             Initial state of the ODE.
         initial_state_perturbations : StartingValues
             Initial state perturbations for derivative computation.
-        final_state_perturbations : StartingValues
+        final_state_perturbations : FinalizationValues
             Final state perturbations for adjoint computation.
 
         Returns
@@ -963,8 +985,8 @@ class TestAdaptiveAllCheckpointTimeIntegrationSystem(
 
         Parameters
         ----------
-        adaptive_time_integration_test_case : tuple
-            Test case tuple containing (ODE with reference solution,
+            adaptive_time_integration_test_case : TimeIntegrationTestCase
+            Test case containing (ODE with reference solution,
             discretization with order, error controller and measurer).
 
         Returns

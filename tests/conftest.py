@@ -4,6 +4,8 @@ This module provides:
 - Pytest fixtures for parameterized testing of Runge-Kutta discretizations
 - Fixture data for various ODE test problems with reference solutions
 - Error controller and measurer fixtures for integration tests
+- Dataclasses bundling these pieces (discretization/order info,
+  error controller/measurer pairs) for the test suites
 
 The fixtures support testing of:
 - Fixed-step and adaptive-step Runge-Kutta methods
@@ -74,6 +76,10 @@ class DiscretizationOrderInfo:
         The time discretization scheme (e.g. a Runge-Kutta method).
     order : float
         The expected convergence order of the discretization scheme.
+    min_order : float
+        The minimum convergence order of the (possibly embedded)
+        method, i.e. ``min(p, phat)`` for embedded tableaux. Used to
+        configure the error controller in adaptive tests.
     """
 
     time_discretization: TimeDiscretizationSchemeInterface
@@ -164,8 +170,9 @@ def discretization_order_pair(
 
     Returns
     -------
-    DiscretizationOrderPair
-        Pair containing the time discretization scheme and its order.
+    DiscretizationOrderInfo
+        The time discretization scheme together with its convergence
+        order and its minimum order.
     """
     return request.param
 
@@ -185,8 +192,9 @@ def adaptive_discretization_order_pair(
 
     Returns
     -------
-    DiscretizationOrderPair
-        Pair containing the embedded Runge-Kutta discretization and its order.
+    DiscretizationOrderInfo
+        The embedded Runge-Kutta discretization together with its
+        convergence order and its minimum order.
     """
     return request.param
 
@@ -361,7 +369,19 @@ def error_measurer(
 
 @dataclass
 class ErrorControllerMeasurerPair:
-    """
+    """Bundle an error controller factory with an error measurer.
+
+    Groups the two pieces of error control configuration that a time
+    integration test needs, so fixtures can pass them around as a
+    single object.
+
+    Attributes
+    ----------
+    controller_factory : Callable[[float], ErrorController]
+        Factory creating an error controller for a method of the given
+        order ``p``.
+    error_measurer : ErrorMeasurer
+        The error measurer used to compute error estimates.
     """
 
     controller_factory: Callable[[float], ErrorController]
@@ -372,7 +392,7 @@ class ErrorControllerMeasurerPair:
 @pytest.fixture(params=error_controller_collection)
 def adaptive_error_controller_and_measurer(
     request, error_measurer
-) -> tuple[Callable[[float], object], SimpleErrorMeasurer | ImprovedErrorMeasurer]:
+) -> ErrorControllerMeasurerPair:
     """Parameterized fixture providing error controllers with a measurer.
 
     Combines each error controller in the collection with the error measurer
@@ -388,19 +408,14 @@ def adaptive_error_controller_and_measurer(
 
     Returns
     -------
-    tuple
-        Tuple containing:
-        - Callable[[float], ErrorController]: Factory function creating error controller
-          with tolerance 1e-3 and lower bound 1e-4.
-        - SimpleErrorMeasurer or ImprovedErrorMeasurer: The error measurer.
+    ErrorControllerMeasurerPair
+        Pair bundling:
+        - controller_factory: factory creating the controller for a
+          method of order ``p`` with tolerance 1e-3, lower bound 1e-4,
+          and safety factor 0.8.
+        - error_measurer: the error measurer from the error_measurer
+          fixture.
     """
-    # return (
-    #     lambda p: request.param(
-    #         p,
-    #         config=ErrorControllerConfig(tol=1e-3, lower_bound=1e-4, safety_factor=0.8),
-    #     ),
-    #     error_measurer,
-    # )
     return ErrorControllerMeasurerPair(
         lambda p: request.param(
             p,
