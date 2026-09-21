@@ -5,8 +5,8 @@ Prototype for solving time-dependent problems in [OpenMDAO](https://openmdao.org
 ## Description
 
 Runge-Kutta-schemes are widely used methods for solving initial value problems. Implementing them into OpenMDAO is done by using nesting:
-An inner OpenMDAO-Problem is used to model one Runge-Kutta stage of an unsteady multidisciplinary problem.
-An outer explicit component loops over the time steps and time stages, running the inner problem to compute the stage updates.
+An inner OpenMDAO-Problem (wrapped as an `OpenMDAOODE`) is used to model one Runge-Kutta stage of an unsteady multidisciplinary problem.
+The outer explicit component `OpenMDAOTimeStepping` loops over the time steps and time stages, running the inner problem to compute the stage updates.
 
 At the current time, diagonally-implicit and explicit Runge-Kutta schemes are supported.
 
@@ -65,13 +65,20 @@ pip install -e ".[dev]"
 
 ### Execution
 
-In the examples directory of this repository are files for the solution of a heat equation, some using OpenMDAO and this prototype, and for comparison an analytical solution and another discretized solution where neither OpenMDAO nor this extension is used.
+In the examples directory of this repository are files showing the time integration (as
+`OpenMDAOTimeStepping` component) of unsteady ODE systems modeled with MPI-capable OpenMDAO
+problems, using parallel groups and distributed components, as well as a convergence study
+for embedded Runge-Kutta schemes.
 Their purpose is mainly as a mathematical example to show how this library is meant to be used.
 When you are in a virtual environment as described above,
 ```bash
-python /path/to/examples/*example_file*.py
+mpirun -n 2 python /path/to/examples/simple_parallel_group.py
+mpirun -n 2 python /path/to/examples/simple_parallel_distributed_component.py
+cd /path/to/examples/convergence_study
+python -m integration_scripts.main 'problem_name'
 ```
-lets you execute an example. These write HDF5-files containing a time series of the numerical solution to the directory from which you executed the examples.
+lets you execute an example. The convergence study writes HDF5-files containing a time
+series of the numerical solution to a `data` directory next to the repository root.
 If you want a more guided explanation, you can look at
 ```bash
 doc/user_guide.ipynb

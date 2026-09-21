@@ -1,71 +1,11 @@
 """Interface for representing ODEs in RKOpenMDAO."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 
-import numpy as np
-
-
-@dataclass
-class DiscretizedODEInputState:
-    """
-    Dataclass containing all the information about the input state of a discretized ODE.
-    An instance of this class is used as an input for a non-differentiated run and for a
-    differentiated run in forward mode. A run for reverse-mode derivatives has an
-    instance of this class as result.
-
-    Parameters
-    ----------
-    step_input: np.ndarray
-        A vector corresponding to the input or a perturbation of the input data coming
-        from the start of a time step.
-    stage_input: np.ndarray
-        A vector corresponding to the input or a perturbation of the input data coming
-        from the start of a time stage.
-    independent_input: np.ndarray
-        A vector corresponding to the input or a perturbation of the input data that is
-        independent of the time.
-    time: float
-        The time the ODE is evaluated at.
-    linearization_point: np.ndarray | None
-        Optional linearization point for use in differentiated operations.
-    """
-
-    step_input: np.ndarray
-    stage_input: np.ndarray
-    independent_input: np.ndarray
-    time: float
-    linearization_point: np.ndarray | None = None
-
-
-@dataclass
-class DiscretizedODEResultState:
-    """
-    Dataclass containing all the information about the resulting state of a discretized
-    ODE. An instance of this class is the result of both a non-differentiated run and
-    for a differentiated run in forward mode. A run for reverse-mode derivatives needs
-    an instance of this class as input.
-
-    Parameters
-    ----------
-    stage_update: np.ndarray
-        A vector corresponding to the output or a perturbation of the output data coming
-        from the update of a time stage.
-    stage_state: np.ndarray
-        A vector corresponding to the output or a perturbation of the output data coming
-        from the state of a time stage.
-    independent_output: np.ndarray
-        A vector corresponding to the output or a perturbation of the output data that
-        is not directly dependent of the time integration (i.e. there is no time
-        derivative for the contained data in the ODE system).
-    linearization_point: np.ndarray | None
-        Optional linearization point for use in differentiated operations.
-    """
-
-    stage_update: np.ndarray
-    stage_state: np.ndarray
-    independent_output: np.ndarray
-    linearization_point: np.ndarray | None = None
+from rkopenmdao.states import (
+    DiscretizedODEInputState,
+    DiscretizedODEResultState,
+)
 
 
 class DiscretizedODE(ABC):

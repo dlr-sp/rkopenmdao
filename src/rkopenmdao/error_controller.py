@@ -94,6 +94,28 @@ class ErrorController:
         config: ErrorControllerConfig = ErrorControllerConfig(),
         name: str = "ErrorController",
     ):
+        """
+        Initializes the error controller with the exponents of the step size
+        estimation equation and the configuration options.
+
+        Parameters
+        ----------
+        alpha: float
+            The exponent constant to the tolerance by the current norm.
+        beta: float
+            The exponent constant to the current norm by the last norm.
+        gamma: float
+            The exponent constant to the last norm by the prior norm.
+        a: float
+            The exponent constant to the current time-difference by the last
+            time-difference.
+        b: float
+            The exponent constant to the last time-difference by the prior one.
+        config: ErrorControllerConfig
+            Configuration options for the error controller.
+        name: str
+            Name of the error controller.
+        """
         # Constant parameters for the error controller equation
         # -----------
         # 1. General parameters
@@ -150,7 +172,7 @@ class ErrorController:
         if not status.acceptance:
             if status.step_size_suggestion > delta_t and self._inner_most:
                 raise OuterErrorControllerError(
-                    f"""Suggested delta T {status.step_size_suggestion} is larger than 
+                    f"""Suggested delta T {status.step_size_suggestion} is larger than
                     delta t {delta_t} on failure."""
                 )
         return status
@@ -188,11 +210,7 @@ class ErrorController:
             Suggested step size and acceptance of current time step.
         """
         success = False
-        if (
-            np.abs(delta_t - self.config.lower_bound) < 1e-10
-            or np.abs(delta_t - remaining_time) < 1e-10
-            or error_measure <= self.config.tol
-        ):
+        if np.abs(delta_t - remaining_time) < 1e-10 or error_measure <= self.config.tol:
             success = True
 
         if error_measure != 0:
@@ -206,11 +224,17 @@ class ErrorController:
             new_delta_t = delta_t
             warnings.warn("""Current error norm is 0, can't estimate new step size
                 and using old one.""")
-
         new_delta_t = max(
             self.config.lower_bound, min(self.config.upper_bound, new_delta_t)
         )
-        new_delta_t = min(remaining_time + (1 - success) * delta_t, new_delta_t)
+        if not success:
+            remaining_time += delta_t
+        new_delta_t = min(remaining_time, new_delta_t)
+        # The error controller won't generate anything lower than that by itself
+        # so we might as well accept it at that point.
+        if new_delta_t < self.config.lower_bound:
+            success = True
+
         return ErrorControllerStatus(new_delta_t, success)
 
     def _estimate_next_step_function(
@@ -318,6 +342,28 @@ class ErrorControllerDecorator(ErrorController):
         b: float = 0,
         name: str = "ErrorController",
     ):
+        """
+        Initializes the decorator that wraps a base error controller and acts as a
+        fallback in case the step size estimation of the base controller fails.
+
+        Parameters
+        ----------
+        alpha: float
+            The exponent constant to the tolerance by the current norm.
+        error_controller: ErrorController
+            The base error controller that is wrapped by this decorator.
+        beta: float
+            The exponent constant to the current norm by the last norm.
+        gamma: float
+            The exponent constant to the last norm by the prior norm.
+        a: float
+            The exponent constant to the current time-difference by the last
+            time-difference.
+        b: float
+            The exponent constant to the last time-difference by the prior one.
+        name: str
+            Name of the error controller.
+        """
         self.error_controller = error_controller
         self.error_controller._inner_most = False
         self.error_controller._name = self.error_controller._name.replace(
@@ -344,6 +390,29 @@ class ErrorControllerDecorator(ErrorController):
         error_history: np.ndarray,
         step_size_history: np.ndarray,
     ) -> ErrorControllerStatus:
+        """
+        Assesses the acceptance of the current time step, delegating to the
+        wrapped base error controller and falling back to the own step size
+        estimation when the base controller fails.
+
+        Parameters
+        ----------
+        error_measure: float
+            Measure for the error of the current step.
+        delta_t: float
+            Step size of the current step
+        remaining_time: float
+            Time remaining for the time integration.
+        error_history: np.ndarray
+            Error measures of the two last time steps.
+        step_size_history: np.ndarray
+            History of the last two accepted steps.
+
+        Returns
+        -------
+        status: ErrorControllerStatus
+            Suggested step size and acceptance of current time step.
+        """
         if self._is_not_inner:
             try:
                 status = self.error_controller(
@@ -360,7 +429,7 @@ class ErrorControllerDecorator(ErrorController):
                         and self._outer_counter <= self.config.max_iter
                     ):
                         raise OuterErrorControllerError(
-                            f"""Suggested delta T {status.step_size_suggestion} is 
+                            f"""Suggested delta T {status.step_size_suggestion} is
                             larger than delta t {delta_t} on failure."""
                         )
                 self._outer_counter = 0
@@ -398,6 +467,29 @@ class ErrorControllerDecorator(ErrorController):
         error_history: np.ndarray,
         step_size_history: np.ndarray,
     ) -> ErrorControllerStatus:
+        """
+        Estimates the next possible step size and reports a suggested step size
+        that is larger than the failed step size as an inner error controller
+        failure.
+
+        Parameters
+        ----------
+        error_measure: float
+            Measure for the error of the current step.
+        delta_t: float
+            Step size of the current step
+        remaining_time: float
+            Time remaining for the time integration.
+        error_history: np.ndarray
+            Error measures of the two last time steps.
+        step_size_history: np.ndarray
+            History of the last two accepted steps.
+
+        Returns
+        -------
+        status: ErrorControllerStatus
+            Suggested step size and acceptance of current time step.
+        """
         self._is_not_inner = True
         status = super()._run(
             error_measure=error_measure,
@@ -410,7 +502,7 @@ class ErrorControllerDecorator(ErrorController):
             self._is_not_inner = False
             if status.step_size_suggestion > delta_t and self._inner_most:
                 raise InnerErrorControllerError(
-                    f"""Suggested delta T {status.step_size_suggestion} is larger than 
+                    f"""Suggested delta T {status.step_size_suggestion} is larger than
                     delta t {delta_t} on failure."""
                 )
         return status

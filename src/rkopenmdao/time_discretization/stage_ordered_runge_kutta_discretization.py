@@ -1,5 +1,9 @@
 """Time discretization scheme implementation for ERK and DIRK methods."""
 
+# All stage-ordered Runge-Kutta discretizations should reside in one file,
+# artificially splitting this will only hinder readability.
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 from dataclasses import dataclass
 
@@ -19,9 +23,8 @@ from rkopenmdao.time_discretization.runge_kutta_discretization_state import (
 )
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
-    TimeDiscretizationStartingValues,
-    TimeDiscretizationFinalizationValues,
 )
+from rkopenmdao.states import StartingValues, FinalizationValues
 
 
 @dataclass
@@ -42,6 +45,20 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
     def create_empty_discretization_state(
         self, ode: DiscretizedODE
     ) -> RungeKuttaDiscretizationState:
+        """
+        Creates an empty discretization state with sizes given by the `ode` and the
+        number of stages of the butcher tableau.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE for which the discretization state is valid.
+
+        Returns
+        -------
+        time_discretization_state: RungeKuttaDiscretizationState
+            Empty initialized discretization state.
+        """
         return RungeKuttaDiscretizationState(
             ode_state_size=ode.get_state_size(),
             independent_input_size=ode.get_independent_input_size(),
@@ -56,6 +73,27 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         time_discretization_state: RungeKuttaDiscretizationState,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Computes one (primal) step of time integration on the `ode` with `step_size`
+        based on `time_discretization_state`, evaluating the stages one after another.
+
+        Note that this happens in place, meaning the argument
+        `time_discretization_state` contains the new data after the call and is
+        returned additionally for convenience.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE implementation of which the step is computed.
+        time_discretization_state: RungeKuttaDiscretizationState
+            Discretization state on which computations take place.
+        step_size: float
+            Step size used for the computation of the time step.
+
+        Returns
+        -------
+        time_discretization_state: RungeKuttaDiscretizationState
+        """
         self._shift_state(time_discretization_state)
         time_discretization_state.step_size[0] = step_size
         for i in range(self.butcher_tableau.number_of_stages()):
@@ -86,6 +124,31 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         time_discretization_state_perturbation: RungeKuttaDiscretizationState,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Forward-mode differentiated version of `compute_step`. Uses
+        `time_discretization_state` as linearization point, calculating the
+        jacvec product of `time_discretization_state_perturbation` valid to `ode` with
+        `step_size`.
+
+        Note that this happens in place, meaning the
+        argument `time_discretization_state_perturbation` contains the new data after
+        the call and is returned additionally for convenience.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE implementation of which the jacvec product is computed.
+        time_discretization_state: RungeKuttaDiscretizationState
+            Primal discretization state acting as linearization point.
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+            (Linear) discretization state on which computations take place.
+        step_size: float
+            Step size used for the computation of the time step.
+
+        Returns
+        -------
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+        """
         self._shift_state(time_discretization_state_perturbation)
         for i in range(self.butcher_tableau.number_of_stages()):
             lin_pt = time_discretization_state.linearization_points[i]
@@ -133,6 +196,31 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         time_discretization_state_perturbation: RungeKuttaDiscretizationState,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Reverse-mode differentiated version of `compute_step`. Uses
+        `time_discretization_state` as linearization point, calculating the
+        adjoint jacvec product of `time_discretization_state_perturbation` valid to
+        `ode` with `step_size`.
+
+        Note that this happens in place, meaning the
+        argument `time_discretization_state_perturbation` contains the new data after
+        the call and is returned additionally for convenience.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE implementation of which the adjoint jacvec product is computed.
+        time_discretization_state: RungeKuttaDiscretizationState
+            Primal discretization state acting as linearization point.
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+            (Linear) discretization state on which computations take place.
+        step_size: float
+            Step size used for the computation of the time step.
+
+        Returns
+        -------
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+        """
         (
             stage_time_perturbations,
             stage_independent_output_perturbations,
@@ -179,15 +267,34 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
 
     @staticmethod
     def _shift_state(discretization_state: RungeKuttaDiscretizationState):
+        """Copies the final time and state of the discretization state to its start."""
         discretization_state.start_time[0] = discretization_state.final_time[0]
         discretization_state.start_state[:] = discretization_state.final_state
 
     @staticmethod
     def _shift_state_reverse(discretization_state: RungeKuttaDiscretizationState):
+        """Copies the start time and state of the discretization state to its end."""
         discretization_state.final_time[0] = discretization_state.start_time[0]
         discretization_state.final_state[:] = discretization_state.start_state
 
     def _accumulate_stages(self, stage: int, stage_field: np.ndarray):
+        """
+        Computes the input of the stage with index `stage` by accumulating the
+        stage updates of the previous stages with the corresponding entries of the
+        butcher matrix.
+
+        Parameters
+        ----------
+        stage: int
+            Index of the stage whose input is computed.
+        stage_field: np.ndarray
+            Stage updates of all stages for the current time step.
+
+        Returns
+        -------
+        stage_input: np.ndarray
+            Accumulated stage input for the given stage.
+        """
         return (
             np.zeros(stage_field.shape[1])
             if stage == 0
@@ -201,6 +308,24 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
     def _accumulate_step(
         self, start_state: np.ndarray, stage_field: np.ndarray, step_size: float
     ) -> np.ndarray:
+        """
+        Computes the state at the end of a time step by adding the stage updates
+        weighted with the weights of the butcher tableau to the start state.
+
+        Parameters
+        ----------
+        start_state: np.ndarray
+            State at the start of the time step.
+        stage_field: np.ndarray
+            Stage updates of all stages for the current time step.
+        step_size: float
+            Step size of the current time step.
+
+        Returns
+        -------
+        final_state: np.ndarray
+            State at the end of the time step.
+        """
         return start_state + np.einsum(
             "ij,i",
             stage_field,
@@ -214,6 +339,27 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         step_size: float,
         stage: int,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Computes the stage with the given index of the current time step by evaluating
+        the `ode` at the stage time and storing the resulting stage update, stage
+        state, independent output, and linearization point.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE implementation of which the stage is computed.
+        time_discretization_state: RungeKuttaDiscretizationState
+            Discretization state on which computations take place.
+        step_size: float
+            Step size of the current time step.
+        stage: int
+            Index of the stage that is computed.
+
+        Returns
+        -------
+        time_discretization_state: RungeKuttaDiscretizationState
+            Discretization state with the data of the computed stage.
+        """
         time_discretization_state.stage_times[stage] = (
             time_discretization_state.start_time[0]
             + step_size * self.butcher_tableau.butcher_time_stages[stage]
@@ -251,6 +397,30 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         stage: int,
         linearization_point: np.ndarray,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Forward-mode differentiated version of `_compute_stage`, evaluating the
+        `ode` at the given linearization point and storing the resulting stage
+        update, stage state, and independent output of the perturbed state.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE implementation of which the stage is computed.
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+            (Linear) discretization state on which computations take place.
+        step_size: float
+            Step size of the current time step.
+        stage: int
+            Index of the stage that is computed.
+        linearization_point: np.ndarray
+            Linearization point of the primal stage at which the ODE is
+            linearized.
+
+        Returns
+        -------
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+            (Linear) discretization state with the data of the computed stage.
+        """
         time_discretization_state_perturbation.stage_times[stage] = (
             time_discretization_state_perturbation.start_time[0]
         )
@@ -289,6 +459,32 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         stage: int,
         linearization_point: np.ndarray,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Reverse-mode differentiated version of `_compute_stage`, accumulating the
+        adjoint contributions of the given stage onto the perturbed state, namely on
+        the independent inputs, stage times, start state, the stage updates of the
+        previous stages, and the start time.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE implementation of which the stage is computed.
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+            (Linear) discretization state on which computations take place.
+        step_size: float
+            Step size of the current time step.
+        stage: int
+            Index of the stage that is computed.
+        linearization_point: np.ndarray
+            Linearization point of the primal stage at which the ODE is
+            linearized.
+
+        Returns
+        -------
+        time_discretization_state_perturbation: RungeKuttaDiscretizationState
+            (Linear) discretization state with the accumulated adjoint
+            contributions of the stage.
+        """
         independent_output = (
             time_discretization_state_perturbation.stage_independent_outputs[stage]
         )
@@ -338,6 +534,24 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         stage_independent_outputs: np.ndarray,
         final_time: float,
     ) -> np.ndarray:
+        """
+        Computes the independent outputs at the end of a time step from the stage
+        times and stage independent outputs. Currently returns zero values.
+
+        Parameters
+        ----------
+        stage_times: np.ndarray
+            Times at the stages of the current time step.
+        stage_independent_outputs: np.ndarray
+            Independent outputs at the stages of the current time step.
+        final_time: float
+            Time at the end of the current time step.
+
+        Returns
+        -------
+        final_independent_outputs: np.ndarray
+            Independent outputs at the end of the time step.
+        """
         return np.zeros_like(stage_independent_outputs[0])
 
     @staticmethod
@@ -350,6 +564,30 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         stage_independent_output_perturbations: np.ndarray,
         final_time_perturbation: float,
     ) -> np.ndarray:
+        """
+        Computes the perturbation of the independent outputs at the end of a time
+        step. Currently returns zero values.
+
+        Parameters
+        ----------
+        stage_times: np.ndarray
+            Times at the stages of the current time step.
+        stage_independent_outputs: np.ndarray
+            Independent outputs at the stages of the current time step.
+        final_time: float
+            Time at the end of the current time step.
+        stage_time_perturbations: np.ndarray
+            Perturbations of the stage times.
+        stage_independent_output_perturbations: np.ndarray
+            Perturbations of the stage independent outputs.
+        final_time_perturbation: float
+            Perturbation of the final time.
+
+        Returns
+        -------
+        final_independent_output_perturbations: np.ndarray
+            Perturbation of the independent outputs at the end of the time step.
+        """
         return np.zeros_like(stage_independent_outputs[0])
 
     @staticmethod
@@ -359,14 +597,59 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         final_time: float,
         final_independent_output_perturbation: np.ndarray,
     ) -> (np.ndarray, np.ndarray, float):
+        """
+        Computes the adjoint contributions of the independent outputs at the end of a
+        time step onto the stage times, stage independent outputs, and final time.
+        Currently returns zero values.
+
+        Parameters
+        ----------
+        stage_times: np.ndarray
+            Times at the stages of the current time step.
+        stage_independent_outputs: np.ndarray
+            Independent outputs at the stages of the current time step.
+        final_time: float
+            Time at the end of the current time step.
+        final_independent_output_perturbation: np.ndarray
+            Perturbation of the independent outputs at the end of the time step.
+
+        Returns
+        -------
+        stage_time_perturbations: np.ndarray
+            Adjoint contributions to the stage times.
+        stage_independent_output_perturbations: np.ndarray
+            Adjoint contributions to the stage independent outputs.
+        final_time_perturbation: float
+            Adjoint contribution to the final time.
+        """
         return np.zeros_like(stage_times), np.zeros_like(stage_independent_outputs), 0.0
 
     def time_discretization_starting_scheme(
         self,
         ode: DiscretizedODE,
-        starting_values: TimeDiscretizationStartingValues,
+        starting_values: StartingValues,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Starting scheme of the time discretization for converting usual data
+        representation of state of ODEs to one compatible to the used time
+        discretization.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        starting_values: StartingValues
+            Values on which the starting scheme is performed.
+        step_size: float
+            Step size for the starting scheme.
+
+        Returns
+        -------
+        started_discretization_state: RungeKuttaDiscretizationState
+            Converted version of `starting_values` compatible with the used time
+            discretization.
+        """
         initial_discretization_state = self.create_empty_discretization_state(ode)
         initial_discretization_state.final_time[0] = starting_values.initial_time
         initial_discretization_state.final_state[:] = starting_values.initial_values
@@ -379,10 +662,30 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
     def time_discretization_starting_scheme_derivative(
         self,
         ode: DiscretizedODE,
-        starting_values: TimeDiscretizationStartingValues,
-        starting_value_perturbations: TimeDiscretizationStartingValues,
+        starting_values: StartingValues,
+        starting_value_perturbations: StartingValues,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Forward-mode differentiated version of the starting scheme.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        starting_values: StartingValues
+            Linearization point for the jacobian of the starting scheme.
+        starting_value_perturbations: StartingValues
+            Perturbations to be multiplied with the jacobian of the starting
+            scheme.
+        step_size: float
+            Step size for the starting scheme.
+
+        Returns
+        -------
+        started_discretization_state_perturbations: RungeKuttaDiscretizationState
+            Result of the jacvec-product of the starting scheme.
+        """
         initial_discretization_state_perturbations = (
             self.create_empty_discretization_state(ode)
         )
@@ -400,12 +703,32 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
     def time_discretization_starting_scheme_adjoint_derivative(
         self,
         ode: DiscretizedODE,
-        starting_values: TimeDiscretizationStartingValues,
+        starting_values: StartingValues,
         started_discretization_state_perturbations: RungeKuttaDiscretizationState,
         step_size: float,
-    ) -> TimeDiscretizationStartingValues:
-        return TimeDiscretizationStartingValues(
-            started_discretization_state_perturbations.final_time,
+    ) -> StartingValues:
+        """
+        Reverse-mode differentiated version of the starting scheme.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        starting_values: StartingValues
+            Linearization point for the adjoint jacobian of the starting scheme.
+        started_discretization_state_perturbations: RungeKuttaDiscretizationState
+            Perturbations to be multiplied with the adjoint jacobian of the
+            starting scheme.
+        step_size: float
+            Step size for the starting scheme.
+
+        Returns
+        -------
+        starting_value_perturbations: StartingValues
+            Result of the adjoint jacvec-product of the starting scheme.
+        """
+        return StartingValues(
+            started_discretization_state_perturbations.final_time[0],
             started_discretization_state_perturbations.final_state,
             started_discretization_state_perturbations.independent_inputs,
         )
@@ -415,9 +738,28 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         ode: DiscretizedODE,
         discretization_state: RungeKuttaDiscretizationState,
         step_size: float,
-    ) -> TimeDiscretizationFinalizationValues:
-        return TimeDiscretizationFinalizationValues(
-            discretization_state.final_time,
+    ) -> FinalizationValues:
+        """
+        Finalization scheme of the time discretization for converting a state
+        specific to the discretization back to one compatible with an ODE.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: RungeKuttaDiscretizationState
+            Values on which the finalization scheme is performed.
+        step_size: float
+            Step size for the finalization scheme.
+
+        Returns
+        -------
+        finalization_values: FinalizationValues
+            Converted version of `discretization_state` compatible with the
+            used ODE.
+        """
+        return FinalizationValues(
+            discretization_state.final_time[0],
             discretization_state.final_state,
             discretization_state.final_independent_outputs,
         )
@@ -428,9 +770,29 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         discretization_state: RungeKuttaDiscretizationState,
         discretization_state_perturbations: RungeKuttaDiscretizationState,
         step_size: float,
-    ) -> TimeDiscretizationFinalizationValues:
-        return TimeDiscretizationFinalizationValues(
-            discretization_state_perturbations.final_time,
+    ) -> FinalizationValues:
+        """
+        Forward-mode differentiated version of the finalization scheme.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: RungeKuttaDiscretizationState
+            Linearization point for the jacobian of the finalization scheme.
+        discretization_state_perturbations: RungeKuttaDiscretizationState
+            Perturbations to be multiplied with the jacobian of the finalization
+            scheme.
+        step_size: float
+            Step size for the finalization scheme.
+
+        Returns
+        -------
+        finalization_value_perturbations: FinalizationValues
+            Result of the jacvec-product of the finalization scheme.
+        """
+        return FinalizationValues(
+            discretization_state_perturbations.final_time[0],
             discretization_state_perturbations.final_state,
             discretization_state_perturbations.final_independent_outputs,
         )
@@ -439,9 +801,30 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
         self,
         ode: DiscretizedODE,
         discretization_state: RungeKuttaDiscretizationState,
-        finalization_value_perturbations: TimeDiscretizationFinalizationValues,
+        finalization_value_perturbations: FinalizationValues,
         step_size: float,
     ) -> RungeKuttaDiscretizationState:
+        """
+        Reverse-mode differentiated version of the finalization scheme.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: RungeKuttaDiscretizationState
+            Linearization point for the adjoint jacobian of the finalization
+            scheme.
+        finalization_value_perturbations: FinalizationValues
+            Perturbations to be multiplied with the adjoint jacobian of the
+            finalization scheme.
+        step_size: float
+            Step size for the finalization scheme.
+
+        Returns
+        -------
+        discretization_state_perturbations: RungeKuttaDiscretizationState
+            Result of the adjoint jacvec-product of the finalization scheme.
+        """
         final_time_discretization_state_perturbation = (
             self.create_empty_discretization_state(ode)
         )
@@ -455,6 +838,68 @@ class StageOrderedRungeKuttaDiscretization(TimeDiscretizationSchemeInterface):
             finalization_value_perturbations.final_independent_outputs
         )
         return final_time_discretization_state_perturbation
+
+    def get_ode_state(
+        self,
+        ode: DiscretizedODE,
+        discretization_state: RungeKuttaDiscretizationState,
+        step_size: float,
+    ) -> DiscretizedODEResultState:
+        """
+        Uses the contents of `discretization_state` to create a valid result state for
+        the passed ode containing state data.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: RungeKuttaDiscretizationState
+            Discretization state from which data is used.
+        step_size: float
+            Step size that is possibly necessary for some calculations.
+
+        Returns
+        -------
+        ode_state: DiscretizedODEResultState
+            ODE-compatible result state containing discretization state data.
+        """
+        return DiscretizedODEResultState(
+            stage_update=(
+                discretization_state.final_state - discretization_state.start_state
+            ),
+            stage_state=discretization_state.final_state,
+            independent_output=discretization_state.final_independent_outputs,
+            linearization_point=discretization_state.linearization_points[-1],
+        )
+
+    def get_ode_error_estimate(
+        self,
+        ode: DiscretizedODE,
+        discretization_state: RungeKuttaDiscretizationState,
+        step_size: float,
+    ) -> DiscretizedODEResultState | None:
+        """
+        Uses the contents of `discretization_state` to create a valid result state for
+        the passed ode containing error estimate data.
+
+        For non-embedded Runge-Kutta methods, no error estimate is available.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: RungeKuttaDiscretizationState
+            Discretization state from which data is used.
+        step_size: float
+            Step size that is possibly necessary for some calculations.
+
+        Returns
+        -------
+        ode_error_estimate: DiscretizedODEResultState | None
+            ODE-compatible result state containing error estimate data, or None if
+            no error estimate is available for this method.
+        """
+        return None
 
 
 @dataclass
@@ -510,10 +955,63 @@ class EmbeddedRungeKuttaMixin:
     def _accumulate_embedded_step(
         self, start_state: np.ndarray, stage_field: np.ndarray, step_size: float
     ) -> np.ndarray:
+        """
+        Computes the state at the end of a time step of the embedded scheme by
+        adding the stage updates weighted with the adaptive weights of the butcher
+        tableau to the start state.
+
+        Parameters
+        ----------
+        start_state: np.ndarray
+            State at the start of the time step.
+        stage_field: np.ndarray
+            Stage updates of all stages for the current time step.
+        step_size: float
+            Step size of the current time step.
+
+        Returns
+        -------
+        embedded_state: np.ndarray
+            State at the end of the time step of the embedded scheme.
+        """
         return start_state + np.einsum(
             "ij,i",
             stage_field,
             step_size * self.butcher_tableau.butcher_adaptive_weights,
+        )
+
+    # pylint: disable=unused-argument
+    def get_ode_error_estimate(
+        self,
+        ode: DiscretizedODE,
+        discretization_state: EmbeddedRungeKuttaDiscretizationState,
+        step_size: float,
+    ) -> DiscretizedODEResultState | None:
+        """
+        Uses the contents of `discretization_state` to create a valid result state for
+        the passed ode containing error estimate data.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE on which time integration is performed.
+        discretization_state: EmbeddedRungeKuttaDiscretizationState
+            Discretization state from which data is used.
+        step_size: float
+            Step size that is possibly necessary for some calculations.
+
+        Returns
+        -------
+        ode_error_estimate: DiscretizedODEResultState
+            ODE-compatible result state containing error estimate data.
+        """
+        return DiscretizedODEResultState(
+            stage_update=discretization_state.error_estimate,
+            stage_state=discretization_state.error_estimate,
+            independent_output=np.zeros_like(
+                discretization_state.final_independent_outputs
+            ),
+            linearization_point=None,
         )
 
 
@@ -535,6 +1033,20 @@ class StageOrderedEmbeddedRungeKuttaDiscretization(
     def create_empty_discretization_state(
         self, ode: DiscretizedODE
     ) -> EmbeddedRungeKuttaDiscretizationState:
+        """
+        Creates an empty embedded discretization state with sizes given by the `ode`
+        and the number of stages of the butcher tableau.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE for which the discretization state is valid.
+
+        Returns
+        -------
+        time_discretization_state: EmbeddedRungeKuttaDiscretizationState
+            Empty initialized discretization state.
+        """
         return EmbeddedRungeKuttaDiscretizationState(
             ode_state_size=ode.get_state_size(),
             independent_input_size=ode.get_independent_input_size(),
@@ -549,6 +1061,28 @@ class StageOrderedEmbeddedRungeKuttaDiscretization(
         time_discretization_state: EmbeddedRungeKuttaDiscretizationState,
         step_size: float,
     ) -> EmbeddedRungeKuttaDiscretizationState:
+        """
+        Computes one (primal) step of time integration on the `ode` with `step_size`
+        based on `time_discretization_state`, including the error estimate of the
+        embedded scheme.
+
+        Note that this happens in place, meaning the argument
+        `time_discretization_state` contains the new data after the call and is
+        returned additionally for convenience.
+
+        Parameters
+        ----------
+        ode: DiscretizedODE
+            ODE implementation of which the step is computed.
+        time_discretization_state: EmbeddedRungeKuttaDiscretizationState
+            Discretization state on which computations take place.
+        step_size: float
+            Step size used for the computation of the time step.
+
+        Returns
+        -------
+        time_discretization_state: EmbeddedRungeKuttaDiscretizationState
+        """
         time_discretization_state = super().compute_step(
             ode, time_discretization_state, step_size
         )

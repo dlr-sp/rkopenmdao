@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from typing import Optional
 
-from rkopenmdao.error_controller import ErrorControllerConfig
+from rkopenmdao.error_controller import ErrorController, ErrorControllerConfig
 from rkopenmdao.error_controllers import integral
 from rkopenmdao.error_measurer import ErrorMeasurer, SimpleErrorMeasurer
 from rkopenmdao.integration_config import IntegrationConfig
@@ -13,12 +14,12 @@ from .constants import PROBLEM, BUTCHER_TABLEAUX
 def adaptive_simulation(
     problem: Problem,
     butcher_tableaux: dict,
-    error_estimator: Optional[list] = None,
+    error_estimator: Optional[Callable[[float], ErrorController]] = None,
     error_measurer: ErrorMeasurer = SimpleErrorMeasurer(),
 ) -> None:
     """Execute adaptive integration for each Butcher tableau."""
     if error_estimator is None:
-        error_estimator = [integral]
+        error_estimator = integral
     problem_config = ProblemConfig(
         IntegrationConfig(True, PredefinedFinalTime(problem.time_objective), 0.1),
         error_estimator,

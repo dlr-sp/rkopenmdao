@@ -6,13 +6,13 @@ class RungeKuttaError(Exception):
 
 
 class SetupError(RungeKuttaError, ValueError):
-    """Exception for the case when something goes wrong in the setup of the
-    RungeKuttaIntegrator"""
+    """Exception for the case when something goes wrong in the setup of the time
+    integration, e.g. when extracting the metadata of the wrapped OpenMDAO ODE."""
 
 
 class TimeStageError(RungeKuttaError, AssertionError):
     """Exception for the case when something goes wrong in the time stage computation
-    of the RungeKuttaIntegrator"""
+    of the time integration."""
 
 
 class ErrorControllerError(Exception):
