@@ -51,7 +51,6 @@ class TimeDiscretizationStateInterface(ABC):
     @abstractmethod
     def __eq__(self, other):
         """Returns True if the other state holds the same content."""
-        pass
 
 
 @dataclass

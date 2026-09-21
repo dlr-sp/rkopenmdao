@@ -1,29 +1,38 @@
 """
 Reference script that generates `time_step_0.txt` for a regression test, configured
 with the following parameters:
-- `Test case`: `TestComp1`
+- `Test case`: `IdentityODE`
 - `Initial time`: `0.0`
 - `End time`: `0.01`,
 - `Initial step size`: `0.01`
 - `initial value`: `1.0`
 - `Butcher tableau`: `embedded_heun_euler`
-- `Error controller`: `Integral`
+- `Error controller`: `integral`
 - `Error controller Tolerance`: `1e-6`
 - `Error measurer`: `SimpleErrorMeasurer`
 """
 
-import openmdao.api as om
+from pathlib import Path
+
+import numpy as np
 
 from rkopenmdao.butcher_tableaux import embedded_heun_euler as heun_euler
+from rkopenmdao.checkpointed_time_integration.no_checkpoint_time_integration import (
+    NoCheckpointTimeIntegration,
+)
 from rkopenmdao.error_controller import ErrorControllerConfig
 from rkopenmdao.error_controllers import integral
 from rkopenmdao.error_measurer import SimpleErrorMeasurer
 from rkopenmdao.integration_config import IntegrationConfig
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.states import StartingValues
 from rkopenmdao.termination_criterion import PredefinedFinalTime
+from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization import (
+    StageOrderedEmbeddedRungeKuttaDiscretization,
+)
 
-from ..utils.callback import TimeStepsLog, save_data
-from ..test_components import TestComp1
+from ...src.rkopenmdao.callback import TimeStepsLog
+from ..odes import IdentityODE
+from ..utils.callback import save_data
 
 
 def integration_cfg():
@@ -35,33 +44,23 @@ def integration_cfg():
     )
 
 
-def time_stage_problem():
-    """Time problem factory"""
-    prob = om.Problem()
-    prob.model.add_subsystem("test_comp", TestComp1())
-    prob.model.nonlinear_solver = om.NewtonSolver(solve_subsystems=True)
-    prob.model.linear_solver = om.ScipyKrylov()
-    return prob
-
-
-callbacks = [TimeStepsLog()]
-#  Build outer RK problem
-rk = om.Problem()
-rk.model.add_subsystem(
-    "rk_integrator",
-    RungeKuttaIntegrator(
-        time_stage_problem=time_stage_problem(),
-        butcher_tableau=heun_euler,
-        integration_config=integration_cfg(),
-        time_integration_quantities=["x"],
-        error_controller=[integral],
-        error_controller_options={"config": ErrorControllerConfig(tol=1e-6)},
-        error_measurer=SimpleErrorMeasurer(),
-        compute_callbacks=callbacks or [],
+time_step_log = TimeStepsLog()
+time_integration = NoCheckpointTimeIntegration(
+    ode=IdentityODE(),
+    time_discretization_scheme=StageOrderedEmbeddedRungeKuttaDiscretization(
+        heun_euler
     ),
-    promotes=["*"],
+    time_integration_config=integration_cfg(),
+    integrate_callbacks=[time_step_log],
+    error_controller=integral(
+        heun_euler.min_p_order(), config=ErrorControllerConfig(tol=1e-6)
+    ),
+    error_measurer=SimpleErrorMeasurer(),
 )
-rk.setup()
-rk["x_initial"] = 1.0
-rk.run_model()
-save_data(callbacks[0], write_file="time_step_0.txt")
+
+starting_values = StartingValues(
+    initial_time=0.0, initial_values=np.ones(1), independent_inputs=np.zeros(0)
+)
+initial_state = time_integration.starting_scheme(starting_values)
+time_integration.integrate(initial_state)
+save_data(time_step_log, write_file=str(Path(__file__).with_name("time_step_0.txt")))

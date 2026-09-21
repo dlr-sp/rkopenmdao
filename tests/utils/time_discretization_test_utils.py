@@ -6,7 +6,11 @@ from rkopenmdao.discretized_ode.discretized_ode import (
     DiscretizedODE,
     DiscretizedODEResultState,
 )
-from rkopenmdao.states import TimeDiscretizationStateInterface, StartingValues, FinalizationValues
+from rkopenmdao.states import (
+    TimeDiscretizationStateInterface,
+    StartingValues,
+    FinalizationValues,
+)
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
 )

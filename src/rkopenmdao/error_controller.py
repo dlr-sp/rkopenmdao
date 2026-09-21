@@ -230,7 +230,6 @@ class ErrorController:
         if not success:
             remaining_time += delta_t
         new_delta_t = min(remaining_time, new_delta_t)
-        print(new_delta_t)
         # The error controller won't generate anything lower than that by itself
         # so we might as well accept it at that point.
         if new_delta_t < self.config.lower_bound:

@@ -10,10 +10,8 @@ in tests/data/time_step_0.txt.
 import numpy as np
 import pytest
 
-from .odes import IdentityODE
-from .utils.callback import TimeStepsLog, read_data
-
 from rkopenmdao.butcher_tableaux import embedded_heun_euler
+from rkopenmdao.callback import TimeStepsLog
 from rkopenmdao.states import StartingValues
 from rkopenmdao.integration_config import IntegrationConfig
 from rkopenmdao.termination_criterion import PredefinedFinalTime
@@ -23,9 +21,11 @@ from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization imp
 from rkopenmdao.checkpointed_time_integration.no_checkpoint_time_integration import (
     NoCheckpointTimeIntegration,
 )
-
 from rkopenmdao.error_controllers import integral
 from rkopenmdao.error_measurer import SimpleErrorMeasurer
+
+from .odes import IdentityODE
+from .utils.callback import read_data
 
 
 def test_adaptive_step_size_regression():

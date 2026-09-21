@@ -41,8 +41,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
 
     Subclasses must implement checkpoint-specific integration methods:
     - integrate(): primal time integration of the whole time domain with checkpointing
-    - integrate_adjoint_derivative(): Reverse-mode differentiated integration of the whole time
-      domain with checkpointing
+    - integrate_adjoint_derivative(): Reverse-mode differentiated integration of the
+      whole time domain with checkpointing
 
     Parameters
     ----------
@@ -79,7 +79,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         - after_iteration(): After each integration step
 
     integrate_derivative_callbacks : list[Callback]
-        List of callback objects invoked during direct derivative integration, called at:
+        List of callback objects invoked during direct derivative integration, called
+        at:
         - before_iteration(): Before each integration step
         - after_iteration(): After each integration step
 
@@ -152,7 +153,8 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
         initial_state_perturbation: TimeIntegrationState,
     ) -> tuple[list[TimeIntegrationState], list[TimeIntegrationState]]:
         """
-        Performs differentiated integration following the same steps as primal integration.
+        Performs differentiated integration following the same steps as primal
+        integration.
 
         The differentiated integration uses the exact same time steps as the primal
         integration (from initial_state.step_size_history), ensuring consistent

@@ -114,7 +114,7 @@ class OpenMDAOTimeStepping(OpenMDAOTimeIntegrationWrapper):
             self.add_input(
                 quantity.name,
                 shape=quantity.array_metadata.shape,
-                val=self._time_integrator.ode.time_stage_problem.get_val(
+                val=self._time_integrator.ode._time_stage_problem.get_val(
                     quantity.translation_metadata.time_independent_input_var
                 ),
                 distributed=quantity.array_metadata.distributed,

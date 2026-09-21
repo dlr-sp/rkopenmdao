@@ -73,7 +73,8 @@ def _make_rk_problem(
     error_controller: ErrorController | None = None,
 ) -> om.Problem:
     """
-    Factory that builds a ``Problem`` containing a single ``RungeKuttaIntegrator``.
+    Factory that builds a ``Problem`` containing a single ``OpenMDAOTimeStepping``
+    wrapping a ``NoCheckpointTimeIntegration``.
     """
     file_writer_callback = OpenMDAOHDF5Callback(
         filename=WRITE_FILE, write_out_period=write_out_distance
@@ -122,7 +123,6 @@ def integration_config_fixture():
         termination_criterion=PredefinedNumberOfSteps(100),
         initial_step_size=0.01,
     )
-    # return StepTerminationIntegrationControl(0.01, 100, 1.0)
 
 
 @pytest.fixture(name="multi_problem")

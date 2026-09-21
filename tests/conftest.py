@@ -21,9 +21,9 @@ import pytest
 
 from rkopenmdao.butcher_tableaux import butcher_tableau_collection
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
-from rkopenmdao.error_controller import ErrorControllerConfig
+from rkopenmdao.error_controller import ErrorControllerConfig, ErrorController
 from rkopenmdao.error_controllers import error_controller_collection
-from rkopenmdao.error_measurer import SimpleErrorMeasurer, ImprovedErrorMeasurer
+from rkopenmdao.error_measurer import ErrorMeasurer, SimpleErrorMeasurer, ImprovedErrorMeasurer
 from rkopenmdao.states import StartingValues, FinalizationValues
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
@@ -359,6 +359,14 @@ def error_measurer(
     """
     return request.param
 
+@dataclass
+class ErrorControllerMeasurerPair:
+    """
+    """
+
+    controller_factory: Callable[[float], ErrorController]
+    error_measurer: ErrorMeasurer
+
 
 # pylint: disable=redefined-outer-name
 @pytest.fixture(params=error_controller_collection)
@@ -386,7 +394,14 @@ def adaptive_error_controller_and_measurer(
           with tolerance 1e-3 and lower bound 1e-4.
         - SimpleErrorMeasurer or ImprovedErrorMeasurer: The error measurer.
     """
-    return (
+    # return (
+    #     lambda p: request.param(
+    #         p,
+    #         config=ErrorControllerConfig(tol=1e-3, lower_bound=1e-4, safety_factor=0.8),
+    #     ),
+    #     error_measurer,
+    # )
+    return ErrorControllerMeasurerPair(
         lambda p: request.param(
             p,
             config=ErrorControllerConfig(tol=1e-3, lower_bound=1e-4, safety_factor=0.8),

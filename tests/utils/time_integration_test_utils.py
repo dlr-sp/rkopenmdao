@@ -13,6 +13,10 @@ The abstract test classes define comprehensive test suites for:
 - Verification of convergence orders and duality relationships
 """
 
+# Everything in here should stay together, splitting this further doesn't help
+# readability.
+# pylint: disable=too-many-lines
+
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from copy import deepcopy
@@ -20,6 +24,7 @@ from copy import deepcopy
 import numpy as np
 import pytest
 
+from rkopenmdao.callback import TimeStepsLog
 from rkopenmdao.states import (
     DiscretizedODEResultState,
     StartingValues,
@@ -574,14 +579,16 @@ class AbstractTestTimeIntegrationSystem(ABC):
     - Duality relationship between forward and adjoint derivatives
 
     Subclasses must implement fixtures for:
-    - ``time_integrator_creator``: Function that creates integrators with given step size
+    - ``time_integrator_creator``: Function that creates integrators with given step
+      size
     - ``initial_state``: Initial state for the integration problem
     - ``initial_state_perturbations``: Perturbation for derivative tests
     - ``final_state_perturbations``: Perturbation for adjoint derivative tests
     - ``expected_order``: Expected convergence order
     - ``reference_solution``: Reference solution for error computation
     - ``reference_derivative``: Reference derivative for error computation
-    - ``reference_adjoint_derivative``: Reference adjoint derivative for error computation
+    - ``reference_adjoint_derivative``: Reference adjoint derivative for error
+      computation
 
     Parameters
     ----------
@@ -673,12 +680,14 @@ class AbstractTestTimeIntegrationSystem(ABC):
     @abstractmethod
     @pytest.fixture
     def reference_adjoint_derivative(self) -> StartingValues:
-        """Return a reference adjoint derivative for error computation.
+        """
+        Return a reference adjoint derivative for error computation.
 
         Returns
         -------
         StartingValues
-            Reference adjoint derivative at initial time for comparing computed adjoint derivatives.
+            Reference adjoint derivative at initial time for comparing computed adjoint
+            derivatives.
         """
 
     def test_derivative_duality(
@@ -719,6 +728,8 @@ class AbstractTestTimeIntegrationSystem(ABC):
         forward and adjoint derivative modes. The duality relationship is
         a fundamental property of tangent-linear and adjoint systems.
         """
+        # Splitting this into subfunctions isn't really helpful.
+        # pylint: disable=too-many-locals
         time_integrator = time_integrator_creator(0.01)
         initial_tstate = time_integrator.starting_scheme(initial_state)
         initial_tstate_backup = deepcopy(initial_tstate)
@@ -828,7 +839,9 @@ class AbstractTestHomogeneousTimeIntegrationSystem(AbstractTestTimeIntegrationSy
         time_integrator_creator: Callable[[float], TimeIntegrationInterface],
         reference_derivative: FinalizationValues,
     ) -> float:
-        """Integrate derivative with given step size and compute error relative to reference.
+        """
+        Integrate derivative with given step size and compute error relative to
+        reference.
 
         Parameters
         ----------
@@ -877,7 +890,8 @@ class AbstractTestHomogeneousTimeIntegrationSystem(AbstractTestTimeIntegrationSy
         time_integrator_creator: Callable[[float], TimeIntegrationInterface],
         reference_adjoint_derivative: StartingValues,
     ) -> float:
-        """Integrate adjoint derivative with given step size and compute error relative to reference.
+        """Integrate adjoint derivative with given step size and compute error relative
+        to reference.
 
         Parameters
         ----------
@@ -1177,5 +1191,9 @@ class AbstractTestAdaptiveTimeIntegrationSystem(AbstractTestTimeIntegrationSyste
         time_integrator = time_integrator_creator(0.01)
         initial_tstate = time_integrator.starting_scheme(initial_state)
         time_integrator.integrate(initial_tstate)
-        # TODO: make this not hard-coded on the callbacks
-        assert len(time_integrator.integrate_callbacks[0].step_sizes) > 1
+        success = False
+        for callback in time_integrator.integrate_callbacks:
+            if isinstance(callback, TimeStepsLog):
+                success = len(set(callback.time_steps)) > 1
+                break
+        assert success

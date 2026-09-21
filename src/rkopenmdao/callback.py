@@ -1,7 +1,7 @@
 """Callback interface and implementations for use during time integration."""
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from time import perf_counter
 
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
@@ -140,3 +140,24 @@ class WallClockMeasurement(Callback):
         after_time = perf_counter()
         elapsed_time = after_time - self._before_time
         print(f"Iteration took {elapsed_time} seconds.")
+
+
+@dataclass
+class TimeStepsLog(Callback):
+    """
+    Callback for saving and printing step sizes taken for each
+    step of time integration.
+    """
+
+    time_steps: list = field(default_factory=lambda: [])
+
+    def after_iteration(
+        self,
+        iteration: int,
+        time_integration_state: TimeIntegrationState,
+        ode: DiscretizedODE,
+        discretization_scheme: TimeDiscretizationSchemeInterface,
+    ):
+        step_size = time_integration_state.step_size_history[0]
+        print(f"Step size: {step_size}")
+        self.time_steps.append(step_size)
