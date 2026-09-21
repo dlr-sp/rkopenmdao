@@ -46,7 +46,11 @@ from rkopenmdao.checkpointed_time_integration.pyrevolve_time_integration import 
 from rkopenmdao.error_controllers import pseudo
 from rkopenmdao.error_measurer import SimpleErrorMeasurer
 
-from .conftest import DiscretizationOrderInfo, ErrorControllerMeasurerPair, ODEWithReferenceStatesAndSolutions
+from .conftest import (
+    DiscretizationOrderInfo,
+    ErrorControllerMeasurerPair,
+    ODEWithReferenceStatesAndSolutions,
+)
 from .utils.mock_classes import MockODE, MockDiscretization
 from .utils.time_integration_test_utils import (
     AbstractTestHomogeneousTimeIntegrationSystem,
@@ -242,6 +246,7 @@ class TestPyrevolveTimeIntegrationUnit(AbstractTestTimeIntegrationUnit):
         with pytest.raises(TypeError):
             time_integrator._setup_revolver_class_type("foo")
 
+
 @dataclass
 class TimeIntegrationTestCase:
     """Test case bundling the parameterized system-test fixtures.
@@ -259,9 +264,11 @@ class TimeIntegrationTestCase:
     error_controller_and_measurer : ErrorControllerMeasurerPair
         Error controller factory and error measurer pair.
     """
+
     ode_with_reference_state_and_solution: ODEWithReferenceStatesAndSolutions
     discretization_order_pair: DiscretizationOrderInfo
     error_controller_and_measurer: ErrorControllerMeasurerPair
+
 
 @pytest.fixture(name="homogeneous_time_integration_test_case")
 def homogeneous_time_integration_test_case_fixture(
@@ -332,7 +339,9 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial values from the ODE.
         """
-        return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values
+        return (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values
+        )
 
     @pytest.fixture
     def initial_state_perturbations(self, homogeneous_time_integration_test_case):
@@ -349,7 +358,9 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial value perturbations from the ODE.
         """
-        return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations
+        return (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations
+        )
 
     @pytest.fixture
     def final_state_perturbations(self, homogeneous_time_integration_test_case):
@@ -366,7 +377,9 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
         FinalizationValues
             Final value perturbations from the ODE.
         """
-        return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
+        return (
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
+        )
 
     @pytest.fixture
     def expected_order(self, homogeneous_time_integration_test_case):
@@ -409,7 +422,8 @@ class AbstractTestHomogeneousCheckpointedTimeIntegrationSystem(
             ODE's reference_solution method.
         """
         return homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.reference_solution(
-            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values, 1.0
+            homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
+            1.0,
         )
 
     @pytest.fixture
@@ -498,7 +512,9 @@ class TestHomogeneousNoCheckpointTimeIntegrationSystem(
         return lambda step_size: NoCheckpointTimeIntegration(
             ode=homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.ode,
             time_discretization_scheme=homogeneous_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(0),
+            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(
+                0
+            ),
             error_measurer=homogeneous_time_integration_test_case.error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 False, PredefinedNumberOfSteps(int(1 / step_size)), step_size
@@ -624,7 +640,9 @@ class TestHomogeneousAllCheckpointTimeIntegrationSystem(
         return lambda step_size: AllCheckpointTimeIntegration(
             ode=homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.ode,
             time_discretization_scheme=homogeneous_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(0),
+            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(
+                0
+            ),
             error_measurer=homogeneous_time_integration_test_case.error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 False, PredefinedNumberOfSteps(int(1 / step_size)), step_size
@@ -672,7 +690,9 @@ class TestHomogeneousPyrevolveTimeIntegrationSystem(
         return lambda step_size: PyrevolveTimeIntegration(
             ode=homogeneous_time_integration_test_case.ode_with_reference_state_and_solution.ode,
             time_discretization_scheme=homogeneous_time_integration_test_case.discretization_order_pair.time_discretization,
-            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(0),
+            error_controller=homogeneous_time_integration_test_case.error_controller_and_measurer.controller_factory(
+                0
+            ),
             error_measurer=homogeneous_time_integration_test_case.error_controller_and_measurer.error_measurer,
             time_integration_config=IntegrationConfig(
                 False, PredefinedNumberOfSteps(int(1 / step_size)), step_size
@@ -748,7 +768,9 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial values from the ODE.
         """
-        return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values
+        return (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values
+        )
 
     @pytest.fixture
     def initial_state_perturbations(self, adaptive_time_integration_test_case):
@@ -765,7 +787,9 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
         StartingValues
             Initial value perturbations from the ODE.
         """
-        return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations
+        return (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_value_perturbations
+        )
 
     @pytest.fixture
     def final_state_perturbations(self, adaptive_time_integration_test_case):
@@ -782,7 +806,9 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
         FinalizationValues
             Final value perturbations from the ODE.
         """
-        return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
+        return (
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.final_value_perturbations
+        )
 
     @pytest.fixture
     def expected_order(self, adaptive_time_integration_test_case):
@@ -825,7 +851,8 @@ class AbstractTestAdaptiveCheckpointedTimeIntegrationSystem(
             ODE's reference_solution method.
         """
         return adaptive_time_integration_test_case.ode_with_reference_state_and_solution.reference_solution(
-            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values, 1.0
+            adaptive_time_integration_test_case.ode_with_reference_state_and_solution.initial_values,
+            1.0,
         )
 
     @pytest.fixture

@@ -104,6 +104,7 @@ def identity_ode_solution(
         np.zeros(0),
     )
 
+
 # pylint: disable=unused-argument
 def identity_ode_solution_derivative(
     initial_values: StartingValues,

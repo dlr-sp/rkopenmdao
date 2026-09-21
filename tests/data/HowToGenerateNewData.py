@@ -47,9 +47,7 @@ def integration_cfg():
 time_step_log = TimeStepsLog()
 time_integration = NoCheckpointTimeIntegration(
     ode=IdentityODE(),
-    time_discretization_scheme=StageOrderedEmbeddedRungeKuttaDiscretization(
-        heun_euler
-    ),
+    time_discretization_scheme=StageOrderedEmbeddedRungeKuttaDiscretization(heun_euler),
     time_integration_config=integration_cfg(),
     integrate_callbacks=[time_step_log],
     error_controller=integral(

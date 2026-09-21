@@ -1,4 +1,5 @@
 "Utility functions to help test time discretizations."
+
 from typing import Callable
 
 import numpy as np
@@ -20,9 +21,7 @@ def convergence_study(
     discretization: TimeDiscretizationSchemeInterface,
     ode: DiscretizedODE,
     starting_values: StartingValues,
-    analytical_solution: Callable[
-        [StartingValues, float], np.ndarray
-    ],
+    analytical_solution: Callable[[StartingValues, float], np.ndarray],
     base_step_size: float,
     num_calculations: int,
 ) -> np.ndarray:
