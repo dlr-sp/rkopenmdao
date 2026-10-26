@@ -118,8 +118,11 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - step_size_history and error_history arrays of size 2
             - step_size_suggestion array of size 1
         """
+        disc_state = self.time_discretization_scheme.create_empty_discretization_state(
+            self.ode
+        )
         return TimeIntegrationState(
-            discretization_state=self.time_discretization_scheme.create_empty_discretization_state(self.ode),
+            discretization_state=disc_state,
             step_size_suggestion=np.zeros(1),
             step_size_history=np.zeros(2),
             error_history=np.zeros(2),
@@ -140,8 +143,11 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - Zero-filled discretization_state matching ODE dimensions
             - Empty (size 0) step_size_suggestion, step_size_history, error_history
         """
+        disc_state = self.time_discretization_scheme.create_empty_discretization_state(
+            self.ode
+        )
         return TimeIntegrationState(
-            discretization_state=self.time_discretization_scheme.create_empty_discretization_state(self.ode),
+            discretization_state=disc_state,
             step_size_suggestion=np.zeros(0),
             step_size_history=np.zeros(0),
             error_history=np.zeros(0),

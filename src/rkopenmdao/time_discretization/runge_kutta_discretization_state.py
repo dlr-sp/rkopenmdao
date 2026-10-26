@@ -198,7 +198,8 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
         """Returns True if the other state holds the same content."""
         if type(self) is not type(other):
             raise NotImplementedError(
-                f"Comparison of object of types {type(self)} and {type(other)} is not implemented."
+                f"Comparison of object of types {type(self)} and {type(other)} is not "
+                "implemented."
             )
         return all(
             np.all(getattr(self, f.name) == getattr(other, f.name))
@@ -319,7 +320,8 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
         """Returns True if the other state holds the same content."""
         if type(self) is not type(other):
             raise NotImplementedError(
-                f"Comparison of object of types {type(self)} and {type(other)} is not implemented."
+                f"Comparison of object of types {type(self)} and {type(other)} is not "
+                "implemented."
             )
         return (
             super().__eq__(other)
