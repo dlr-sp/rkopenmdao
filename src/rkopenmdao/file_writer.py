@@ -20,7 +20,7 @@ from rkopenmdao.time_discretization.runge_kutta_discretization_state import (
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
 )
-from rkopenmdao.time_integration_state import TimeIntegrationState
+from rkopenmdao.states import TimeIntegrationState
 
 
 @dataclass

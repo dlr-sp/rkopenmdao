@@ -1,5 +1,5 @@
-"""Methods for extracting metadata from the inner OpenMDAO problems of the
-RungeKuttaIntegrator used for organizing its own data structures."""
+"""Methods for extracting metadata from the inner OpenMDAO problems wrapped by an
+OpenMDAOODE, used for organizing the data structures of the time integration."""
 
 # pylint: disable=protected-access
 # pylint: disable = c-extension-no-member

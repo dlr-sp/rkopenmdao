@@ -6,7 +6,7 @@ from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.butcher_tableaux import (
     embedded_second_order_two_stage_sdirk as second_order_sdirk,
     embedded_second_order_three_stage_esdirk as second_order_esdirk,
-    embedded_third_order_three_stage_sdirk as third_order_sdirk,
+    embedded_third_order_three_stage_sdirk2 as third_order_sdirk,
     embedded_third_order_four_stage_esdirk as third_order_esdirk,
     embedded_fourth_order_four_stage_sdirk as fourth_order_sdirk,
     embedded_fourth_order_five_stage_esdirk as fourth_order_esdirk,

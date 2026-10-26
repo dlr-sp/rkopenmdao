@@ -1,15 +1,22 @@
-"""Example to show how the RungeKuttaIntegrator works with MPI using parallel groups in
-the time_stage_problem."""
+"""Example to show how the OpenMDAOTimeStepping works with MPI using parallel groups
+in the time_stage_problem."""
 
 import openmdao.api as om
 
 from rkopenmdao.butcher_tableaux import (
     embedded_third_order_four_stage_esdirk,
 )
+from rkopenmdao.checkpointed_time_integration.no_checkpoint_time_integration import (
+    NoCheckpointTimeIntegration,
+)
 from rkopenmdao.components import ExplicitUnsteadyComponent
+from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
 from rkopenmdao.integration_config import IntegrationConfig
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.openmdao_time_stepping import OpenMDAOTimeStepping
 from rkopenmdao.termination_criterion import PredefinedNumberOfSteps
+from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization import (
+    StageOrderedRungeKuttaDiscretization,
+)
 
 
 # pylint: disable=arguments-differ
@@ -123,21 +130,23 @@ if __name__ == "__main__":
 
     prob.model.nonlinear_solver = om.NewtonSolver(solve_subsystems=True)
     prob.model.linear_solver = om.PETScKrylov()
-    # prob.setup()
+    prob.setup()
+    prob.final_setup()
     outer_prob = om.Problem()
     rk_indep = om.IndepVarComp()
     rk_indep.add_output("x_initial", shape_by_conn=True, distributed=True)
     rk_indep.add_output("y_initial", shape_by_conn=True, distributed=True)
-    rk_integrator = RungeKuttaIntegrator(
-        time_stage_problem=prob,
-        integration_config=integration_config,
-        butcher_tableau=butcher_tableau,
-        time_integration_quantities=(["x", "y"]),
+    time_integration = NoCheckpointTimeIntegration(
+        ode=OpenMDAOODE(prob, ["x", "y"]),
+        time_discretization_scheme=StageOrderedRungeKuttaDiscretization(
+            butcher_tableau
+        ),
+        time_integration_config=integration_config,
     )
     outer_prob.model.add_subsystem("rk_indep", rk_indep, promotes=["*"])
     outer_prob.model.add_subsystem(
-        "rk_integrator",
-        rk_integrator,
+        "time_integration",
+        OpenMDAOTimeStepping(time_integrator=time_integration),
         promotes=["*"],
     )
 

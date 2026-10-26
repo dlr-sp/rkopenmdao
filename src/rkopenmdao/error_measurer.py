@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODEResultState
+from rkopenmdao.states import DiscretizedODEResultState
 
 
 class ErrorMeasurer(ABC):  # pylint: disable=too-few-public-methods
@@ -49,6 +49,23 @@ class SimpleErrorMeasurer(ErrorMeasurer):  # pylint: disable=too-few-public-meth
         state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
+        """
+        Computes the error measure as the norm of the error estimate.
+
+        Parameters
+        ----------
+        state_error_estimate: DiscretizedODEResultState
+            Error estimate of one step of a time integration
+        state: DiscretizedODEResultState
+            Solution of one step of a time integration
+        ode: DiscretizedODE
+            Equation that the error estimate and solution belong to.
+
+        Returns
+        -------
+        float
+            Error measure for use in adaptive time stepping.
+        """
         return ode.compute_state_norm(state_error_estimate)
 
 
@@ -75,7 +92,24 @@ class ImprovedErrorMeasurer(ErrorMeasurer):
         state: DiscretizedODEResultState,
         ode: DiscretizedODE,
     ) -> float:
+        """
+        Computes the error measure as the norm of the error estimate divided by
+        the norm of the state plus the absolute and relative tolerances.
 
+        Parameters
+        ----------
+        state_error_estimate: DiscretizedODEResultState
+            Error estimate of one step of a time integration
+        state: DiscretizedODEResultState
+            Solution of one step of a time integration
+        ode: DiscretizedODE
+            Equation that the error estimate and solution belong to.
+
+        Returns
+        -------
+        float
+            Error measure for use in adaptive time stepping.
+        """
         error_estimate_norm = ode.compute_state_norm(state_error_estimate)
         state_norm = ode.compute_state_norm(state)
 

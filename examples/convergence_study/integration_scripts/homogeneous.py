@@ -10,7 +10,7 @@ def homogeneous_simulation(problem: Problem, butcher_tableaux: dict):
     """Execute homogenous integration for each Butcher tableau."""
     problem_config = ProblemConfig(
         IntegrationConfig(True, PredefinedNumberOfSteps(1), 0.0),
-        [pseudo],
+        pseudo,
         SimpleErrorMeasurer(),
     )
     # run each Runge-Kutta scheme for each step size

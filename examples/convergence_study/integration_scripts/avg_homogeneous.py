@@ -18,7 +18,7 @@ def avg_homogeneous_simulation(problem: Problem, butcher_tableaux: dict):
     """Execute homogeneous integration for each Butcher tableau with the average step size of the adaptive runs."""
     problem_config = ProblemConfig(
         IntegrationConfig(True, PredefinedNumberOfSteps(1), 0.0),
-        [pseudo],
+        pseudo,
         SimpleErrorMeasurer(),
     )
     for butcher_tableau in butcher_tableaux.values():

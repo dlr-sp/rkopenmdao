@@ -14,6 +14,8 @@
 - Logging of time step now works as a callback.
 - Changed current file writing implementation to use callbacks.
 - Added callback to measure wall-clock time of time integration steps.
+- Introduce `TimeIntegrationInterface` to split of OpenMDAO from the time integration routines.
+- Different checkpointing methods now correspond to different time integration classes, instead of being a controller by a member of a single class.
 
 ## Version 0.2
 

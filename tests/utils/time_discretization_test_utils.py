@@ -1,4 +1,5 @@
 "Utility functions to help test time discretizations."
+
 from typing import Callable
 
 import numpy as np
@@ -6,21 +7,21 @@ from rkopenmdao.discretized_ode.discretized_ode import (
     DiscretizedODE,
     DiscretizedODEResultState,
 )
+from rkopenmdao.states import (
+    TimeDiscretizationStateInterface,
+    StartingValues,
+    FinalizationValues,
+)
 from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
     TimeDiscretizationSchemeInterface,
-    TimeDiscretizationStartingValues,
-    TimeDiscretizationFinalizationValues,
-    TimeDiscretizationStateInterface,
 )
 
 
 def convergence_study(
     discretization: TimeDiscretizationSchemeInterface,
     ode: DiscretizedODE,
-    starting_values: TimeDiscretizationStartingValues,
-    analytical_solution: Callable[
-        [TimeDiscretizationStartingValues, float], np.ndarray
-    ],
+    starting_values: StartingValues,
+    analytical_solution: Callable[[StartingValues, float], np.ndarray],
     base_step_size: float,
     num_calculations: int,
 ) -> np.ndarray:
@@ -31,10 +32,10 @@ def convergence_study(
         Time discretization with which the convergence study is conducted.
     ode: DiscretizedODE
         ODE with which the convergency study is conducted.
-    starting_values: TimeDiscretizationStartingValues
+    starting_values: StartingValues
         Contains initial values for the ODE.
     analytical solution: Callable[
-        [TimeDiscretizationStartingValues, float], np.ndarray
+        [StartingValues, float], np.ndarray
     ]
         Function to get the analytical solution after a step of discretization.
     base_step_size: float
@@ -131,8 +132,8 @@ def step_duality(
 def starting_scheme_duality(
     discretization: TimeDiscretizationSchemeInterface,
     ode: DiscretizedODE,
-    starting_values: TimeDiscretizationStartingValues,
-    starting_value_derivative: TimeDiscretizationStartingValues,
+    starting_values: StartingValues,
+    starting_value_derivative: StartingValues,
     state_adjoint: TimeDiscretizationStateInterface,
     step_size: float,
     state_dot_func: callable,
@@ -151,9 +152,9 @@ def starting_scheme_duality(
         The discretization scheme to test.
     ode : DiscretizedODE
         The ODE instance.
-    starting_values : TimeDiscretizationStartingValues
+    starting_values : StartingValues
         The starting values at which to evaluate the Jacobian.
-    starting_value_derivative : TimeDiscretizationStartingValues
+    starting_value_derivative : StartingValues
         The perturbation to the starting values (dx).
     state_adjoint : TimeDiscretizationStateInterface
         The seed for the state output (dy).
@@ -205,7 +206,7 @@ def finalization_scheme_duality(
     ode: DiscretizedODE,
     final_state: TimeDiscretizationStateInterface,
     final_state_derivative: TimeDiscretizationStateInterface,
-    finalization_value_adjoint: TimeDiscretizationFinalizationValues,
+    finalization_value_adjoint: FinalizationValues,
     step_size: float,
     state_dot_func: callable,
 ) -> tuple[float, float]:
@@ -227,7 +228,7 @@ def finalization_scheme_duality(
         The state at which to evaluate the Jacobian.
     final_state_derivative : TimeDiscretizationStateInterface
         The perturbation to the state (dx).
-    finalization_value_adjoint : TimeDiscretizationFinalizationValues
+    finalization_value_adjoint : FinalizationValues
         The seed for the finalization output (dy).
     step_size : float
         The step size.

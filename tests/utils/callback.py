@@ -1,42 +1,18 @@
-"""Callback utiliies for `test_component_test_adaptive.py`"""
+"""
+Callback utilities for logging the step sizes of adaptive time integrations
+and reading the corresponding reference data.
+"""
 
 # pylint: disable=unnecessary-lambda
 
-from dataclasses import dataclass, field
 from pathlib import Path
 
-from rkopenmdao.callback import Callback
-from rkopenmdao.discretized_ode.discretized_ode import DiscretizedODE
-from rkopenmdao.time_discretization.time_discretization_scheme_interface import (
-    TimeDiscretizationSchemeInterface,
-)
-from rkopenmdao.time_integration_state import TimeIntegrationState
-
-
-@dataclass
-class TimeStepsLog(Callback):
-    """
-    Callback for saving and printing step sizes taken for each
-    step of time integration.
-    """
-
-    time_steps: list = field(default_factory=lambda: [])
-
-    def after_iteration(
-        self,
-        iteration: int,
-        time_integration_state: TimeIntegrationState,
-        ode: DiscretizedODE,
-        discretization_scheme: TimeDiscretizationSchemeInterface,
-    ):
-        step_size = time_integration_state.step_size_history[0]
-        print(f"Step size: {step_size}")
-        self.time_steps.append(step_size)
+from rkopenmdao.callback import TimeStepsLog
 
 
 def save_data(timesteps_log: TimeStepsLog, write_file: str):
     """
-    Utility to save the data created by ``TimeStepsLog`` by generating a file
+    Utility to save the data created by ``TimeStepsLog`` to a file
     """
     path = Path(write_file)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -47,7 +23,7 @@ def save_data(timesteps_log: TimeStepsLog, write_file: str):
 
 def read_data(read_file: str) -> list[float]:
     """
-    Utility to read the data created by ``TimeStepsLog`` by generating a file
+    Utility to read the data created by ``TimeStepsLog`` from a file
     """
     assert Path(read_file).exists()
 

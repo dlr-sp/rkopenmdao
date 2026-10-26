@@ -13,12 +13,21 @@ import openmdao.api as om
 
 from rkopenmdao.butcher_tableau import ButcherTableau
 from rkopenmdao.callback import IterationLogging
+from rkopenmdao.checkpointed_time_integration.no_checkpoint_time_integration import (
+    NoCheckpointTimeIntegration,
+)
+from rkopenmdao.discretized_ode.openmdao_ode import OpenMDAOODE
+from rkopenmdao.error_controller import ErrorController
 from rkopenmdao.error_measurer import ErrorMeasurer
 from rkopenmdao.file_writer import read_last_local_error, OpenMDAOHDF5Callback
 from rkopenmdao.integration_config import IntegrationConfig
-from rkopenmdao.runge_kutta_integrator import RungeKuttaIntegrator
+from rkopenmdao.openmdao_time_stepping import OpenMDAOTimeStepping
 from rkopenmdao.odes.kaps import KapsGroup
 from rkopenmdao.odes.prothero_robinson_ode import ProtheroRobinson
+from rkopenmdao.time_discretization.stage_ordered_runge_kutta_discretization import (
+    StageOrderedEmbeddedRungeKuttaDiscretization,
+    StageOrderedRungeKuttaDiscretization,
+)
 
 
 def generate_path(path: str):
@@ -40,7 +49,7 @@ class ProblemConfig:
     """A class to hold the integration configuration parameters."""
 
     integration_config: IntegrationConfig
-    error_controller: list[Callable[[], None]]
+    error_controller: Callable[[float], ErrorController]
     error_measurer: ErrorMeasurer
     write_file: pathlib.Path = field(
         default_factory=lambda: pathlib.Path.cwd() / "output.h5"
@@ -116,27 +125,29 @@ class Problem:
                 **self.stiffness_coef,
             ),
         )
-        # initialize the OpenMDAO problem for the RK integration
+        time_integration_prob.setup()
+        time_integration_prob.final_setup()
+        time_discretization = self.get_time_discretization(butcher_tableau)
+        # build the time integration and wrap the time integration model
+        time_integration = NoCheckpointTimeIntegration(
+            ode=OpenMDAOODE(time_integration_prob, self.quantities),
+            time_discretization_scheme=time_discretization,
+            time_integration_config=problem_config.integration_config,
+            error_controller=problem_config.error_controller(
+                butcher_tableau.min_p_order(), **problem_config.options
+            ),
+            error_measurer=problem_config.error_measurer,
+            integrate_callbacks=[
+                IterationLogging("compute"),
+                OpenMDAOHDF5Callback(generate_path(str(problem_config.write_file)), 1),
+            ],
+        )
+        # initialize the OpenMDAO problem for the RK integration and add the
+        # `OpenMDAOTimeStepping` subsystem running the time integration
         runge_kutta_prob = om.Problem()
-        # add the `RungeKuttaIntegrator` subsystem for the RK integration
-        # and connect the time integration model
         runge_kutta_prob.model.add_subsystem(
             "rk_integration",
-            RungeKuttaIntegrator(
-                time_stage_problem=time_integration_prob,
-                butcher_tableau=butcher_tableau,
-                integration_config=problem_config.integration_config,
-                time_integration_quantities=self.quantities,
-                error_controller=problem_config.error_controller,
-                error_controller_options=problem_config.options,
-                error_measurer=problem_config.error_measurer,
-                compute_callbacks=[
-                    IterationLogging("compute"),
-                    OpenMDAOHDF5Callback(
-                        generate_path(str(problem_config.write_file)), 1
-                    ),
-                ],
-            ),
+            OpenMDAOTimeStepping(time_integrator=time_integration),
             promotes=["*"],
         )
         # set up the OpenMDAO problem, fill the initial values for each quantity
@@ -147,6 +158,16 @@ class Problem:
                 self.problem.get_initial_values()[index]
             )
         runge_kutta_prob.run_model()
+
+    @staticmethod
+    def get_time_discretization(butcher_tableau: ButcherTableau):
+        """
+        Get the time discretization matching the kind of the given
+        Butcher tableau.
+        """
+        if butcher_tableau.is_embedded:
+            return StageOrderedEmbeddedRungeKuttaDiscretization(butcher_tableau)
+        return StageOrderedRungeKuttaDiscretization(butcher_tableau)
 
 
 def parse_problem():
