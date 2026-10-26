@@ -160,7 +160,10 @@ def _search_for_time_variable(stage_problem: om.Problem) -> str | None:
     )
     if len(local_quantities) == 1 and len(global_quantities) == 1:
         time_variable = next(iter(global_quantities.keys()))
-        if np.prod(global_quantities[time_variable]["shape"]) != 1 or (global_quantities[time_variable]["global_shape"] != "n/a" and np.prod(global_quantities[time_variable]["global_shape"]) != 1):
+        if np.prod(global_quantities[time_variable]["shape"]) != 1 or (
+            global_quantities[time_variable]["global_shape"] != "n/a"
+            and np.prod(global_quantities[time_variable]["global_shape"]) != 1
+        ):
             raise SetupError("Variable with tag 'time_variable' is not a scalar.")
 
     elif len(local_quantities) == 0 and len(global_quantities) == 0:
@@ -178,7 +181,9 @@ def _create_local_array_metadata(
     detailed_var: str,
     detailed_data: dict,
 ) -> ArrayMetadata:
-    if (detailed_data["shape"] != detailed_data["global_shape"]) and (detailed_data["global_shape"] != "n/a"):
+    if (detailed_data["shape"] != detailed_data["global_shape"]) and (
+        detailed_data["global_shape"] != "n/a"
+    ):
         try:
             sizes = stage_problem.model._var_sizes["output"][
                 :,
