@@ -246,6 +246,6 @@ class TimeIntegrationState:
                 "implemented."
             )
         return all(
-            np.all(getattr(self, f.name)) == getattr(other, f.name)
+            np.all(getattr(self, f.name) == getattr(other, f.name))
             for f in fields(self)
         )
