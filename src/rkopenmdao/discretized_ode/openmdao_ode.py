@@ -153,9 +153,9 @@ class OpenMDAOODE(DiscretizedODE):
         ode_input: DiscretizedODEInputState
             Input for the calculation of the time stage.
         step_size: float
-            Step size of the current time step
+            Step size of the current time step.
         stage_factor: float
-            A stage specific factor on the step size
+            A stage specific factor on the step size.
 
         Returns
         -------
@@ -209,9 +209,9 @@ class OpenMDAOODE(DiscretizedODE):
             Input perturbation for the calculation of the derivative of the time
             stage.
         step_size: float
-            Step size of the current time step
+            Step size of the current time step.
         stage_factor: float
-            Stage specific factor on the step size
+            Stage specific factor on the step size.
 
         Returns
         -------
@@ -269,9 +269,9 @@ class OpenMDAOODE(DiscretizedODE):
             Result perturbation for the calculation of the adjoint derivative of the
             time stage.
         step_size: float
-            Step size of the current time step
+            Step size of the current time step.
         stage_factor: float
-            Stage specific factor on the step size
+            Stage specific factor on the step size.
 
         Returns
         -------
@@ -568,12 +568,12 @@ class OpenMDAOODE(DiscretizedODE):
         Parameters
         ----------
         state: DiscretizedODEResultState
-            State of which the norm is to be calculated
+            State of which the norm is to be calculated.
 
         Returns
         -------
         norm: float
-            Norm of provided state
+            Norm of provided state.
         """
         stage_state = state.stage_state
         non_distributed_intermediate = 0.0

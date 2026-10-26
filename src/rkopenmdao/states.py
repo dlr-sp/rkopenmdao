@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import numpy as np
 
@@ -90,7 +90,7 @@ class FinalizationValues:
 
     final_time: float
     final_values: np.ndarray
-    final_independent_outputs: np.ndarray
+    final_independent_outputs: np.ndarray # Not implemented yet.
 
 
 @dataclass
@@ -240,9 +240,11 @@ class TimeIntegrationState:
 
     def __eq__(self, other: TimeIntegrationState):
         """Returns True if the other state holds the same content."""
-        return (
-            self.discretization_state == other.discretization_state
-            and np.all(self.step_size_suggestion == other.step_size_suggestion)
-            and np.all(self.step_size_history == other.step_size_history)
-            and np.all(self.error_history == other.error_history)
+        if type(self) is not type(other):
+            raise NotImplementedError(
+                f"Comparison of object of types {type(self)} and {type(other)} is not implemented."
+            )
+        return all(
+            np.all(getattr(self, f.name)) == getattr(other, f.name)
+            for f in fields(self)
         )

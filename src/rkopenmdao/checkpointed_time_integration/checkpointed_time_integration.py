@@ -119,10 +119,10 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - step_size_suggestion array of size 1
         """
         return TimeIntegrationState(
-            self.time_discretization_scheme.create_empty_discretization_state(self.ode),
-            np.zeros(1),
-            np.zeros(2),
-            np.zeros(2),
+            discretization_state=self.time_discretization_scheme.create_empty_discretization_state(self.ode),
+            step_size_suggestion=np.zeros(1),
+            step_size_history=np.zeros(2),
+            error_history=np.zeros(2),
         )
 
     def create_empty_derivative_integration_state(self) -> TimeIntegrationState:
@@ -141,10 +141,10 @@ class CheckpointedTimeIntegration(TimeIntegrationInterface):
             - Empty (size 0) step_size_suggestion, step_size_history, error_history
         """
         return TimeIntegrationState(
-            self.time_discretization_scheme.create_empty_discretization_state(self.ode),
-            np.zeros(0),
-            np.zeros(0),
-            np.zeros(0),
+            discretization_state=self.time_discretization_scheme.create_empty_discretization_state(self.ode),
+            step_size_suggestion=np.zeros(0),
+            step_size_history=np.zeros(0),
+            error_history=np.zeros(0),
         )
 
     def integrate_derivative(

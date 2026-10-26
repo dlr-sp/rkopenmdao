@@ -1,7 +1,7 @@
 """Discretization state implementation for Runge-Kutta methods."""
 
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import numpy as np
 
@@ -196,23 +196,13 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
 
     def __eq__(self, other: RungeKuttaDiscretizationState):
         """Returns True if the other state holds the same content."""
-        return (
-            np.all(self.start_state == other.start_state)
-            and np.all(self.start_state == other.start_state)
-            and np.all(self.stage_states == other.stage_states)
-            and np.all(self.stage_updates == other.stage_updates)
-            and np.all(self.independent_inputs == other.independent_inputs)
-            and np.all(
-                self.stage_independent_outputs == other.stage_independent_outputs
+        if type(self) is not type(other):
+            raise NotImplementedError(
+                f"Comparison of object of types {type(self)} and {type(other)} is not implemented."
             )
-            and np.all(
-                self.final_independent_outputs == other.final_independent_outputs
-            )
-            and np.all(self.start_time == other.start_time)
-            and np.all(self.stage_times == other.stage_times)
-            and np.all(self.final_time == other.final_time)
-            and np.all(self.step_size == other.step_size)
-            and np.all(self.linearization_points == other.linearization_points)
+        return all(
+            np.all(getattr(self, f.name) == getattr(other, f.name))
+            for f in fields(self)
         )
 
 
@@ -325,8 +315,12 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
         state.embedded_state = state_dict["embedded_dict"]
         state.error_estimate = state_dict["error_estimate"]
 
-    def __eq__(self, other: EmbeddedRungeKuttaDiscretizationState):
+    def __eq__(self, other: RungeKuttaDiscretizationState):
         """Returns True if the other state holds the same content."""
+        if type(self) is not type(other):
+            raise NotImplementedError(
+                f"Comparison of object of types {type(self)} and {type(other)} is not implemented."
+            )
         return (
             super().__eq__(other)
             and np.all(self.embedded_state == other.embedded_state)

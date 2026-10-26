@@ -210,7 +210,11 @@ class ErrorController:
             Suggested step size and acceptance of current time step.
         """
         success = False
-        if np.abs(delta_t - remaining_time) < 1e-10 or error_measure <= self.config.tol:
+        if (
+            np.abs(delta_t - self.config.lower_bound) < 1e-10
+            or np.abs(delta_t - remaining_time) < 1e-10
+            or error_measure <= self.config.tol
+        ):
             success = True
 
         if error_measure != 0:
@@ -230,10 +234,10 @@ class ErrorController:
         if not success:
             remaining_time += delta_t
         new_delta_t = min(remaining_time, new_delta_t)
-        # The error controller won't generate anything lower than that by itself
-        # so we might as well accept it at that point.
-        if new_delta_t < self.config.lower_bound:
-            success = True
+        # # The error controller won't generate anything lower than that by itself
+        # # so we might as well accept it at that point.
+        # if new_delta_t < self.config.lower_bound:
+        #     success = True
 
         return ErrorControllerStatus(new_delta_t, success)
 

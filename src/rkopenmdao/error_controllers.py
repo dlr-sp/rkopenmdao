@@ -482,7 +482,7 @@ error_controller_collection = [
     # h0_211, step size loop
     # pc, inaccurate
     # h0_220, inaccurate
-    # pid, step size loop
+    pid,
     # h_312, step size loop
     # h0_312, step size loop
     # ppid, step size loop
