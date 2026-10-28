@@ -184,16 +184,10 @@ def _create_local_array_metadata(
     if (detailed_data["shape"] != detailed_data["global_shape"]) and (
         detailed_data["global_shape"] != "n/a"
     ):
-        try:
-            sizes = stage_problem.model._var_sizes["output"][
-                :,
-                stage_problem.model._var_allprocs_abs2idx[detailed_var],
-            ]
-        except KeyError:  # Have to deal with an older openMDAO version
-            sizes = stage_problem.model._var_sizes["nonlinear"]["output"][
-                :,
-                stage_problem.model._var_allprocs_abs2idx["nonlinear"][detailed_var],
-            ]
+        sizes = stage_problem.model._var_sizes["output"][
+            :,
+            stage_problem.model._var_allprocs_abs2idx[detailed_var],
+        ]
         global_start_index = start = np.sum(sizes[: stage_problem.comm.rank])
         global_end_index = start + sizes[stage_problem.comm.rank]
     else:
