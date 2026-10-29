@@ -99,7 +99,7 @@ def test_metadata_non_parallel_correct():
             "time_integration",
             ArrayMetadata(
                 shape=(5, 2),
-                global_shape=(5, 2),
+                global_shape="n/a",
                 local=True,
                 start_index=0,
                 end_index=10,
@@ -396,7 +396,7 @@ def test_metadata_time_independent_inputs_correct():
             "independent_input",
             ArrayMetadata(
                 shape=(2, 2),
-                global_shape=(2, 2),
+                global_shape="n/a",
                 local=True,
                 start_index=0,
                 end_index=4,
@@ -527,6 +527,7 @@ def test_metadata_distributed_var_correct(shape_rank_0, shape_rank_1):
     prob.model.add_subsystem("indep", indep, promotes=["*"])
     prob.model.add_subsystem("test_comp", test_comp, promotes=["*"])
     prob.setup()
+    prob.final_setup()
 
     time_integration_metadata = extract_time_integration_metadata(prob, ["x"])
     add_distributivity_information(prob, time_integration_metadata)
@@ -623,7 +624,7 @@ def test_metadata_parallel_group_correct():
                 "time_integration",
                 ArrayMetadata(
                     shape=(2, 3),
-                    global_shape=(2, 3),
+                    global_shape="n/a",
                     local=True,
                     distributed=True,
                     start_index=0,
@@ -640,7 +641,7 @@ def test_metadata_parallel_group_correct():
             TimeIntegrationQuantity(
                 "y",
                 "time_integration",
-                ArrayMetadata(global_shape=(3, 2), distributed=True),
+                ArrayMetadata(global_shape="n/a", distributed=True),
                 TimeIntegrationTranslationMetadata(),
             ),
         ]
@@ -649,7 +650,7 @@ def test_metadata_parallel_group_correct():
             TimeIntegrationQuantity(
                 "x",
                 "time_integration",
-                ArrayMetadata(global_shape=(2, 3), distributed=True),
+                ArrayMetadata(global_shape="n/a", distributed=True),
                 TimeIntegrationTranslationMetadata(),
             ),
             TimeIntegrationQuantity(
@@ -657,7 +658,7 @@ def test_metadata_parallel_group_correct():
                 "time_integration",
                 ArrayMetadata(
                     shape=(3, 2),
-                    global_shape=(3, 2),
+                    global_shape="n/a",
                     local=True,
                     distributed=True,
                     start_index=0,
