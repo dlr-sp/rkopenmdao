@@ -197,10 +197,7 @@ class RungeKuttaDiscretizationState(TimeDiscretizationStateInterface):
     def __eq__(self, other: RungeKuttaDiscretizationState):
         """Returns True if the other state holds the same content."""
         if type(self) is not type(other):
-            raise NotImplementedError(
-                f"Comparison of object of types {type(self)} and {type(other)} is not "
-                "implemented."
-            )
+            return False
         return all(
             np.all(getattr(self, f.name) == getattr(other, f.name))
             for f in fields(self)
@@ -319,10 +316,7 @@ class EmbeddedRungeKuttaDiscretizationState(RungeKuttaDiscretizationState):
     def __eq__(self, other: RungeKuttaDiscretizationState):
         """Returns True if the other state holds the same content."""
         if type(self) is not type(other):
-            raise NotImplementedError(
-                f"Comparison of object of types {type(self)} and {type(other)} is not "
-                "implemented."
-            )
+            return False
         return (
             super().__eq__(other)
             and np.all(self.embedded_state == other.embedded_state)

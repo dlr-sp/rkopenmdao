@@ -95,6 +95,9 @@ class OpenMDAOODE(DiscretizedODE):
             Order used for the norm.
         """
         self._time_stage_problem = time_stage_problem
+        # We need setup to be finished
+        self._time_stage_problem.setup()
+        self._time_stage_problem.final_setup()
         # Create data exchange object to OpenMDAO and overwrite all instances in
         # unsteady components in the model of time_stage_problem with it.
         self._om_data_exchange = OMDataExchange()
